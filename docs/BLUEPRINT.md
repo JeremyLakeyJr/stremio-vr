@@ -1,6 +1,6 @@
 # stremio-vr design blueprint
 
-Multiplayer VR cinema framework for Meta Quest.
+Multiplayer VR cinema framework for Meta Quest. Built on Stremio core for media stream routing and add-on support.
 
 Layers:
 - Presentation (VR UI / avatar presence)
