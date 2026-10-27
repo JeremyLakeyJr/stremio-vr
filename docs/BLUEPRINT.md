@@ -7,3 +7,9 @@ Layers:
 - Network (WebSocket signaling, room sync)
 - Sync (stream state, co-watch timing)
 - Render (OpenXR / Quest SDK output)
+
+Character Customization:
+- Avatar builder: head/body/skin tone, hair, outfit presets
+- Accessories: glasses, hats, VR headset overlay
+- Room-based visibility: only users in same session see customized avatars
+- Data: local profile JSON saved per user, synced via room state on join
