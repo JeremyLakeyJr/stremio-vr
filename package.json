@@ -1,0 +1,8 @@
+{
+  "name": "stremio-vr",
+  "version": "0.1.0",
+  "description": "Multiplayer VR Stremio for Meta Quest — open source",
+  "author": "Jeremy Lakey",
+  "license": "MIT",
+  "repository": "https://github.com/jeremylakey/stremio-vr"
+}
