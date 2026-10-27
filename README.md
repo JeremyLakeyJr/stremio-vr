@@ -3,7 +3,7 @@
 Open-source multiplayer VR extension of Stremio for Meta Quest headsets.
 
 ## Authors / Credits
-- Creator: Jeremy Lakey (Owasso HS, class of '27)
+- Creator: Jeremy Lakey
 - Based on Stremio (Stremio LLC) — media streaming framework
 - Meta Quest / OpenXR SDK — VR multiplayer backbone
 - Community contributors welcome
