@@ -4,7 +4,107 @@ Unity/OpenXR client and Node/WebSocket room server for shared video, avatars, an
 
 **Status:** native APK built and tested on Quest 3. Stereo display, controller input, video/audio, and microphone delivery have been confirmed. The backend integrates the actual Stremio Rust core. The user confirmed R6 appearance customization and the preview in both eyes; saved profiles were verified after restart. Two-headset acceptance and performance profiling remain open. See [acceptance checklist](docs/ACCEPTANCE.md).
 
-## Run the room server
+## Quick start: Docker + Quest
+
+You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server and Rust core; it does **not** build/install the Quest app or provide a Stremio torrent streaming service. Node.js and Rust do not need to be installed on the computer when using Docker.
+
+### 1. Get the project and start the server
+
+```sh
+git clone https://github.com/JeremyLakeyJr/stremio-vr.git
+cd stremio-vr
+docker compose version
+docker compose up -d --build cinema
+docker compose ps
+```
+
+The first build downloads dependencies and compiles the Rust core, so allow several minutes. Wait for `cinema` to become **healthy**, then check it from this computer:
+
+```sh
+curl http://127.0.0.1:3000/health
+```
+
+Expected response: `{"ok":true,"rooms":0}` before anyone creates a room. If startup fails, inspect `docker compose logs --tail=100 cinema`.
+
+### 2. Choose how the Quest connects
+
+**Internet / friends on other networks:** start the included temporary tunnel. No hosting account or router port forwarding is needed.
+
+```sh
+docker compose --profile internet up -d internet
+docker compose logs -f internet
+```
+
+Find the `https://...trycloudflare.com` address in the logs. Enter that exact address in the app's **My room → Server WebSocket URL** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
+
+This address is temporary and can change when the tunnel restarts. Keep both containers and the computer running. The tunnel exposes the room server, not your project files. For permanent hosting, see [internet multiplayer](docs/INTERNET-MULTIPLAYER.md).
+
+**USB / one connected Quest:** keep the default local Docker setup and forward its port with Android platform tools:
+
+```sh
+adb devices
+adb reverse tcp:3000 tcp:3000
+```
+
+Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room**. Repeat `adb reverse` after an ADB/device restart. This forwards the room server only; locally hosted videos need their own port forwarding.
+
+**Same Wi-Fi / LAN without a tunnel:** the supplied Compose file binds port 3000 to the computer's loopback address, so other devices cannot reach it directly. Change its `ports` entry in `compose.yaml` from `"127.0.0.1:3000:3000"` to `"3000:3000"`, then run:
+
+```sh
+docker compose up -d cinema
+```
+
+Allow incoming TCP port 3000 through your computer's firewall on the private network. Enter `ws://YOUR_COMPUTER_LAN_IP:3000/ws` on each headset. Use the computer's actual LAN address, such as `192.168.1.50`, and ensure the network does not isolate devices. Restore the loopback binding when you no longer need LAN access. For friends outside your network, use the HTTPS tunnel above.
+
+### 3. Install and open Movie Night
+
+An APK is not included in the Git repository. Use an APK you already built, or follow [Build the Quest APK](#build-the-quest-apk) below. The build output is `unity/Builds/movie-night.apk`.
+
+With Android platform tools installed and USB debugging accepted:
+
+```sh
+adb devices
+adb install -r unity/Builds/movie-night.apk
+```
+
+Open **Movie Night** from the Quest's **Unknown Sources** app list. `-r` updates an existing installation while retaining app data. If `adb devices` shows `offline` or `unauthorized`, wake the headset, reconnect USB, and accept the debugging prompt before installing.
+
+### 4. Create a room and invite friends
+
+1. Open **My room**, enter the server address chosen above, and leave **Room code** empty.
+2. Select **Connect / create room**. The room code appears at the top of the menu; you are its host.
+3. Friends enter the same server address and your room code, then select **Connect / create room**.
+4. The host chooses media and controls playback/world changes. A one-person room works for solo viewing.
+
+Rooms support up to eight participants. Restarting the server removes existing rooms; create a new one afterward.
+
+### Manage Docker
+
+Run these commands from the repository directory:
+
+| Task | Command |
+| --- | --- |
+| Check service health | `docker compose --profile internet ps` |
+| Read server logs | `docker compose logs -f cinema` |
+| Find the current public address | `docker compose logs --tail=100 internet` |
+| Stop and remove the services | `docker compose --profile internet down` |
+| Update the source | `git pull --ff-only` |
+| Rebuild/restart after updating | `docker compose --profile internet up -d --build` |
+
+For USB/LAN-only use, rebuild with `docker compose up -d --build cinema` instead. Rebuilding the server does not update the headset APK. If you edited `compose.yaml` for LAN access, preserve that local change when pulling updates.
+
+### Common connection/playback problems
+
+| Symptom | What to check |
+| --- | --- |
+| Computer health check fails | Docker is running, `cinema` is healthy, and port 3000 is not already occupied. Read the server logs. |
+| Health works on the computer, Quest cannot connect | The default binding is computer-only. Use the tunnel, USB forwarding, or the LAN binding instructions above. |
+| Public address stopped working | Check the latest tunnel logs; share its new address with everyone. |
+| Room not found | Check the server address and code. A server restart discards rooms. |
+| Catalogs load but video does not | Cinemeta supplies metadata, not video sources. Choose a playable source and check codec/streaming-service compatibility. |
+| Host can play but friends cannot | Every headset must reach the selected video URL. The tunnel forwards the room server, not local media or a separate streaming service. |
+
+## Run the room server without Docker
 
 Requires Node.js 22 or later and Rust/Cargo. The first core build fetches the pinned Stremio dependency.
 
@@ -53,18 +153,50 @@ After initial configuration/import, the command-line build is:
 
 The build targets ARM64/IL2CPP and OpenGLES3. Cleartext networking is enabled for LAN development; use HTTPS media and WSS for internet sessions. Store signing and store submission are not configured.
 
-## Use the cinema
+## Use the app
 
-- **World & comfort** controls walking/turn speeds, pointer pitch (45° down by default), reclined calibration, and chair selection. Hide the menu to walk with the left stick and turn smoothly with the right stick. Point at a chair and pull the trigger to sit, or choose a chair in the menu. B stands up and returns to the aisle. Chair reservations are exclusive in a room.
-- To watch lying down, get comfortable, open World & comfort, look where you want the screen to appear, and select **Calibrate reclined view**. Adjust ±5° or Reset as needed. Calibration levels your current gaze and rotates tracked hands consistently; it does not change other players’ worlds.
-- **Stremio account** creates an official device-link code. Approve it on your phone/computer or in the Quest browser, then return to the app. Your configured account add-ons import automatically and refresh on launch; manual Sync and Sign out controls are available.
-- Point the right controller at a control and press the trigger. Right stick scrolls. The left menu button hides/shows and recenters the panel. Desktop mouse input is available for editor checks.
-- Set the server URL in **Room**. Leave the code empty to create a room or enter a friend's code to join. A one-person room supports solo playback.
-- The host loads a direct video URL or chooses a source in **Library**, then uses play/pause or ±10-second seek controls. Guests follow the authoritative room timeline. Late joins and reconnects resynchronize automatically.
-- In **Library**, install Stremio add-ons by manifest URL. Catalogs, series episodes, and stream lists are supported; you can also request streams by video ID. Cinemeta supplies metadata, not playable sources.
-- Direct HTTP(S) media uses Unity's native video decoder. Torrents require a separately running Stremio streaming service reachable by every participant. Set its URL in Library. The Stremio core routes streams with proxy headers through that service. External-player handoffs, DRM, and unsupported codecs are not supported by the native player.
-- **Avatar** opens an R6 character studio with a rotatable live preview. The supplied rig supplies the six body meshes and face texture; options change head/body proportions, skin, hair, outfit/color, and accessories. Configuration is stored as JSON at Unity's `Application.persistentDataPath/profile.json` in the Android app sandbox and sent only to the current room. Profiles are per app installation, not cloud accounts.
-- **Mic** explicitly enables capture after microphone permission. Press it again to mute. **Audio** mutes incoming room voice. Use headphones: the initial PCM voice transport has no echo cancellation.
+### Controls and comfort
+
+| Control | Action |
+| --- | --- |
+| Right-controller beam + trigger | Select menu controls or an empty chair |
+| Left-controller menu button | Hide/show and recenter the menu |
+| Left stick, menu hidden | Walk |
+| Right stick, menu hidden | Smooth turn |
+| Right stick over the menu/web screen | Scroll |
+| B while seated | Stand and return to the aisle |
+
+Open **Settings / worlds** to adjust walk speed, smooth-turn speed, and pointer angle. To watch lying down, get comfortable, look where you want the screen to appear, and select **Calibrate reclined view**. Use the ±5° controls or Reset to refine it. Your calibration does not change other players' worlds.
+
+The host can switch between Cinema and Home, when Home is included in the APK. Select a chair from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings also controls the mirror, bloom, and ambient video lighting/strength. **Avatar** customizes your R6 character; your tracked body/arms and the room mirror show that appearance. Appearance settings persist on this headset.
+
+### Sign in, browse, and watch together
+
+1. Open **Stremio account** and start sign-in. Approve the displayed device-link code on your phone/computer or in the Quest browser, then return to Movie Night.
+2. Your account add-ons import automatically. Use the account's sync control to refresh them or **Sign out** to remove the native session.
+3. Open **Discover**, select a catalog/poster, and choose a playable source. For a series, choose an episode first. The host selects what the room watches.
+4. Open **My room** for play/pause and ±10-second seek controls. You can also paste an HTTP(S) video URL into **Direct video URL** and select **Load video (host)**.
+5. Open **Watch history** for imported Stremio history or **This headset** recent selections. Use **Continue Watching** and select an entry to find a source and resume. Account history is read-only; local progress is not written back to Stremio.
+
+To install an add-on manually, use **Discover → Manage add-ons / Stremio account**, enter its manifest URL, and select **Install add-on**. Cinemeta provides metadata/catalogs, not playable sources.
+
+The native player supports compatible direct HTTP(S) video through Android's decoder. Torrents and sources requiring proxy headers need a **separate Stremio streaming service** reachable by every participant; configure its URL in the add-on management page. Docker here supplies the room relay and core bridge, not that streaming service. DRM, external-player handoffs, and unsupported codecs cannot play through the native player.
+
+**The room server shares a video URL and playback timing; it does not rebroadcast the movie.** A host's `localhost` or private LAN media URL will not work for friends on other networks. Use media/streaming-service URLs all participants can reach.
+
+### Use Stremio Web on the cinema screen
+
+1. Create a room so you are the host, then select **My room → Stremio Web screen / native player (host)**.
+2. Point the beam at the cinema screen and pull the trigger to interact. Use the right stick to scroll. Walking/turning is suspended while the web screen is active.
+3. To type, first select the input on the web page with the beam. Open the menu, go to **My room → Web screen controls**, and use **Type into the selected web input**.
+4. Use the same controls page for Back, Reload, or returning to native playback.
+5. To watch with everyone, select **Share playing HTTP video with room**. A compatible current video URL and position are handed to the native synchronized player.
+
+Web sign-in is separate from native device-link sign-in. Browser playback and account pages are local to the host until a compatible video is shared; guests do not see the host's browser session. Blob/DRM browser videos cannot be handed off this way. The initial web surface updates at 12 Hz; use native playback for smoother movie viewing.
+
+### Talk with friends
+
+Select **Toggle mic**, allow Android microphone permission, and speak. Select it again to mute. **Toggle audio** mutes incoming room voice. Use headphones: the current PCM voice relay has no echo cancellation. Microphone capture is opt-in.
 
 ## Architecture
 
@@ -106,7 +238,7 @@ adb shell am start -n com.jeremylakey.stremiovr/com.unity3d.player.UnityPlayerAc
   --es stremio.page avatar
 ```
 
-These launch extras are development-build only. The fixture accepts `play`, `pause`, `seek 10`, `avatar`, `tone`, `mute`, and `leave`. `leave` transfers hosting to the headset while keeping the media server available. In Library, the **Device test** catalog exercises add-on → stream → Rust core → native playback. USB forwarding must be recreated after a device/ADB restart. Stop both servers with Ctrl-C when finished.
+These launch extras are development-build only. The fixture accepts `play`, `pause`, `seek 10`, `avatar`, `tone`, `mute`, and `leave`. `leave` transfers hosting to the headset while keeping the media server available. In Discover, the **Device test** catalog exercises add-on → stream → Rust core → native playback. USB forwarding must be recreated after a device/ADB restart. Stop both servers with Ctrl-C when finished.
 
 ## Worldwide multiplayer
 
