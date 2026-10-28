@@ -1,0 +1,14 @@
+services:
+  cinema:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+  internet:
+    image: cloudflare/cloudflared:latest
+    profiles: [internet]
+    command: tunnel --no-autoupdate --url http://cinema:3000
+    depends_on:
+      cinema:
+        condition: service_healthy
+    restart: unless-stopped

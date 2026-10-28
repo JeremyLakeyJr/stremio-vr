@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: stremio-vr
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0

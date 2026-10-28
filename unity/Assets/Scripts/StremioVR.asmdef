@@ -1,0 +1,9 @@
+{
+  "name": "StremioVR",
+  "rootNamespace": "StremioVR",
+  "references": [
+    "Unity.ugui",
+    "Unity.Postprocessing.Runtime"
+  ],
+  "autoReferenced": true
+}

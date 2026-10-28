@@ -1,0 +1,13 @@
+*
+!Dockerfile
+!package.json
+!package-lock.json
+!server/
+!server/**
+!core/
+core/*
+!core/Cargo.toml
+!core/Cargo.lock
+!core/src/
+!core/src/**
+!LICENSE

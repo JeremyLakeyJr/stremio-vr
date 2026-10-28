@@ -1,0 +1,10 @@
+[package]
+name = "stremio-vr-core"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[dependencies]
+stremio-core = { git = "https://github.com/Stremio/stremio-core.git", rev = "029301839c863f2c7e5b7dcb5ca170d85280eda7" }
+serde_json = "1"
+url = "2"

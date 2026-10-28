@@ -1,0 +1,12 @@
+Cinema Multiplex and Foyer — 3DAssets.dev
+Source: https://3dassets.dev/packs/cinema-multiplex-and-foyer
+Download: https://cdn.3dassets.dev/assets/34689/v1/model.glb
+Retrieved: 2026-10-27
+License: CC0 1.0 Universal (as stated on the source pack page)
+License text: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+Modifications: converted GLB to FBX with Blender; combined static geometry by
+material in Unity; aligned the screen to +Z; replaced the screen surface with
+native video; added colliders, 32 interactable seat anchors and spawn metadata.
+Rebuild: blender -b --python scripts/convert-cinema.py
+Then Unity menu: Stremio VR > Prepare cinema world (also part of APK build).

@@ -1,0 +1,16 @@
+<linker>
+  <assembly fullname="Newtonsoft.Json" preserve="all" />
+  <assembly fullname="System.Net.WebSockets" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="System.Net.WebSockets.Client" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="UnityEngine.CoreModule">
+    <type fullname="UnityEngine.MeshFilter" preserve="all" />
+    <type fullname="UnityEngine.MeshRenderer" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.CharacterController" preserve="all" />
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all" />
+    <type fullname="UnityEngine.MeshCollider" preserve="all" />
+  </assembly>
+</linker>

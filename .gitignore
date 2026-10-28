@@ -1,0 +1,27 @@
+node_modules/
+*.log
+.env
+unity/Library/
+unity/Temp/
+unity/Obj/
+unity/Logs/
+unity/UserSettings/
+unity/Builds/
+unity/.vs/
+*.csproj
+*.sln
+*.apk
+*.aab
+*.keystore
+core/target/
+unity/.utmp/
+# Large source archive / imported originals: reproducibly imported from the author download.
+/Open Concept Home*.zip
+/assets/worlds/home/
+/unity/Assets/PrivateHome/
+/unity/Assets/PrivateHome.meta
+/unity/Assets/Resources/Worlds/Home*
+
+# Original import/reference archives; converted runtime assets are tracked.
+/roblox-r6-rigged.zip
+/ingame menu example.webp
