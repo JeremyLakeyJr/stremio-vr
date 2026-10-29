@@ -70,13 +70,16 @@ public sealed class TabletopGames : MonoBehaviour {
  }
  void ChessPiece(Board board,int index,char piece) {
   Color color=char.IsUpper(piece)?new Color(0.95f,0.86f,0.62f):new Color(0.22f,0.31f,0.45f);Vector3 p=Cell(index,8,0.84f);char type=char.ToLowerInvariant(piece);
-  Shape(board.Pieces,PrimitiveType.Cylinder,p,new Vector3(0.095f,0.018f,0.095f),color);
+  var pieceRoot=new GameObject("Chess piece "+piece+" "+Square(index));pieceRoot.transform.SetParent(board.Pieces,false);
+  var target=pieceRoot.AddComponent<TabletopTarget>();target.Owner=this;target.Game="chess";target.Cell=index;
+  Shape(pieceRoot.transform,PrimitiveType.Cylinder,p,new Vector3(0.095f,0.018f,0.095f),color);
   float height=type=='p'?0.07f:type=='k'||type=='q'?0.15f:0.11f;
-  Shape(board.Pieces,PrimitiveType.Cylinder,p+Vector3.up*height*0.5f,new Vector3(0.043f,height*0.5f,0.043f),color);
-  var top=Shape(board.Pieces,type=='n'||type=='r'?PrimitiveType.Cube:PrimitiveType.Sphere,p+Vector3.up*height,new Vector3(0.065f,0.055f,0.065f),color);
+  var collider=pieceRoot.AddComponent<BoxCollider>();collider.center=p+Vector3.up*(height*0.5f+0.025f);collider.size=new Vector3(0.1f,height+0.1f,0.1f);
+  Shape(pieceRoot.transform,PrimitiveType.Cylinder,p+Vector3.up*height*0.5f,new Vector3(0.043f,height*0.5f,0.043f),color);
+  var top=Shape(pieceRoot.transform,type=='n'||type=='r'?PrimitiveType.Cube:PrimitiveType.Sphere,p+Vector3.up*height,new Vector3(0.065f,0.055f,0.065f),color);
   if(type=='n')top.transform.localRotation=Quaternion.Euler(25,0,0);
-  if(type=='k') {Shape(board.Pieces,PrimitiveType.Cube,p+Vector3.up*(height+0.045f),new Vector3(0.018f,0.07f,0.018f),color);Shape(board.Pieces,PrimitiveType.Cube,p+Vector3.up*(height+0.055f),new Vector3(0.055f,0.018f,0.018f),color);}
-  Text(board.Pieces,char.ToUpperInvariant(piece).ToString(),p+new Vector3(0,0.006f,-0.045f),0.018f,Color.white);
+  if(type=='k') {Shape(pieceRoot.transform,PrimitiveType.Cube,p+Vector3.up*(height+0.045f),new Vector3(0.018f,0.07f,0.018f),color);Shape(pieceRoot.transform,PrimitiveType.Cube,p+Vector3.up*(height+0.055f),new Vector3(0.055f,0.018f,0.018f),color);}
+  Text(pieceRoot.transform,char.ToUpperInvariant(piece).ToString(),p+new Vector3(0,0.006f,-0.045f),0.018f,Color.white);
  }
  public void Select(string game,int index) {
   var board=boards.Find(b=>b.Game==game);var state=Room.State?["games"]?[game] as JObject;if(board==null||state==null){Status?.Invoke("Join a room with the updated game server");return;}
