@@ -9,12 +9,11 @@ public sealed class WorldManager : MonoBehaviour {
  public readonly List<Renderer> Screens=new List<Renderer>(); readonly Dictionary<Renderer,Vector2> screenSizes=new Dictionary<Renderer,Vector2>();
  public string CurrentWorld { get; private set; }
  public event Action Changed;
- public bool MirrorVisible=true; RoomMirror mirror; Material glowMaterial; GameObject container; RoomClient room;
- void Update() { if(mirror) mirror.Visible=MirrorVisible; }
- public void Initialize(RoomClient client) { room=client; Load("cinema"); room.Message+=Message; }
- void Message(JObject message) { if((string)message["type"]=="state") { string id=(string)message["world"]??"cinema"; if(id!=CurrentWorld) Load(id); } }
+ Material glowMaterial; GameObject container; RoomClient room;
+ public void Initialize(RoomClient client) { room=client; Load("home"); room.Message+=Message; }
+ void Message(JObject message) { if((string)message["type"]=="state") { string id=(string)message["world"]??"home"; if(id!=CurrentWorld) Load(id); } }
  public void Load(string id) {
-  var prefab=Resources.Load<GameObject>(id=="home"?"Worlds/Home":"Worlds/Cinema");
+  id="home"; var prefab=Resources.Load<GameObject>("Worlds/Home");
   if(!prefab) { Debug.LogWarning("World is not included in this build: "+id); return; }
   if(glowMaterial) Destroy(glowMaterial);
   if(container) { if(Screen) Destroy(Screen.sharedMaterial); container.SetActive(false); Destroy(container); }
@@ -36,9 +35,6 @@ public sealed class WorldManager : MonoBehaviour {
   }
   var glow=GameObject.CreatePrimitive(PrimitiveType.Quad); glow.name="Video edge glow"; glow.transform.SetParent(container.transform,false); glow.transform.position=Data.ScreenPosition-Vector3.forward*0.04f; glow.transform.localScale=new Vector3(Data.ScreenSize.x+2,Data.ScreenSize.y+2,1); Destroy(glow.GetComponent<Collider>());
   glowMaterial=new Material(Shader.Find("StremioVR/ScreenGlow")); glowMaterial.SetVector("_ScreenFraction",new Vector4(Data.ScreenSize.x/(Data.ScreenSize.x+2),Data.ScreenSize.y/(Data.ScreenSize.y+2),0,0)); glow.GetComponent<Renderer>().sharedMaterial=glowMaterial;
-  var mirrorObject=GameObject.CreatePrimitive(PrimitiveType.Quad); mirrorObject.name="Room mirror"; mirrorObject.transform.SetParent(container.transform,false); mirrorObject.transform.position=Data.Spawn+new Vector3(-1.4f,1.5f,-1.5f); mirrorObject.transform.rotation=Quaternion.Euler(0,180,0); mirrorObject.transform.localScale=new Vector3(1.5f,2.2f,1); mirror=mirrorObject.AddComponent<RoomMirror>();
-  var probeObject=new GameObject("Room reflections",typeof(ReflectionProbe)); probeObject.transform.SetParent(container.transform,false); probeObject.transform.position=Data.Spawn+Vector3.up*1.6f;
-  var probe=probeObject.GetComponent<ReflectionProbe>(); probe.mode=UnityEngine.Rendering.ReflectionProbeMode.Realtime; probe.refreshMode=UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting; probe.timeSlicingMode=UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.IndividualFaces; probe.resolution=128; probe.size=Vector3.one*100; probe.boxProjection=true; probe.cullingMask=~((1<<26)|(1<<28)|(1<<29)|(1<<30)); probe.RenderProbe();
   Changed?.Invoke();
  }
  void LateUpdate() {

@@ -53,7 +53,7 @@ input.on('line', line => {
   if (command === 'world') send({ type: 'world', world: argument });
   else if (command === 'play') send({ type: 'playback', paused: false });
   else if (command === 'pause') send({ type: 'playback', paused: true });
-  else if (command === 'seek' && Number.isFinite(Number(argument))) send({ type: 'playback', position: Number(argument) });
+  else if (command === 'seek' && Number.isFinite(Number(argument))) send({ type: 'playback', seek: true, position: Number(argument) });
   else if (command === 'avatar') send({ type: 'profile', profile: { name: 'Changed test avatar', head: 'square', hair: 'tall', outfit: 'formal', accessory: 'glasses', color: '#ce5353' } });
   else if (command === 'tone') {
     clearInterval(voiceTimer); send({ type: 'voice', enabled: true });

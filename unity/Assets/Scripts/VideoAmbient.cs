@@ -11,7 +11,13 @@ public sealed class VideoAmbient : MonoBehaviour {
  void Awake() {
   filter=new Material(Shader.Find("MovieNight/EdgeSmooth"));
   current=new RenderTexture(8,1,0,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear); next=new RenderTexture(8,1,0,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear);
-  current.Create();next.Create(); Graphics.Blit(Texture2D.blackTexture,current); Graphics.Blit(Texture2D.blackTexture,next); Shader.SetGlobalTexture("_CinemaEdgeColors",current);
+  current.Create();next.Create(); BlitPreservingTarget(Texture2D.blackTexture,current); BlitPreservingTarget(Texture2D.blackTexture,next); Shader.SetGlobalTexture("_CinemaEdgeColors",current);
+ }
+ // Blit changes the active framebuffer. Never leave our 8x1 target bound for XR rendering.
+ public static void BlitPreservingTarget(Texture source,RenderTexture target,Material material=null) {
+  var previous=RenderTexture.active; bool srgb=GL.sRGBWrite;
+  try { GL.sRGBWrite=false; if(material) Graphics.Blit(source,target,material); else Graphics.Blit(source,target); }
+  finally { RenderTexture.active=previous; GL.sRGBWrite=srgb; }
  }
  public static Color[] SampleEdges(Color32[] pixels,int width,int height) {
   var result=new Color[8]; var counts=new int[8];
@@ -27,7 +33,7 @@ public sealed class VideoAmbient : MonoBehaviour {
   Texture source=Source?Source:(Video && Video.isPrepared?Video.texture:null); bool available=Enabled && source && Screen;
   float blend=1-Mathf.Exp(-8*Mathf.Min(Time.unscaledDeltaTime,0.1f));
   filter.SetTexture("_History",current); filter.SetFloat("_Blend",blend); filter.SetFloat("_Available",available?1:0);
-  Graphics.Blit(source?source:Texture2D.blackTexture,next,filter); var old=current;current=next;next=old;
+  BlitPreservingTarget(source?source:Texture2D.blackTexture,next,filter); var old=current;current=next;next=old;
   Shader.SetGlobalTexture("_CinemaEdgeColors",current);
   dim=Mathf.Lerp(dim,available?1:0,blend); Shader.SetGlobalFloat("_CinemaAmbientDim",dim);
   if(Screen) for(int i=0;i<8;i++) positions[i]=Screen.TransformPoint(new Vector3(Points[i].x,Points[i].y,-0.15f));

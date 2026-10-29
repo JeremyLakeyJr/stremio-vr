@@ -110,17 +110,16 @@ test('late joiners receive movement pose and only hosts can select supported wor
   const { rooms, host, id } = setup(t); const pose={head:{position:[4,1.65,-2],rotation:[0,90,0]}};
   rooms.handle(host,{type:'pose',pose}); const guest=join(rooms,id);
   assert.deepEqual(last(guest,'state').players.find(p=>p.id===host.playerId).pose,pose);
-  assert.equal(last(guest,'state').world,'cinema');
+  assert.equal(last(guest,'state').world,'home');
   assert.throws(()=>rooms.handle(guest,{type:'world',world:'cinema'}),/Only the host/);
   assert.throws(()=>rooms.handle(host,{type:'world',world:'unknown'}),/Unknown world/);
-  rooms.handle(host,{type:'world',world:'cinema'});
+  rooms.handle(host,{type:'world',world:'home'});
 });
 
-test('changing worlds clears seating and poses and applies destination capacity', t => {
+test('Home is the only world and has six seats', t => {
   const { rooms, host, id }=setup(t); const guest=join(rooms,id);
-  rooms.handle(guest,{type:'seat',seatIndex:20}); rooms.handle(guest,{type:'pose',pose:{head:{position:[0,1,0],rotation:[0,0,0]}}});
-  rooms.handle(host,{type:'world',world:'home'}); const state=last(guest,'state');
-  assert.equal(state.world,'home'); assert.ok(state.players.every(p=>p.seatedSeat===-1 && p.pose===undefined));
+  assert.equal(last(guest,'state').world,'home');
+  assert.throws(()=>rooms.handle(host,{type:'world',world:'cinema'}),/Unknown world/);
   assert.throws(()=>rooms.handle(guest,{type:'seat',seatIndex:6}),/Invalid seat/);
-  rooms.handle(guest,{type:'seat',seatIndex:5}); rooms.handle(host,{type:'world',world:'cinema'}); rooms.handle(guest,{type:'seat',seatIndex:31});
+  rooms.handle(guest,{type:'seat',seatIndex:5});
 });

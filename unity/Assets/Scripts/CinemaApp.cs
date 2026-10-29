@@ -10,7 +10,7 @@ using UnityEngine.XR;
 
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
-    TabletopGames games; RoomEffects effects; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
+    TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
     Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
@@ -27,7 +27,7 @@ public sealed class CinemaApp : MonoBehaviour {
         tracking = new GameObject("Tracking space").transform; tracking.SetParent(rig, false);
         head = new GameObject("Head").transform; head.SetParent(tracking); head.localPosition = new Vector3(0, 1.65f, 0);
         cameraView = head.gameObject.AddComponent<Camera>(); cameraView.clearFlags = CameraClearFlags.SolidColor; cameraView.nearClipPlane = 0.05f; cameraView.farClipPlane = 100; cameraView.cullingMask &= ~((1 << 30) | (1 << 29)); cameraView.backgroundColor = new Color(0.02f, 0.025f, 0.05f); head.gameObject.tag = "MainCamera"; head.gameObject.AddComponent<AudioListener>();
-        effects=cameraView.gameObject.AddComponent<RoomEffects>();
+        cameraView.allowHDR=false;
         left = new GameObject("Left controller").transform; left.SetParent(tracking);
         right = new GameObject("Right controller").transform; right.SetParent(tracking);
         var presence = gameObject.AddComponent<AvatarPresence>(); presence.Initialize(room, rig, head, left, right);
@@ -305,8 +305,8 @@ public sealed class CinemaApp : MonoBehaviour {
         if(count==0) Heading("No watched titles in this view yet.");
     }
     void RecordHistory() {
-        if(watching==null || playback.Video.url!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
-        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Video.time*1000); state["duration"]=Math.Max(0,playback.Video.length*1000);
+        if(watching==null || playback.SourceUrl!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
+        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
         var recent=settings["recent"] as JArray??new JArray(); for(int i=recent.Count-1;i>=0;i--) if((string)recent[i]["_id"]==(string)watching["_id"]) recent.RemoveAt(i); recent.Insert(0,watching.DeepClone()); while(recent.Count>100) recent.RemoveAt(recent.Count-1); settings["recent"]=recent; Save();
     }
     void ChangeWorld(string id) {
@@ -317,13 +317,10 @@ public sealed class CinemaApp : MonoBehaviour {
     void Comfort() {
         Clear(); pageTitle.text="Settings";
         ActionButton("Movie Night source / AGPLv3",()=>Application.OpenURL("https://github.com/JeremyLakeyJr/stremio-vr"));
-        ActionButton("Room bloom: "+(effects.Enabled?"On":"Off"),()=>{effects.Enabled=!effects.Enabled;Comfort();});
         Heading("Movement & turning");
-        ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings["moveSpeed"]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
-        Heading(world.CurrentWorld=="home"?"Open Concept Home":"Cinema Multiplex & Foyer");
-        ActionButton("Cinema world (host)",()=>ChangeWorld("cinema"));
+        Heading("Open Concept Home");
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});
         ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=1?0.25f:Mathf.Min(1,ambient.Strength+0.25f);settings["ambientStrength"]=ambient.Strength;Save();Comfort();});

@@ -1,12 +1,13 @@
 {
   "name": "movie-night",
-  "version": "0.1.1",
-  "description": "Movie Night \u2014 multiplayer VR cinema for Meta Quest",
+  "version": "0.1.2",
+  "description": "Movie Night — multiplayer VR cinema for Meta Quest",
   "author": "Jeremy Lakey",
   "license": "AGPL-3.0-only",
   "repository": "https://github.com/JeremyLakeyJr/stremio-vr",
   "dependencies": {
     "chess.js": "1.4.0",
+    "ipaddr.js": "2.2.0",
     "ws": "^8.22.0"
   },
   "type": "module",
@@ -14,7 +15,7 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test",
-    "check": "node --check server/index.js && node --check server/rooms.js && node --check server/core.js && node --check scripts/device-smoke.mjs && node --check server/games.js",
+    "check": "node --check server/index.js && node --check server/rooms.js && node --check server/core.js && node --check scripts/device-smoke.mjs && node --check server/games.js && node --check server/media.js",
     "build:core": "cargo build --locked --release --manifest-path core/Cargo.toml",
     "test:core": "cargo test --locked --manifest-path core/Cargo.toml"
   },

@@ -1,7 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { TableGames } from './games.js';
 
-export const worlds = { cinema: { seats: 32 }, home: { seats: 6 } };
+export const worlds = { home: { seats: 6 } };
 export const presets = { head: ['round', 'square'], body: ['regular', 'wide'], hair: ['none', 'short', 'tall'], outfit: ['casual', 'formal', 'sport'], accessory: ['none', 'glasses', 'hat', 'headset'] };
 export function profile(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
@@ -20,7 +20,7 @@ export class Rooms {
   constructor({ now = Date.now, grace = 15000 } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; }
   send(ws, data) { if (ws?.readyState === 1) ws.send(JSON.stringify(data)); }
   snapshot(room) {
-    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice })), playback: room.playback, games: room.games.snapshot() };
+    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice })), mediaStatus: room.mediaStatus || '', playback: room.playback, games: room.games.snapshot() };
   }
   broadcast(room, data, except) { for (const p of room.players.values()) if (p.id !== except) this.send(p.ws, data); }
   state(room) { this.broadcast(room, this.snapshot(room)); }
@@ -37,7 +37,7 @@ export class Rooms {
     if (immediate) remove(); else { player.timer = setTimeout(remove, this.grace); player.timer.unref?.(); this.state(room); }
     ws.roomId = null; ws.playerId = null;
   }
-  handle(ws, message) {
+  handle(ws, message, serverMedia = null) {
     if (!message || typeof message !== 'object') throw new Error('Invalid message');
     const { type } = message;
     if (type === 'ping') { this.send(ws, { type: 'pong', sentAt: message.sentAt, serverTime: this.now() }); return; }
@@ -48,7 +48,7 @@ export class Rooms {
       if (type === 'create') {
         if (this.rooms.size >= 500) throw new Error('Server is full');
         const id = randomBytes(6).toString('hex');
-        room = { id, games: new TableGames(), world: 'cinema', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
+        room = { id, games: new TableGames(), world: 'home', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
         this.rooms.set(id, room);
       } else { room = this.rooms.get(String(message.roomId)); if (!room) throw new Error('Room not found'); }
       let player = [...room.players.values()].find(p => p.token === message.token);
@@ -85,7 +85,7 @@ export class Rooms {
     if (type === 'playback') {
       if (room.host !== player.id) throw new Error('Only the host controls playback');
       const next = { ...room.playback, position: position(room.playback, this.now()) };
-      if (message.url !== undefined) { next.url = mediaURL(message.url); next.title = String(message.title || 'Shared stream').slice(0, 160); next.position = 0; next.paused = true; }
+      if (message.url !== undefined) { next.url = serverMedia ? serverMedia.url : mediaURL(message.url); next.mediaStart = serverMedia?.offset || 0; next.duration = serverMedia?.duration || 0; next.title = String(message.title || 'Shared stream').slice(0, 160); next.position = 0; next.paused = true; }
       if (message.position !== undefined) { if (!Number.isFinite(message.position) || message.position < 0 || message.position > 864000) throw new Error('Invalid playback position'); next.position = message.position; }
       if (message.paused !== undefined) { if (typeof message.paused !== 'boolean') throw new Error('Invalid paused state'); next.paused = message.paused; }
       next.updatedAt = this.now(); next.revision++; room.playback = next; this.state(room); return;

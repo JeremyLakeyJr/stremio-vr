@@ -2,11 +2,11 @@
 
 Unity/OpenXR client and Node/WebSocket room server for shared video, avatars, and voice. Native Android APK is the target, with an optional in-world Stremio WebView.
 
-**Status:** native APK built and tested on Quest 3. Stereo display, controller input, video/audio, and microphone delivery have been confirmed. The backend integrates the actual Stremio Rust core. The user confirmed R6 appearance customization and the preview in both eyes; saved profiles were verified after restart. Two-headset acceptance and performance profiling remain open. See [acceptance checklist](docs/ACCEPTANCE.md).
+**Status:** Alpha 2 has a reported stereo startup regression (white left eye / right-eye tunneling). The 0.1.2 recovery build restores ambient render state and temporarily disables mirror/bloom/reflection passes; it still needs verification on a Quest. Earlier builds had user-confirmed controller input, video/audio, microphone delivery, and R6 customization. Server-side H.264/AAC streaming is now implemented and integration-tested. Update both APK and server. See the [acceptance checklist](docs/ACCEPTANCE.md).
 
 ## Quick start: Docker + Quest
 
-You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server and Rust core; it does **not** build/install the Quest app or provide a Stremio torrent streaming service. Node.js and Rust do not need to be installed on the computer when using Docker.
+You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server, Rust core, FFmpeg transcoder, and an internal Stremio streaming service. It does **not** build or install the Quest app. Node.js and Rust do not need to be installed on the computer when using Docker.
 
 ### 1. Get the project and start the server
 
@@ -37,7 +37,7 @@ docker compose logs -f internet
 
 Find the `https://...trycloudflare.com` address in the logs. Enter that exact address in the app's **My room → Server WebSocket URL** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
 
-This address is temporary and can change when the tunnel restarts. Keep both containers and the computer running. The tunnel exposes the room server, not your project files. For permanent hosting, see [internet multiplayer](docs/INTERNET-MULTIPLAYER.md).
+This address is temporary and can change when the tunnel restarts. Keep all containers and the computer running. The tunnel exposes the room server, not your project files. For permanent hosting, see [internet multiplayer](docs/INTERNET-MULTIPLAYER.md).
 
 **USB / one connected Quest:** keep the default local Docker setup and forward its port with Android platform tools:
 
@@ -46,7 +46,7 @@ adb devices
 adb reverse tcp:3000 tcp:3000
 ```
 
-Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room**. Repeat `adb reverse` after an ADB/device restart. This forwards the room server only; locally hosted videos need their own port forwarding.
+Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room**. Repeat `adb reverse` after an ADB/device restart. The room server port now carries both room messages and transcoded video; the server needs access to the source.
 
 **Same Wi-Fi / LAN without a tunnel:** the supplied Compose file binds port 3000 to the computer's loopback address, so other devices cannot reach it directly. Change its `ports` entry in `compose.yaml` from `"127.0.0.1:3000:3000"` to `"3000:3000"`, then run:
 
@@ -102,7 +102,7 @@ For USB/LAN-only use, rebuild with `docker compose up -d --build cinema` instead
 | Public address stopped working | Check the latest tunnel logs; share its new address with everyone. |
 | Room not found | Check the server address and code. A server restart discards rooms. |
 | Catalogs load but video does not | Cinemeta supplies metadata, not video sources. Choose a playable source and check codec/streaming-service compatibility. |
-| Host can play but friends cannot | Every headset must reach the selected video URL. The tunnel forwards the room server, not local media or a separate streaming service. |
+| Host can play but friends cannot | Update both the server and APK. Every headset must reach the room server, including its `/media/` routes; the server must reach the source. Check CPU load, upload bandwidth, and `mediaStatus` in the app. |
 
 ## Run the room server without Docker
 
@@ -133,7 +133,7 @@ Use a trusted TLS certificate and `wss://` for use outside a trusted development
 ## Build the Quest APK
 
 1. Install Unity **6000.0.66f2** with Android Build Support, Android SDK/NDK Tools, and OpenJDK. Activate Unity Personal in Unity Hub using your own account.
-2. Open `unity/` as the Unity project and let packages import.
+2. Import the required Open Concept Home author download with `python3 scripts/import-private-home.py "Open Concept Home v1.2 - [2022.3.22f1] [COMPLETED].zip"` (see world import notes below), then open `unity/` and let packages import. The Home source archive is not tracked in Git; builds require it.
 3. Select **Movie Night → Configure Quest project**. Restart the editor if input handling requests it. The command generates the cinema scene and enables OpenXR, Meta Quest Support, and Oculus Touch controllers.
 4. In Android XR Plug-in Management, resolve any reported OpenXR project-validation errors.
 5. Select **Movie Night → Build Quest APK**. Output: `unity/Builds/movie-night.apk` (development build).
@@ -168,7 +168,7 @@ The build targets ARM64/IL2CPP and OpenGLES3. Cleartext networking is enabled fo
 
 Open **Settings / worlds** to adjust walk speed, smooth-turn speed, and pointer angle. To watch lying down, get comfortable, look where you want the screen to appear, and select **Calibrate reclined view**. Use the ±5° controls or Reset to refine it. Your calibration does not change other players' worlds.
 
-The host can switch between Cinema and Home, when Home is included in the APK. Select a chair from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings also controls the mirror, bloom, and ambient video lighting/strength. **Avatar** customizes your R6 character; your hand nubs and the room mirror reflect that appearance. Appearance settings persist on this headset. Your first-person view uses hand nubs; other players and the mirror see your full R6 character.
+Open Concept Home is the only world; the theater has been removed. Select a sofa seat from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings controls ambient video lighting/strength. **Avatar** customizes your R6 character; appearance persists on this headset. Your first-person view uses hand nubs; other players see your full R6 character. The mirror and full-screen bloom are temporarily disabled in the stereo recovery build.
 
 ### Sign in, browse, and watch together
 
@@ -180,9 +180,25 @@ The host can switch between Cinema and Home, when Home is included in the APK. S
 
 To install an add-on manually, use **Discover → Manage add-ons / Stremio account**, enter its manifest URL, and select **Install add-on**. Cinemeta provides metadata/catalogs, not playable sources.
 
-The native player supports compatible direct HTTP(S) video through Android's decoder. Torrents and sources requiring proxy headers need a **separate Stremio streaming service** reachable by every participant; configure its URL in the add-on management page. Docker here supplies the room relay and core bridge, not that streaming service. DRM, external-player handoffs, and unsupported codecs cannot play through the native player.
+The **server fetches, transcodes, and serves the video**. One FFmpeg job per room produces H.264 video (up to 720p/30 fps) with stereo AAC audio. All headsets receive the same HLS playlist and segments through the room server. The source URL is no longer broadcast to peers. AC3 and other FFmpeg-supported audio are converted before reaching Android. Initial preparation and seeking can take several seconds; a seek starts a new shared stream at the requested movie time.
 
-**The room server shares a video URL and playback timing; it does not rebroadcast the movie.** A host's `localhost` or private LAN media URL will not work for friends on other networks. Use media/streaming-service URLs all participants can reach.
+Compose includes the [official Stremio streaming server](https://github.com/Stremio/server-docker) on the internal Docker network for torrent and proxy-header sources. It is not exposed publicly. `STREAMING_SERVICE_URL=http://stremio:11470` overrides the headset's old streaming-service setting. No separate streaming-service URL is needed on each headset. Native Stremio sign-in and add-ons remain on the headset.
+
+Public HTTP(S) MP4/MKV and unencrypted HLS sources are supported. DASH, DRM, external-player handoffs, subtitle conversion, and alternate audio-track selection are not implemented in the server transcoder. The first source audio track is used. The Stremio Web wrapper remains local browser playback; sharing a compatible HTTP source hands it to the server transcoder.
+
+Server configuration (under `cinema.environment` in `compose.yaml`):
+
+| Setting | Default / purpose |
+| --- | --- |
+| `STREAMING_SERVICE_URL` | Compose uses `http://stremio:11470`; optional when running Node directly with direct sources. |
+| `MEDIA_ALLOWED_HOSTS` | Exact comma-separated `host:port` authorities allowed to resolve to private addresses. Compose trusts only `stremio:11470`. Add a trusted LAN media server here if needed. |
+| `MEDIA_MAX_JOBS` | `2` simultaneous room streams, including cached streams. |
+| `MEDIA_MAX_BYTES` | `8589934592` (8 GiB) output-cache limit per room; upstream transfer limit is four times this. |
+| `FFMPEG_BINARY` | `ffmpeg`; install FFmpeg when running Node outside Docker. |
+
+The server validates source addresses, redirects, and nested HLS references, and blocks private addresses unless explicitly configured. Transcoded files live in temporary storage and are removed on source replacement, after the empty room expires, or on clean shutdown. Streams expire after twelve hours. Transcoding uses CPU and server upload bandwidth: each viewer downloads their own copy of the output stream, so size hosting accordingly. Keep this alpha server private to your group; it has room/job limits but no account authentication or billing quotas.
+
+Rebuild both app and server for this protocol change. For Node development, install FFmpeg and run `npm install`, `npm run build:core`, then `npm start`. If using a LAN fixture, set its exact authority in `MEDIA_ALLOWED_HOSTS` before starting the server.
 
 ### Use Stremio Web on the cinema screen
 
@@ -229,7 +245,7 @@ The add-on client fetches catalogs and streams over HTTP. The actual Rust `strem
 ## References and credits
 
 - Creator: Jeremy Lakey.
-- Cinema world: [Cinema Multiplex and Foyer](https://3dassets.dev/packs/cinema-multiplex-and-foyer), CC0; [source and conversion notes](assets/worlds/cinema/SOURCE.txt).
+- Removed theater source (not bundled in current APKs): [Cinema Multiplex and Foyer](https://3dassets.dev/packs/cinema-multiplex-and-foyer), CC0; [source and conversion notes](assets/worlds/cinema/SOURCE.txt).
 - R6 geometry and face texture: user-supplied `roblox-r6-rigged.zip`; its archive contains no author or license metadata. Keep source attribution/license information with this asset when available.
 - Menu layout inspired by the supplied `ingame menu example.webp`.
 - Chess rules: [chess.js](https://github.com/jhlywa/chess.js), [BSD-2-Clause notice](docs/licenses/chess-js-BSD-2-Clause.txt).
@@ -265,14 +281,18 @@ See [internet hosting](docs/INTERNET-MULTIPLAYER.md) for the tested Docker serve
 
 ## Worlds and screen options
 
-Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with a toggleable bloom pass for emissive lights. Textures are capped at 4K with ASTC compression on Quest. Video edge colors are sampled and smoothed on the GPU each frame, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home includes the main screen plus two smaller mirrored displays, all using the same texture and decoder. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
+Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Video edge colors are sampled and smoothed on the GPU each frame, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home includes the main screen plus two smaller mirrored displays, all using the same texture and decoder. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
 
 Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
 
-Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players and the stereo room mirror still see your full R6 avatar; toggle it in Settings. The mirror updates at 24 Hz while visible and near the viewer, at 1024 pixels per eye.
+Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your full R6 avatar. The room mirror is temporarily disabled while recovering from the Alpha 2 stereo rendering bug.
 
 **My room → Stremio Web screen** opens the official web app in a hardware-accelerated Android WebView on the cinema screen. The room host uses the beam/trigger and right-stick scroll. Use Web screen controls to enter text into a selected web field, go back, reload, or return to native playback. Web sign-in is separate from native device-link sign-in; credentials/cookies stay on the device. Browser playback is local to the host. **Share playing HTTP video with room** hands a compatible URL and timeline to the synchronized native player. Blob/DRM media and browser account pages are not streamed to guests. The initial web surface updates at 12 Hz; native video remains the high-frame-rate viewing path.
 
-The menu uses smooth panel fades, page transitions, hover/press animation, poster cards, and eased scrolling. **Watch history** switches between imported Stremio history and this headset's recent selections, with Continue Watching and resume. **Settings** exposes walk speed, smooth-turn speed, pointer angle, reclined view, mirror, and video lighting.
+The menu uses smooth panel fades, page transitions, hover/press animation, poster cards, and eased scrolling. **Watch history** switches between imported Stremio history and this headset's recent selections, with Continue Watching and resume. **Settings** exposes walk speed, smooth-turn speed, pointer angle, reclined view, and video lighting.
 
 Network deployments expose `/source` with the AGPL source URL. If you deploy a modified fork, set `SOURCE_URL` to its corresponding source, including your changes. Third-party dependencies/art retain their own notices.
+
+### Alpha 2 stereo recovery
+
+The reported frozen white left eye and right-eye tunneling occurred in Alpha 2. The recovery build restores the active render target after ambient GPU sampling, and disables the mirror camera, runtime reflection probe, and post-processing. Ambient colors, Home light bars, hand nubs, tabletop games, and mirrored movie displays remain enabled. Automated compilation and render-target tests do not substitute for checking both eyes on a Quest; headset validation is still required.

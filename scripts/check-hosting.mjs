@@ -11,14 +11,17 @@ const sockets=[];
 async function peer() {
  const ws=new WebSocket(endpoint); const messages=[]; ws.on('message',raw=>messages.push(JSON.parse(raw))); sockets.push(ws);
  await new Promise((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject);});
- return {ws,send:data=>ws.send(JSON.stringify(data)),async next(type,predicate=()=>true) { const end=Date.now()+10000; while(Date.now()<end) { const i=messages.findIndex(m=>m.type===type&&predicate(m)); if(i>=0) return messages.splice(i,1)[0]; await new Promise(r=>setTimeout(r,20)); } throw Error('Timed out waiting for '+type); }};
+ return {ws,send:data=>ws.send(JSON.stringify(data)),async next(type,predicate=()=>true) { const end=Date.now()+60000; while(Date.now()<end) { const i=messages.findIndex(m=>m.type===type&&predicate(m)); if(i>=0) return messages.splice(i,1)[0]; await new Promise(r=>setTimeout(r,20)); } throw Error('Timed out waiting for '+type); }};
 }
 try {
  const a=await peer(), b=await peer(); a.send({type:'create',profile:{name:'Hosting check A'}}); const created=await a.next('joined');
  b.send({type:'join',roomId:created.roomId,profile:{name:'Hosting check B'}}); await b.next('joined');
  a.send({type:'seat',seatIndex:2}); await b.next('state',s=>s.players.some(p=>p.id===created.playerId&&p.seatedSeat===2));
  b.send({type:'seat',seatIndex:2}); assert.match((await b.next('error')).message,/occupied/);
- a.send({type:'playback',url:'https://example.com/test.mp4',position:12,paused:true}); await b.next('state',s=>s.playback.position===12);
+ if(process.env.TEST_MEDIA_URL) {
+  a.send({type:'playback',url:process.env.TEST_MEDIA_URL,paused:true}); const media=await b.next('state',s=>s.playback.url.startsWith('/media/'));
+  const playlist=await fetch(new URL(media.playback.url,base)); assert.equal(playlist.status,200); assert.match(await playlist.text(),/#EXTM3U/);
+ } else { a.send({type:'playback',position:12,paused:true}); await b.next('state',s=>s.playback.position===12); }
  a.send({type:'pose',pose:{head:{position:[1,1.6,2],rotation:[0,90,0]}}}); assert.equal((await b.next('pose')).seated,true);
  for(const game of ['chess','tictactoe']) {
   a.send({type:'game',game,action:'join'});await b.next('state',s=>s.games?.[game]?.players[0]===created.playerId);
@@ -28,5 +31,6 @@ try {
  }
  a.send({type:'leave'}); await a.next('left'); await b.next('state',s=>s.host!==created.playerId);
  b.send({type:'leave'}); await b.next('left');
+ console.log(process.env.TEST_MEDIA_URL?'Server transcoding and HLS verified':'Media ingestion skipped: set TEST_MEDIA_URL to test a real source');
  console.log('PASS: health, Rust core, two WebSocket clients, exclusive seating, playback, movement, chess/tic-tac-toe, and host transfer');
 } finally { for(const ws of sockets) ws.close(); }

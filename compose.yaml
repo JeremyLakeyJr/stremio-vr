@@ -3,6 +3,23 @@ services:
     build: .
     ports:
       - "127.0.0.1:3000:3000"
+    environment:
+      STREAMING_SERVICE_URL: http://stremio:11470
+      MEDIA_ALLOWED_HOSTS: stremio:11470
+      MEDIA_MAX_JOBS: "2"
+      MEDIA_MAX_BYTES: "8589934592"
+    depends_on:
+      - stremio
+    restart: unless-stopped
+  stremio:
+    image: stremio/server:latest
+    # Internal upstream only; clients use Movie Night's /media endpoint.
+    expose:
+      - "11470"
+    environment:
+      APP_PATH: /data
+    volumes:
+      - stremio-data:/data
     restart: unless-stopped
   internet:
     image: cloudflare/cloudflared:latest
@@ -12,3 +29,6 @@ services:
       cinema:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  stremio-data:

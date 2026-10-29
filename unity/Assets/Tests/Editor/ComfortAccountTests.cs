@@ -10,7 +10,7 @@ public class ComfortAccountTests {
   var motion=root.AddComponent<RigMotion>(); motion.Rig=root.transform; motion.Tracking=tracking; motion.Head=head; var before=head.position; motion.CalibrateReclined();
   Assert.Less(Vector3.Distance(before,head.position),0.001f); Assert.Less(Mathf.Abs(head.forward.y),0.001f); motion.AdjustView(5); Assert.Less(Vector3.Distance(before,head.position),0.001f); UnityEngine.Object.DestroyImmediate(root);
  }
- [Test] public void CinemaHasThirtyTwoChairsAndLandscapeScreen() { var world=Resources.Load<GameObject>("Worlds/Cinema").GetComponent<CinemaWorldData>(); Assert.AreEqual(32,world.Seats.Length); Assert.Greater(world.ScreenSize.x,world.ScreenSize.y); Assert.Greater(world.ScreenPosition.z,0); }
+ [Test] public void RemovedTheaterIsNotBundled() { Assert.IsNull(Resources.Load<GameObject>("Worlds/Cinema")); }
  [Test] public void AccountImportKeepsConfiguredAddonPath() {
   var addon=MediaLibrary.AccountAddon(JObject.Parse("{\"transportUrl\":\"https://example.com/config/manifest.json\",\"manifest\":{\"id\":\"test\",\"resources\":[\"stream\"]}}")); Assert.AreEqual("https://example.com/config",(string)addon["endpoint"]);
  }

@@ -16,7 +16,7 @@ docker compose --profile internet up --build
 
 The `internet` container prints an `https://…trycloudflare.com` address. Enter it
 in My room on every headset; create a room and share its code. Keep this computer
-and both containers running. Stop with Ctrl-C, then `docker compose down`.
+and all containers running. Stop with Ctrl-C, then `docker compose down`.
 
 This exposes the cinema server to the internet. It does not expose the project
 files or your Stremio account token. Room codes grant access; share them privately.
@@ -26,9 +26,9 @@ https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/
 
 ## Permanent service: Render
 
-`Dockerfile` builds the pinned Stremio core and the Node relay in one non-root
+`Dockerfile` builds the pinned Stremio core, FFmpeg, and the Node server in one non-root
 container. `render.yaml` defines one paid Starter web service with a health check.
-It has not been deployed automatically and no hosting account was created.
+It has not been deployed automatically and no hosting account was created. The Starter declaration is a deployment template, not a verified capacity recommendation for transcoding. Size CPU, temporary disk, and outbound bandwidth for your streams. Compose also runs a Stremio upstream service; Render does not deploy that sidecar automatically.
 
 1. Put this repository in your Git provider account.
 2. Create a Render account and a Blueprint from the repository; review the service
@@ -43,11 +43,16 @@ https://render.com/docs/docker
 
 ## Playback and operational limits
 
-The relay synchronizes a URL; it does not upload or rebroadcast the video itself.
-Every participant must be able to reach that media URL. `localhost`, `127.0.0.1`,
-and private LAN streaming-service URLs will not work for remote friends. Use a
-publicly reachable media source or separately hosted streaming service. Account
-add-ons are imported locally; a selected playback URL is shared with the room.
+The server fetches the selected source, transcodes to H.264/AAC, and serves HLS
+through `/media/` on the same HTTPS origin as the room API. All participants use
+that server stream; only the server needs to reach the upstream media URL.
+Compose supplies an internal Stremio streaming service for torrents/proxy headers.
+Private upstream hosts need an exact `MEDIA_ALLOWED_HOSTS` entry; see the README.
+Each room uses one transcoder, but outbound bandwidth scales with viewer count.
+The default cache is capped at 8 GiB per room and two active room streams. Use
+hosting suitable for continuous video delivery; a temporary development tunnel
+has not been validated for long movie sessions. Stremio account add-ons and auth
+stay on each headset; the selected source URL goes to the server for fetching.
 
 The current service supports eight people per room. PCM voice is bandwidth heavy,
 and there is no echo cancellation. Use headphones. Restarting/redeploying the

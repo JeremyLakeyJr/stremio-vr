@@ -2,6 +2,13 @@ using NUnit.Framework;
 using UnityEngine;
 namespace StremioVR.Tests {
 public class AmbientWorldTests {
+ [Test] public void AmbientBlitRestoresActiveFramebuffer() {
+  if(SystemInfo.graphicsDeviceType==UnityEngine.Rendering.GraphicsDeviceType.Null) Assert.Ignore("Requires a graphics device");
+  var original=RenderTexture.active; var previous=new RenderTexture(16,16,0);var target=new RenderTexture(8,1,0);
+  try { previous.Create();target.Create();RenderTexture.active=previous;
+   VideoAmbient.BlitPreservingTarget(Texture2D.whiteTexture,target);Assert.AreSame(previous,RenderTexture.active);
+  } finally {RenderTexture.active=original;previous.Release();target.Release();Object.DestroyImmediate(previous);Object.DestroyImmediate(target);}
+ }
  [Test] public void EdgeSamplerIgnoresBrightCenter() {
   var pixels=new Color32[32*18];
   for(int y=0;y<18;y++) for(int x=0;x<32;x++) pixels[y*32+x]=x<2||x>=30||y<2||y>=16?Color.green:Color.red;

@@ -24,7 +24,7 @@ public static class QuestBuild {
         Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/XR");
         PlayerSettings.companyName = "StremioVR"; PlayerSettings.productName = "Movie Night";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.jeremylakey.stremiovr");
-        PlayerSettings.bundleVersion = "0.1.1"; PlayerSettings.Android.bundleVersionCode = 2;
+        PlayerSettings.bundleVersion = "0.1.2"; PlayerSettings.Android.bundleVersionCode = 3;
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
@@ -81,7 +81,7 @@ public static class QuestBuild {
     }
     [MenuItem("Movie Night/Build Quest APK")]
     public static void Build() {
-        R6Import.Prepare(); CinemaWorldImport.Prepare(); HomeWorldBuild.Prepare(); Configure(); Directory.CreateDirectory("Builds");
+        R6Import.Prepare(); HomeWorldBuild.Prepare(); if(!AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Worlds/Home.prefab")) throw new BuildFailedException("Import Open Concept Home first with scripts/import-private-home.py; Home is required."); Configure(); Directory.CreateDirectory("Builds");
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { "Assets/Scenes/Cinema.unity" }, locationPathName = "Builds/movie-night.apk", target = BuildTarget.Android, options = BuildOptions.Development });
         if (report.summary.result != BuildResult.Succeeded) throw new BuildFailedException("APK build failed: " + report.summary.result);
     }

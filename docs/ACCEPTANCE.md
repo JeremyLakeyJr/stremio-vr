@@ -80,3 +80,16 @@ The specific silent Stremio source has not been supplied or retested; unsupporte
 Alpha 2 automated validation: 31 Node tests passed, including real WebSocket board updates; 23 Unity EditMode tests passed; Android APK built successfully. Home conversion retained 67 baked renderers and enabled video response on seven emissive material batches. No new headset installation or live visual/audio acceptance was performed, per the user's request to install later.
 
 The updated Docker image also built successfully and passed health/core, two-client playback/seating/pose/host-transfer checks, plus chess and tic-tac-toe moves through its published port.
+
+## 0.1.2 recovery checks (pending headset validation)
+
+- [ ] Cold-launch Home: neither eye is white/frozen; no right-eye tunneling.
+- [ ] Move and turn with ambient lighting on/off; both eyes remain aligned.
+- [ ] Discover: play through the updated Docker server and hear AAC audio.
+- [ ] Two headsets: same video, pause/resume/seek and late join through public server.
+- [ ] Resume watch history after a seek: original movie time is preserved.
+- [ ] Nubs, sofa seats, mirrored screens, light bars, chess and tic-tac-toe remain usable.
+
+Mirror, runtime reflection probe, and bloom are disabled in this recovery build.
+Automated checks cover render-target restoration, source validation, AC3-to-AAC
+transcoding, HLS ingestion/output, shared room URLs, host authority, and seek replacement.

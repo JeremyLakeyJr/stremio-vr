@@ -11,6 +11,9 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public event Action<string> Status;
     public ushort AudioTrack { get; private set; }
     public float Volume { get; private set; }=1; public string AudioInfo {get; private set;}="No video prepared";
+    public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
+    public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
+    public string SourceUrl { get; private set; }
     Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing;
     public void Initialize(RoomClient room, Renderer screen) {
         Room = room;
@@ -24,25 +27,27 @@ public sealed class CinemaPlayback : MonoBehaviour {
             if(player.width>0 && player.height>0) { float ratio=(float)player.width/player.height; float width=Mathf.Min(screenSize.x,screenSize.y*ratio); Video.targetMaterialRenderer.transform.localScale=new Vector3(width,width/ratio,screenSize.z); }
             preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]); };
         Video.errorReceived += (player, error) => { preparing = false; Status?.Invoke("Video failed: " + error + ". Try another source or supported codec."); };
-        Video.loopPointReached += player => { if (Room.IsHost) Control(true, player.time); };
+        Video.loopPointReached += player => { if (Room.IsHost) Control(true, Position); };
         Room.Message += OnMessage;
     }
     public void SetScreen(Renderer screen) { screenRenderer=screen; Video.targetMaterialRenderer=screen; screenSize=screen.transform.localScale; if(Video.isPrepared && Video.width>0 && Video.height>0) { float ratio=(float)Video.width/Video.height; float width=Mathf.Min(screenSize.x,screenSize.y*ratio); screen.transform.localScale=new Vector3(width,width/ratio,1); } }
     void OnMessage(JObject message) {
         if ((string)message["type"] == "disconnected") { playback = null; Video.Stop(); preparing = false; return; }
         if ((string)message["type"] != "state") return;
+        if(!string.IsNullOrEmpty((string)message["mediaStatus"])) Status?.Invoke((string)message["mediaStatus"]);
         var next = message["playback"] as JObject; if (next == null) return;
         bool changed = (string)playback?["url"] != (string)next["url"] || (!Video.isPrepared && !preparing && (long?)playback?["revision"] != (long?)next["revision"]);
         playback = next;
         if (changed && !string.IsNullOrEmpty((string)next["url"])) {
-            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = (string)next["url"]; preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
+            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = new Uri(new Uri(Room.ApiEndpoint), (string)next["url"]).AbsoluteUri; preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
         } else Apply();
     }
     void Apply() {
         if (Suspended || playback == null || preparing || !Video.isPrepared) return;
         bool paused = (bool)playback["paused"];
         double desired = (double)playback["position"] + (paused ? 0 : Math.Max(0, Room.ServerTime - (double)playback["updatedAt"]) / 1000);
-        if (Video.length > 0) desired = Math.Min(desired, Video.length);
+        desired = Math.Max(0, desired - ((double?)playback["mediaStart"] ?? 0));
+        if (Video.length > 0 && !((string)playback["url"]).StartsWith("/media/")) desired = Math.Min(desired, Video.length);
         double drift = desired - Video.time;
         if (Debug.isDebugBuild && Time.unscaledTime >= nextDiagnostic) {
             nextDiagnostic = Time.unscaledTime + 5;
@@ -73,13 +78,13 @@ public sealed class CinemaPlayback : MonoBehaviour {
     }
     public void Load(string url, string title, double position=0) {
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
-        try { Room.Send(new JObject { ["type"] = "playback", ["url"] = MediaLibrary.Http(url), ["title"] = title, ["position"] = Math.Max(0,position) }); } catch (Exception error) { Status?.Invoke(error.Message); }
+        try { SourceUrl=MediaLibrary.Http(url); Room.Send(new JObject { ["type"] = "playback", ["url"] = SourceUrl, ["title"] = title, ["position"] = Math.Max(0,position) }); } catch (Exception error) { Status?.Invoke(error.Message); }
     }
-    public void Toggle() { if (playback != null) Control(!(bool)playback["paused"], Video.time); }
-    public void Seek(double delta) { if (playback != null) Control((bool)playback["paused"], Math.Max(0, Video.time + delta)); }
-    void Control(bool paused, double position) {
+    public void Toggle() { if (playback != null) Control(!(bool)playback["paused"], Position); }
+    public void Seek(double delta) { if (playback != null) Control((bool)playback["paused"], Math.Max(0, Position + delta), true); }
+    void Control(bool paused, double position, bool seek=false) {
         if (!Room.IsHost) { Status?.Invoke("Only the host controls playback"); return; }
-        Room.Send(new JObject { ["type"] = "playback", ["paused"] = paused, ["position"] = position });
+        Room.Send(new JObject { ["type"] = "playback", ["paused"] = paused, ["position"] = position, ["seek"] = seek });
     }
     void OnDestroy() { if (Room != null) Room.Message -= OnMessage; }
 }

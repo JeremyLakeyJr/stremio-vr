@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import { createServer } from '../server/index.js';
 
 async function fixture(t) {
-  const app = await createServer(); app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); t.after(() => app.close());
+  const app = await createServer({ media: false }); app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); t.after(() => app.close());
   return { ...app, port: app.server.address().port };
 }
 async function socket(port) { const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(ws, 'open'); return ws; }
