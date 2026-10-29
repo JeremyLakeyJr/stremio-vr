@@ -10,7 +10,7 @@ using UnityEngine.XR;
 
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
-    RoomEffects effects; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
+    TabletopGames games; RoomEffects effects; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
     Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
@@ -43,6 +43,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ambient=gameObject.AddComponent<VideoAmbient>(); ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
         browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus;
+        games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
         BuildCanvas(); Library();
         room.Message += message => {
             if ((string)message["type"] == "joined") { library.CoreEndpoint = room.ApiEndpoint; library.ValidateInstalled(); }
@@ -121,7 +122,7 @@ public sealed class CinemaApp : MonoBehaviour {
         Button("Recenter", panel, 15, 755, 215, Recenter);
         Label("Hide menu to walk/turn\nLeft stick: move\nRight stick: turn / scroll", panel, 20, 835, 215, 120, 17);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
-        Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Avatar", panel, 745, 920, 220, Customize); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
+        Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Games", panel, 745, 920, 220, GamesPage); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
         var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)); scrollGo.transform.SetParent(panel, false);
         Place(scrollGo.GetComponent<RectTransform>(), 280, 185, 950, 620); scrollGo.GetComponent<Image>().color = new Color(0, 0, 0, 0.05f); scrollGo.GetComponent<Mask>().showMaskGraphic = false;
         content = new GameObject("Content", typeof(RectTransform), typeof(PageFade)).GetComponent<RectTransform>(); content.SetParent(scrollGo.transform, false); Place(content, 0, 0, 930, 620);
@@ -140,9 +141,26 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Web screen controls",BrowserControls);
         streamInput = Field("Direct video URL", "", null);
         ActionButton("Load video (host)", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
+        ActionButton("Movie audio / track",AudioSettings);
         ActionButton("Play / pause (host)", () => playback.Toggle());
         ActionButton("Seek −10 seconds (host)", () => playback.Seek(-10)); ActionButton("Seek +10 seconds (host)", () => playback.Seek(10));
         ActionButton("Hide / show panel: left controller menu button", () => panelMotion.Show(false));
+    }
+    void GamesPage() {
+        Clear();pageTitle.text="Tabletop games";
+        Heading("Walk to the tables and use the beam / trigger to move pieces.");
+        foreach(string id in new[]{"chess","tictactoe"}) {string game=id;Heading(id=="chess"?"Chess":"Tic-tac-toe");Heading(games.Description(id));
+            ActionButton("Join "+id,()=>{games.Command(game,"join");});ActionButton("Leave "+id,()=>games.Command(game,"leave"));ActionButton("Reset "+id,()=>games.Command(game,"reset"));
+        }
+        ActionButton("Promotion: "+games.Promotion.ToUpperInvariant(),()=>{string choices="qrbn";games.SetPromotion(choices[(choices.IndexOf(games.Promotion)+1)%4].ToString());GamesPage();});
+        ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
+    }
+    void AudioSettings() {
+        Clear();pageTitle.text="Movie audio";Heading(playback.AudioInfo);
+        ActionButton("Next audio track",()=>{playback.NextAudioTrack();ShowStatus("Preparing selected audio track…");});
+        SpeedControl("Movie volume",playback.Volume,0,1,0.1f,value=>playback.SetVolume(value),"",AudioSettings);
+        ActionButton("Refresh audio information",AudioSettings);
+        Heading("If a source uses unsupported AC-3/DTS audio, choose an AAC source or configure a compatible transcoding service. Voice volume is separate.");
     }
     void BrowserControls() {
         Clear(); pageTitle.text="Stremio Web";
@@ -265,10 +283,10 @@ public sealed class CinemaApp : MonoBehaviour {
         } else { Heading("Sign in on your phone, computer, or Quest browser"); ActionButton("Link my Stremio account",account.BeginLink); }
         ActionButton("Back to media library",Library);
     }
-    void SpeedControl(string title,float current,float min,float max,float step,Action<float> changed,string unit) {
+    void SpeedControl(string title,float current,float min,float max,float step,Action<float> changed,string unit,Action refresh=null) {
         Label(title+": "+current.ToString("0.##")+" "+unit,content,0,row,540,52,23);
-        Button("−",content,570,row,150,()=>{changed(Mathf.Max(min,current-step));Comfort();});
-        Button("+",content,740,row,150,()=>{changed(Mathf.Min(max,current+step));Comfort();}); row+=70; Resize();
+        Button("−",content,570,row,150,()=>{changed(Mathf.Max(min,current-step));if(refresh!=null)refresh();else Comfort();});
+        Button("+",content,740,row,150,()=>{changed(Mathf.Min(max,current+step));if(refresh!=null)refresh();else Comfort();}); row+=70; Resize();
     }
     void HistoryPage() {
         Clear(); pageTitle.text="Watch history";
@@ -381,10 +399,10 @@ public sealed class CinemaApp : MonoBehaviour {
         controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool webTrigger); controller.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 webStick);
         bool webHit=browser.Point(ray,target==null && (webTrigger||Input.GetMouseButton(0)),target==null?webStick.y:0,out var webPoint);
         if(webHit && target==null) pointer.SetPosition(1,webPoint);
-        SeatTarget chair=null;
-        if(target==null && !webHit && Physics.Raycast(ray,out var worldHit,12,~((1<<30)|(1<<8)),QueryTriggerInteraction.Collide)) { chair=worldHit.collider.GetComponent<SeatTarget>(); pointer.SetPosition(1,worldHit.point); }
-        pointer.material.color=chair!=null?Color.yellow:new Color(0.1f,0.9f,0.65f);
-        if(triggerWasDown==false && controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool seatTrigger) && seatTrigger && chair!=null) motion.RequestSeat(chair.Index);
+        TabletopTarget tableTarget=null; SeatTarget chair=null;
+        if(target==null && !webHit && Physics.Raycast(ray,out var worldHit,12,~((1<<30)|(1<<8)),QueryTriggerInteraction.Collide)) { chair=worldHit.collider.GetComponent<SeatTarget>(); tableTarget=worldHit.collider.GetComponent<TabletopTarget>(); pointer.SetPosition(1,worldHit.point); }
+        pointer.material.color=chair!=null||tableTarget!=null?Color.yellow:new Color(0.1f,0.9f,0.65f);
+        if(!triggerWasDown && (webTrigger||Input.GetMouseButton(0))) {if(chair!=null)motion.RequestSeat(chair.Index);if(tableTarget!=null)tableTarget.Activate();}
         if (target != hovered) { if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerExitHandler); hovered = target; if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerEnterHandler); }
         controller.TryGetFeatureValue(CommonUsages.triggerButton, out bool trigger); trigger |= Input.GetMouseButton(0);
         if (trigger && !triggerWasDown && target != null) {

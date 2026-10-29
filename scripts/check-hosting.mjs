@@ -20,7 +20,13 @@ try {
  b.send({type:'seat',seatIndex:2}); assert.match((await b.next('error')).message,/occupied/);
  a.send({type:'playback',url:'https://example.com/test.mp4',position:12,paused:true}); await b.next('state',s=>s.playback.position===12);
  a.send({type:'pose',pose:{head:{position:[1,1.6,2],rotation:[0,90,0]}}}); assert.equal((await b.next('pose')).seated,true);
+ for(const game of ['chess','tictactoe']) {
+  a.send({type:'game',game,action:'join'});await b.next('state',s=>s.games?.[game]?.players[0]===created.playerId);
+  b.send({type:'game',game,action:'join'});const ready=await a.next('state',s=>s.games?.[game]?.players[1]!=null);
+  a.send({type:'game',game,action:'move',revision:ready.games[game].revision,...(game==='chess'?{from:'e2',to:'e4'}:{cell:4})});
+  await b.next('state',s=>s.games?.[game]?.board[game==='chess'?36:4]===(game==='chess'?'P':'X'));
+ }
  a.send({type:'leave'}); await a.next('left'); await b.next('state',s=>s.host!==created.playerId);
  b.send({type:'leave'}); await b.next('left');
- console.log('PASS: health, Rust core, two WebSocket clients, exclusive seating, playback, movement, and host transfer');
+ console.log('PASS: health, Rust core, two WebSocket clients, exclusive seating, playback, movement, chess/tic-tac-toe, and host transfer');
 } finally { for(const ws of sockets) ws.close(); }

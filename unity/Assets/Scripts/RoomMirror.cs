@@ -15,7 +15,7 @@ public sealed class RoomMirror : MonoBehaviour {
   Render(viewer,Camera.StereoscopicEye.Left,left); if(viewer.stereoEnabled) Render(viewer,Camera.StereoscopicEye.Right,right); else Graphics.Blit(left,right);
  }
  void Render(Camera viewer,Camera.StereoscopicEye eye,RenderTexture texture) {
-  reflection.CopyFrom(viewer); reflection.enabled=false; reflection.stereoTargetEye=StereoTargetEyeMask.None; reflection.targetTexture=texture; reflection.cullingMask=viewer.cullingMask & ~(1<<28); reflection.cullingMask|=1<<29;
+  reflection.CopyFrom(viewer); reflection.enabled=false; reflection.stereoTargetEye=StereoTargetEyeMask.None; reflection.targetTexture=texture; reflection.cullingMask=viewer.cullingMask & ~((1<<28)|(1<<26)); reflection.cullingMask|=1<<29;
   Vector3 normal=transform.forward; if(Vector3.Dot(normal,viewer.transform.position-transform.position)<0) normal=-normal;
   Vector4 plane=new Vector4(normal.x,normal.y,normal.z,-Vector3.Dot(normal,transform.position));
   var reflect=Reflection(plane); var view=viewer.stereoEnabled?viewer.GetStereoViewMatrix(eye):viewer.worldToCameraMatrix;

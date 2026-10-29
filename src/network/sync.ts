@@ -26,9 +26,11 @@ export interface RoomSession {
   host: string;
   world: 'cinema' | 'home';
   players: { id: string; profile: AvatarProfile; seat: number; seatedSeat: number; pose?: Pose; connected: boolean; voice: boolean }[];
+  games: Record<'chess' | 'tictactoe', TableGameState>;
   playback: PlaybackState;
   serverTime: number;
 }
+export interface TableGameState { players: (string | null)[]; revision: number; board: string[]; turn: number; outcome: string; fen?: string; check?: boolean; last?: string; legal?: { from: string; to: string; promotion?: string }[] }
 export interface TrackedPose { position: [number, number, number]; rotation: [number, number, number] }
 export type Pose = { head: TrackedPose; left?: TrackedPose; right?: TrackedPose };
 export type ClientMessage =
@@ -36,6 +38,7 @@ export type ClientMessage =
   | { type: 'join'; roomId: string; token?: string; profile?: Partial<AvatarProfile> }
   | { type: 'seat'; seatIndex: number }
   | { type: 'world'; world: 'cinema' | 'home' }
+  | { type: 'game'; game: 'chess' | 'tictactoe'; action: 'join' | 'leave' | 'reset' | 'move'; revision?: number; from?: string; to?: string; promotion?: 'q' | 'r' | 'b' | 'n'; cell?: number }
   | { type: 'leave' }
   | { type: 'ping'; sentAt: number }
   | { type: 'profile'; profile: Partial<AvatarProfile> }

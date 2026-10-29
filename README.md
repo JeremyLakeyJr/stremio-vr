@@ -58,7 +58,7 @@ Allow incoming TCP port 3000 through your computer's firewall on the private net
 
 ### 3. Install and open Movie Night
 
-An APK is not included in the Git repository. Use an APK you already built, or follow [Build the Quest APK](#build-the-quest-apk) below. The build output is `unity/Builds/movie-night.apk`.
+Download an APK from [GitHub Releases](https://github.com/JeremyLakeyJr/stremio-vr/releases). APK binaries are release assets rather than Git-tracked files. Alternatively, follow [Build the Quest APK](#build-the-quest-apk) below. The build output is `unity/Builds/movie-night.apk`.
 
 With Android platform tools installed and USB debugging accepted:
 
@@ -168,7 +168,7 @@ The build targets ARM64/IL2CPP and OpenGLES3. Cleartext networking is enabled fo
 
 Open **Settings / worlds** to adjust walk speed, smooth-turn speed, and pointer angle. To watch lying down, get comfortable, look where you want the screen to appear, and select **Calibrate reclined view**. Use the ±5° controls or Reset to refine it. Your calibration does not change other players' worlds.
 
-The host can switch between Cinema and Home, when Home is included in the APK. Select a chair from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings also controls the mirror, bloom, and ambient video lighting/strength. **Avatar** customizes your R6 character; your tracked body/arms and the room mirror show that appearance. Appearance settings persist on this headset.
+The host can switch between Cinema and Home, when Home is included in the APK. Select a chair from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings also controls the mirror, bloom, and ambient video lighting/strength. **Avatar** customizes your R6 character; your hand nubs and the room mirror reflect that appearance. Appearance settings persist on this headset. Your first-person view uses hand nubs; other players and the mirror see your full R6 character.
 
 ### Sign in, browse, and watch together
 
@@ -194,6 +194,23 @@ The native player supports compatible direct HTTP(S) video through Android's dec
 
 Web sign-in is separate from native device-link sign-in. Browser playback and account pages are local to the host until a compatible video is shared; guests do not see the host's browser session. Blob/DRM browser videos cannot be handed off this way. The initial web surface updates at 12 Hz; use native playback for smoother movie viewing.
 
+### Play tabletop games
+
+Update the room server as well as the APK for tabletop support: `git pull --ff-only`, then `docker compose --profile internet up -d --build` (or start only `cinema` for USB/LAN use).
+
+Two physical tables are placed near the spawn point. Select **Games** in the bottom menu bar for status, Join/Leave/Reset, and chess promotion choice. You can also use the JOIN/LEAVE/RESET buttons on each table.
+
+- Both players join the same room and select **Join** for the same game. The first gets White/X and the second Black/O; everyone else can spectate.
+- **Chess:** select one of your pieces with the beam/trigger, then a highlighted legal destination. Castling, en passant, check/checkmate, stalemate, repetition, and promotion are handled by the server. Promotion defaults to queen; choose rook, bishop, or knight in Games before making that move.
+- **Tic-tac-toe:** select an empty square on your turn. The server announces a win or draw.
+- Players or the room host can reset a board. Leaving frees a game seat; a replacement can continue the position. Brief reconnects preserve seats and the board. Restarting the server clears games along with rooms.
+
+### Movie audio and protected sources
+
+**My room → Movie audio / track** shows the selected track, reported language/channel count, volume, and a Next audio track control. Audio goes directly to Android, with an explicitly enabled track and playback held at normal speed. Track selection is local to your headset. If the source still has no sound, try another track or an AAC source; the current player does not add missing AC-3/DTS decoders or automatically transcode audio.
+
+Stremio add-ons can return direct streams, torrents, or external provider pages; Stremio is not itself a universal DRM license provider. Compatible Stremio streams already use room synchronization. **Protected DRM playback is not supported by this Unity texture player.** It requires a provider-authorized player, license acquisition for each viewer, and a protected output surface; the screen-mirroring/readback WebView cannot provide that path. No DRM keys, account sessions, or decrypted protected video are shared with peers.
+
 ### Talk with friends
 
 Select **Toggle mic**, allow Android microphone permission, and speak. Select it again to mute. **Toggle audio** mutes incoming room voice. Use headphones: the current PCM voice relay has no echo cancellation. Microphone capture is opt-in.
@@ -215,6 +232,8 @@ The add-on client fetches catalogs and streams over HTTP. The actual Rust `strem
 - Cinema world: [Cinema Multiplex and Foyer](https://3dassets.dev/packs/cinema-multiplex-and-foyer), CC0; [source and conversion notes](assets/worlds/cinema/SOURCE.txt).
 - R6 geometry and face texture: user-supplied `roblox-r6-rigged.zip`; its archive contains no author or license metadata. Keep source attribution/license information with this asset when available.
 - Menu layout inspired by the supplied `ingame menu example.webp`.
+- Chess rules: [chess.js](https://github.com/jhlywa/chess.js), [BSD-2-Clause notice](docs/licenses/chess-js-BSD-2-Clause.txt).
+- Open Concept Home: [TwilightStudio / KittyFangs.exe](https://jinxxy.com/TwilightStudio/9cvqn), included in the supplied APK. The author states: “There is no copyright terms to this project anymore. So do whatever you want with it.” See [the recorded update](docs/licenses/home-author-update.md).
 - Stremio core license: [MIT notice](docs/licenses/stremio-core-MIT.txt).
 - [Stremio add-on protocol](https://stremio.github.io/stremio-addon-sdk/protocol.html).
 - [Stremio core stream routing source](https://stremio.github.io/stremio-core/src/stremio_core/types/resource/stream.rs.html).
@@ -246,11 +265,11 @@ See [internet hosting](docs/INTERNET-MULTIPLAYER.md) for the tested Docker serve
 
 ## Worlds and screen options
 
-Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with a toggleable bloom pass for emissive lights. Textures are capped at 4K with ASTC compression on Quest. Video edge colors add per-pixel bounce to room surfaces. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
+Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with a toggleable bloom pass for emissive lights. Textures are capped at 4K with ASTC compression on Quest. Video edge colors are sampled and smoothed on the GPU each frame, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home includes the main screen plus two smaller mirrored displays, all using the same texture and decoder. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
 
 Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
 
-Your R6 arms/body follow your tracked head and controllers. A stereo room mirror shows your full avatar; toggle it in Settings. The mirror updates at 24 Hz while visible and near the viewer, at 1024 pixels per eye.
+Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players and the stereo room mirror still see your full R6 avatar; toggle it in Settings. The mirror updates at 24 Hz while visible and near the viewer, at 1024 pixels per eye.
 
 **My room → Stremio Web screen** opens the official web app in a hardware-accelerated Android WebView on the cinema screen. The room host uses the beam/trigger and right-stick scroll. Use Web screen controls to enter text into a selected web field, go back, reload, or return to native playback. Web sign-in is separate from native device-link sign-in; credentials/cookies stay on the device. Browser playback is local to the host. **Share playing HTTP video with room** hands a compatible URL and timeline to the synchronized native player. Blob/DRM media and browser account pages are not streamed to guests. The initial web surface updates at 12 Hz; native video remains the high-frame-rate viewing path.
 

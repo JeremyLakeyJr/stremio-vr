@@ -9,9 +9,9 @@ async function fixture(t) {
   return { ...app, port: app.server.address().port };
 }
 async function socket(port) { const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`); await once(ws, 'open'); return ws; }
-function receive(ws, type) { return new Promise((resolve, reject) => {
+function receive(ws, type, predicate = () => true) { return new Promise((resolve, reject) => {
   const timer = setTimeout(() => { ws.off('message', listener); reject(new Error('Timed out: ' + type)); }, 2000);
-  function listener(raw) { const message = JSON.parse(raw); if (message.type === type) { clearTimeout(timer); ws.off('message', listener); resolve(message); } }
+  function listener(raw) { const message = JSON.parse(raw); if (message.type === type && predicate(message)) { clearTimeout(timer); ws.off('message', listener); resolve(message); } }
   ws.on('message', listener);
 }); }
 
@@ -57,4 +57,13 @@ test('missing core binary returns an actionable service-unavailable response', a
   const app = await createServer({ coreBinary: '/nonexistent/stremio-vr-core' }); app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); t.after(() => app.close());
   const response = await fetch(`http://127.0.0.1:${app.server.address().port}/api/core`, { method: 'POST', body: JSON.stringify({ operation: 'resolve', stream: { url: 'https://example.com/a' } }) });
   assert.equal(response.status, 503); assert.match((await response.json()).error, /build:core/);
+});
+
+test('two WebSocket players see the same tabletop move', async t => {
+  const {port}=await fixture(t);const host=await socket(port),joined=receive(host,'joined');host.send(JSON.stringify({type:'create'}));const session=await joined;
+  const guest=await socket(port),ready=receive(guest,'state');guest.send(JSON.stringify({type:'join',roomId:session.roomId}));await ready;
+  let changed=receive(guest,'state',s=>s.games.tictactoe.players[0]!==null);host.send(JSON.stringify({type:'game',game:'tictactoe',action:'join'}));await changed;
+  changed=receive(host,'state',s=>s.games.tictactoe.players[1]!==null);guest.send(JSON.stringify({type:'game',game:'tictactoe',action:'join'}));const state=await changed;
+  changed=receive(guest,'state',s=>s.games.tictactoe.revision>state.games.tictactoe.revision);host.send(JSON.stringify({type:'game',game:'tictactoe',action:'move',cell:4,revision:state.games.tictactoe.revision}));const next=await changed;
+  assert.equal(next.games.tictactoe.board[4],'X');assert.equal(next.games.tictactoe.turn,1);
 });

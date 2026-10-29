@@ -11,6 +11,7 @@ public class AmbientWorldTests {
   var pixels=new Color32[32*18]; for(int y=0;y<18;y++) for(int x=0;x<32;x++) pixels[y*32+x]=x<2?Color.red:x>=30?Color.blue:Color.black;
   var colors=VideoAmbient.SampleEdges(pixels,32,18); Assert.Greater(colors[0].r,0.99f); Assert.Greater(colors[2].b,0.99f); Assert.Less(colors[4].maxColorComponent,0.01f);
  }
+ [Test] public void TableSquaresRoundTripAcrossEveryRank() {for(int i=0;i<64;i++)Assert.AreEqual(i,TabletopGames.Index(TabletopGames.Square(i)));Assert.AreEqual("a8",TabletopGames.Square(0));Assert.AreEqual("h1",TabletopGames.Square(63));}
  [Test] public void MirrorReflectionPreservesPlaneAndFlipsDistance() {
   var reflection=RoomMirror.Reflection(new Vector4(0,0,1,-3));
   Assert.That(reflection.MultiplyPoint(new Vector3(2,1,3)),Is.EqualTo(new Vector3(2,1,3)));

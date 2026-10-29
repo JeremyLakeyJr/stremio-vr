@@ -1,4 +1,5 @@
 import { randomUUID, randomBytes } from 'node:crypto';
+import { TableGames } from './games.js';
 
 export const worlds = { cinema: { seats: 32 }, home: { seats: 6 } };
 export const presets = { head: ['round', 'square'], body: ['regular', 'wide'], hair: ['none', 'short', 'tall'], outfit: ['casual', 'formal', 'sport'], accessory: ['none', 'glasses', 'hat', 'headset'] };
@@ -19,7 +20,7 @@ export class Rooms {
   constructor({ now = Date.now, grace = 15000 } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; }
   send(ws, data) { if (ws?.readyState === 1) ws.send(JSON.stringify(data)); }
   snapshot(room) {
-    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice })), playback: room.playback };
+    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice })), playback: room.playback, games: room.games.snapshot() };
   }
   broadcast(room, data, except) { for (const p of room.players.values()) if (p.id !== except) this.send(p.ws, data); }
   state(room) { this.broadcast(room, this.snapshot(room)); }
@@ -29,7 +30,7 @@ export class Rooms {
     player.ws = null; player.voice = false;
     const remove = () => {
       if (player.ws) return;
-      room.players.delete(player.id);
+      room.players.delete(player.id); room.games.remove(player.id);
       if (room.host === player.id) room.host = [...room.players.values()].find(p => p.ws)?.id || room.players.keys().next().value;
       if (!room.players.size) this.rooms.delete(room.id); else this.state(room);
     };
@@ -47,7 +48,7 @@ export class Rooms {
       if (type === 'create') {
         if (this.rooms.size >= 500) throw new Error('Server is full');
         const id = randomBytes(6).toString('hex');
-        room = { id, world: 'cinema', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
+        room = { id, games: new TableGames(), world: 'cinema', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
         this.rooms.set(id, room);
       } else { room = this.rooms.get(String(message.roomId)); if (!room) throw new Error('Room not found'); }
       let player = [...room.players.values()].find(p => p.token === message.token);
@@ -73,6 +74,7 @@ export class Rooms {
       if(room.world !== message.world) { room.world = message.world; for(const member of room.players.values()) { member.seatedSeat = -1; member.pose = undefined; } }
       this.state(room); return;
     }
+    if (type === 'game') { room.games.handle(player.id,room.host,message); this.state(room); return; }
     if (type === 'seat') {
       const index = message.seatIndex;
       if (!Number.isInteger(index) || index < -1 || index >= worlds[room.world].seats) throw new Error('Invalid seat');

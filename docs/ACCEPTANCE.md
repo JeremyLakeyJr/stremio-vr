@@ -68,3 +68,15 @@ The updated APK installed successfully on Quest 3. `unity/Builds/quest-r6-menu.p
 Implemented after user feedback: per-pixel video bounce and edge glow; 4K Home textures and original baked lighting/emission/sky; account/local watch history and resume; explicit walk/turn speed settings; local R6 arms/body; stereo mirror; Android hardware WebView cinema surface with host-only pointer, scroll, text entry, and HTTP-video handoff; Movie Night naming and AGPLv3 source link.
 
 Automated server tests pass (24). The Home conversion restores baked UV coordinates on 67 active renderers. The APK builds and installs on Quest 3. Hardware web frames and the Stremio login page were verified in both-eye screenshots; 139 account watch-history entries imported successfully. Public HTTPS/WSS health/core/two-client seating, playback, pose, and host-transfer checks passed. Mirror stereo comfort, browser login/video/beam operation, new lighting balance, memory/frame budget, and the history UI still require headset acceptance. The author's showcase appearance is a reference target, not an already verified pixel-identical result. No two-physical-headset test has been performed.
+
+## Alpha 2 follow-up
+
+Replaces periodic CPU video-edge readback with an 8-pixel GPU smoothing pass; links Home emissive materials to that result; adds two mirrored Home screens using one decoder; hides the local R6 body from first-person view and substitutes hand nubs while retaining the full mirror/peer avatar. Native movie audio now explicitly controls its selected track, uses direct Android output, and stays at 1× playback speed. Local track and volume controls are exposed.
+
+Adds server-authoritative chess and tic-tac-toe with in-world tables, player seats, legal moves, game outcomes, reset, room isolation, and reconnect continuity. Chess uses chess.js 1.4.0 under BSD-2-Clause.
+
+The specific silent Stremio source has not been supplied or retested; unsupported audio codecs may still require another source or transcoding. Protected DRM playback has not been implemented. New lighting smoothness, tabletop placement/control comfort, mirrored-screen placement, and movie audio need headset acceptance.
+
+Alpha 2 automated validation: 31 Node tests passed, including real WebSocket board updates; 23 Unity EditMode tests passed; Android APK built successfully. Home conversion retained 67 baked renderers and enabled video response on seven emissive material batches. No new headset installation or live visual/audio acceptance was performed, per the user's request to install later.
+
+The updated Docker image also built successfully and passed health/core, two-client playback/seating/pose/host-transfer checks, plus chess and tic-tac-toe moves through its published port.

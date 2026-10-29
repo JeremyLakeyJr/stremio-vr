@@ -33,10 +33,14 @@ public sealed class WebCinema : MonoBehaviour {
  }
  public bool Point(Ray ray,bool held,float scroll,out Vector3 point) {
   point=Vector3.zero; if(!Active||!screen||!Room.IsHost)return false;
-  var plane=new Plane(screen.transform.forward,screen.transform.position); bool hit=plane.Raycast(ray,out float d)&&d>0&&d<15;
-  var local=hit?screen.transform.InverseTransformPoint(ray.GetPoint(d)):Vector3.one;
-  hit=hit&&Mathf.Abs(local.x)<=0.5f&&Mathf.Abs(local.y)<=0.5f;
-  if(hit) { point=ray.GetPoint(d); lastPoint=new Vector2(local.x+0.5f,0.5f-local.y); if(held||pressed) web?.Call("pointer",lastPoint.x,lastPoint.y,held?(pressed?2:0):1); if(Mathf.Abs(scroll)>0.01f) web?.Call("scroll",-scroll*900*Time.unscaledDeltaTime); }
+  bool hit=false;float nearest=15;Vector3 local=Vector3.one;
+  foreach(var display in World.Screens) {
+   var plane=new Plane(display.transform.forward,display.transform.position);
+   if(Vector3.Dot(ray.direction,display.transform.forward)<=0 || !plane.Raycast(ray,out float d)||d<=0||d>=nearest)continue;
+   var candidate=display.transform.InverseTransformPoint(ray.GetPoint(d)); if(Mathf.Abs(candidate.x)>0.5f||Mathf.Abs(candidate.y)>0.5f)continue;
+   nearest=d;local=candidate;hit=true;
+  }
+  if(hit) { point=ray.GetPoint(nearest); lastPoint=new Vector2(local.x+0.5f,0.5f-local.y); if(held||pressed) web?.Call("pointer",lastPoint.x,lastPoint.y,held?(pressed?2:0):1); if(Mathf.Abs(scroll)>0.01f) web?.Call("scroll",-scroll*900*Time.unscaledDeltaTime); }
   else if(pressed) web?.Call("pointer",lastPoint.x,lastPoint.y,3);
   pressed=held&&hit; return hit;
  }
@@ -56,7 +60,7 @@ public sealed class WebCinema : MonoBehaviour {
  public void Close() {
   Active=false; pressed=false; if(web!=null){web.Call("close");web.Dispose();web=null;}
   if(screen) {screen.sharedMaterial.mainTextureScale=Vector2.one;screen.sharedMaterial.mainTextureOffset=Vector2.zero;screen.sharedMaterial.mainTexture=Texture2D.blackTexture;}
-  if(Ambient)Ambient.Source=null; if(Playback){Playback.Suspended=false;Playback.Video.renderMode=VideoRenderMode.MaterialOverride;if(World && World.Screen)Playback.SetScreen(World.Screen);}
+  if(Ambient)Ambient.Source=null; if(Playback){Playback.Suspended=false;Playback.Video.renderMode=VideoRenderMode.APIOnly;if(World && World.Screen)Playback.SetScreen(World.Screen);}
   if(texture)Destroy(texture); texture=null;
  }
  void OnApplicationPause(bool paused) { if(paused && Active)Close(); }
