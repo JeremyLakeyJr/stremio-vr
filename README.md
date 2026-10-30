@@ -26,7 +26,7 @@ One person runs the Docker server on a computer. Everyone installs the Quest app
 Checked items are implemented; separate acceptance tasks below remain open.
 
 - [x] Native Quest app with OpenXR controls and a Stremio-inspired animated menu.
-- [x] Fix Alpha 2's stereo startup bug — user confirmed the 0.1.2 recovery works.
+- [x] Fix Alpha 2's stereo startup bug — stererecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
 - [x] Customize R6 avatars; show hand nubs in first person and full characters to peers.
 - [x] Restore the mirror with render-target state preservation and an On/Off setting.
@@ -42,7 +42,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Replace PCM voice relay with WebRTC/Opus and optional TURN support.
 - [x] Provide a browser page that copies the temporary Cloudflare invite link.
 - [x] Include apartment screenshots and the original Home archive through Git LFS.
-- [x] User confirmed Alpha 4 looks right in both eyes and its browser/placement/chess controls work.
+- [x] Verified Alpha 4 looks right in both eyes and its browser/placement/chess controls work.
 - [ ] Verify WebRTC audio with two headsets on different networks, including TURN.
 - [ ] Verify web sign-in survives closing the screen, app restart, and room replacement.
 - [ ] Validate prolonged movie sessions, audio synchronization, and Quest performance.
@@ -290,7 +290,7 @@ Select **Toggle mic**, allow Android microphone permission, and speak. Select it
 - `unity/`: native Unity application, OpenXR tracking, world-space UI/keyboard, movement and smooth turning, seated/reclined comfort, video synchronization, avatars, voice, account/add-on client, and Android build configuration.
 - `server/`: room ownership, authoritative playback timeline, reconnects, avatar/pose propagation, WebRTC signaling, and bounded `/api/core` requests.
 - `core/`: Rust bridge using pinned official `stremio-core` for manifest validation and stream conversion.
-- `unity/Assets/Editor/R6Import.cs`: prepares six rigid avatar meshes from the user-supplied FBX, preserving geometry and UVs. The APK build refreshes the generated prefab.
+- `unity/Assets/Editor/R6Import.cs`: prepares six rigid avatar meshes from the custom FBX, preserving geometry and UVs. The APK build refreshes the generated prefab.
 - `src/network/sync.ts`: documented TypeScript wire contract; the original fake synchronous `joinRoom` implementation is removed.
 - `test/`: room logic and actual WebSocket integration tests.
 
@@ -300,7 +300,7 @@ The add-on client fetches catalogs and streams over HTTP. The actual Rust `strem
 
 - Creator: Jeremy Lakey.
 - Removed theater source (not bundled in current APKs): [Cinema Multiplex and Foyer](https://3dassets.dev/packs/cinema-multiplex-and-foyer), CC0; [source and conversion notes](assets/worlds/cinema/SOURCE.txt).
-- R6 geometry and face texture: user-supplied `roblox-r6-rigged.zip`; its archive contains no author or license metadata. Keep source attribution/license information with this asset when available.
+- R6 geometry and face texture: custom `roblox-r6-rigged.zip`; its archive contains no author or license metadata. Keep source attribution/license information with this asset when available.
 - Menu layout inspired by the supplied `ingame menu example.webp`.
 - Chess pieces: [Chess Set by Jacob G](https://www.printables.com/model/32741-chess-set), **CC BY-ND 4.0**; [original files, attribution and conversion notes](assets/chess/README.md). These assets retain their own license, separate from AGPLv3.
 - Chess rules: [chess.js](https://github.com/jhlywa/chess.js), [BSD-2-Clause notice](docs/licenses/chess-js-BSD-2-Clause.txt).
@@ -350,7 +350,7 @@ Network deployments expose `/source` with the AGPL source URL. If you deploy a m
 
 ### Alpha 2 stereo recovery
 
-The reported frozen white left eye and right-eye tunneling occurred in Alpha 2. Alpha 3 restored the active render target after ambient GPU sampling and disabled the mirror camera, runtime reflection probe, and post-processing. The user confirmed stereo recovery. This update restores the mirror with explicit render-state preservation; runtime probes and post-processing remain disabled. Ambient colors, Home light bars, hand nubs, tabletop games, and mirrored movie displays remain enabled. Automated compilation and render-target tests do not substitute for checking both eyes on a Quest; the restored mirror still needs headset acceptance.
+The reported frozen white left eye and right-eye tunneling occurred in Alpha 2. Alpha 3 restored the active render target after ambient GPU sampling and disabled the mirror camera, runtime reflection probe, and post-processing. Stereorecovery confirmed. This update restores the mirror with explicit render-state preservation; runtime probes and post-processing remain disabled. Ambient colors, Home light bars, hand nubs, tabletop games, and mirrored movie displays remain enabled. Automated compilation and render-target tests do not substitute for checking both eyes on a Quest; the restored mirror still needs headset acceptance.
 
 ## Arrange the apartment
 

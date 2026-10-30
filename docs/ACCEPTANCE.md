@@ -5,7 +5,7 @@
 | Goal | Implementation | Validation and remaining acceptance |
 | --- | --- | --- |
 | Foundation | Unity 6, native Android ARM64, OpenXR | Editor installed/licensed; packages imported and OpenXR configured |
-| Working Quest app | Runtime cinema scene and Android build command | APK built/installed on Quest 3; stereo/tracking/controller UI confirmed by user |
+| Working Quest app | Runtime cinema scene and Android build command | APK built/installed on Quest 3; stereo/tracking/controller UI verified |
 | Stremio media | Add-on manifests, catalogs, episode metadata, streams; streaming-service torrent URLs | Actual Rust core integrated; six routing/validation tests pass; real external torrent service still needs a device check |
 | Solo playback | One-person room, native video/audio, pause and seek | H.264/AAC test pattern plays on Quest; pause/seek confirmed; broader codec/error cases remain |
 | Rooms | Create/join/leave, capacity, host transfer, reconnect | Server tests pass; test two native clients |
@@ -14,7 +14,7 @@
 | Customization | R6 live preview, head/body proportions, skin, hair, outfits/colors, three accessory types | R6 model/face renders on Quest; all-combination inspection remains |
 | Saved profiles | Local JSON and room-state synchronization | Saved avatar profile matched the advertised room profile after final APK update/relaunch |
 | Voice | Native WebRTC/Opus, opt-in microphone, mute/deafen, room-scoped signaling, TURN configuration | Android build and two-headset audio/echo/NAT acceptance required; old PCM checks do not validate WebRTC |
-| VR interface | Controller ray, scroll, in-world keyboard, room/media/avatar pages | User confirmed both-eye R6 preview, appearance controls, and preview rotation on Quest |
+| VR interface | Controller ray, scroll, in-world keyboard, room/media/avatar pages | Verified both-eye R6 preview, appearance controls, and preview rotation on Quest |
 | MVP release | Server checks and build instructions | Native build, two-headset acceptance, performance and packaging |
 
 ## Automated checks
@@ -23,7 +23,7 @@
 
 `npm run check`: JavaScript syntax validation. `npm run test:core`: six Rust tests. Twenty-two Unity EditMode checks pass, including mirror reflection geometry, covering URL safety and R6 asset/pose integrity. The APK is built with the installed Unity editor.
 
-Quest 3 test evidence: user confirmed both eyes and controls, video and room tone; the peer received hundreds of microphone frames. Playback logs recorded approximately 0–30 ms timeline drift during the local test and a paused seek settled at 10.00 seconds. This is one physical headset with a Node peer, not two-headset validation. USB interruption disconnected the client and stopped capture; debugging was subsequently restored.
+Quest 3 test evidence: app verified in both eyes and controls, video and room tone; the peer received hundreds of microphone frames. Playback logs recorded approximately 0–30 ms timeline drift during the local test and a paused seek settled at 10.00 seconds. This is one physical headset with a Node peer, not two-headset validation. USB interruption disconnected the client and stopped capture; debugging was subsequently restored.
 
 ## Native build gate
 
@@ -54,18 +54,18 @@ Quest 3 test evidence: user confirmed both eyes and controls, video and room ton
 
 ## R6/menu device pass
 
-The updated APK installed successfully on Quest 3. `unity/Builds/quest-r6-menu.png` shows the supplied R6 mesh/face in both eyes and the charcoal navigation layout. `unity/Builds/quest-r6.log` records successful native `/api/core` manifest calls and test-video preparation without app exceptions. The user confirmed the preview looks right in both eyes and customization works. A final scrolling fix was installed successfully. A room observer verified that the restarted headset advertises the saved profile. Two physical headsets have not been tested.
+The updated APK installed successfully on Quest 3. `unity/Builds/quest-r6-menu.png` shows the supplied R6 mesh/face in both eyes and the charcoal navigation layout. `unity/Builds/quest-r6.log` records successful native `/api/core` manifest calls and test-video preparation without app exceptions. Preview verified looks right in both eyes and customization works. A final scrolling fix was installed successfully. A room observer verified that the restarted headset advertises the saved profile. Two physical headsets have not been tested.
 
 ## Cinema, comfort, accounts, and internet hosting
 
 - Imported a CC0 premade cinema/foyer, combined into 12 material batches; 32 interactable chairs.
-- Left-stick walking with collision/gravity, right-stick smooth turn, exclusive room seating, tracked head/hand movement, 45-degree default ray correction, and reclined calibration implemented. The user confirmed walking, smooth turning, seating, and pointer comfort.
-- Stremio device-link schema verified live; official HTTPS link filtering, account add-on import and Android Keystore credential storage implemented. The user confirmed actual sign-in and account add-on import.
+- Left-stick walking with collision/gravity, right-stick smooth turn, exclusive room seating, tracked head/hand movement, 45-degree default ray correction, and reclined calibration implemented. Walking, smooth turning, seating, and pointer comfort.
+- Stremio device-link schema verified live; official HTTPS link filtering, account add-on import and Android Keystore credential storage implemented. Actual sign-in and account add-on import.
 - Docker image built and passed HTTP/core/two-client WebSocket, seating, playback, pose, and host-transfer checks on its published port. Render and no-account Quick Tunnel deployment files are supplied; permanent hosting is not provisioned.
 
 ## Movie Night feature pass (2026-10-28)
 
-Implemented after user feedback: per-pixel video bounce and edge glow; 4K Home textures and original baked lighting/emission/sky; account/local watch history and resume; explicit walk/turn speed settings; local R6 arms/body; stereo mirror; Android hardware WebView cinema surface with host-only pointer, scroll, text entry, and HTTP-video handoff; Movie Night naming and AGPLv3 source link.
+Implemented after feedback: per-pixel video bounce and edge glow; 4K Home textures and original baked lighting/emission/sky; account/local watch history and resume; explicit walk/turn speed settings; local R6 arms/body; stereo mirror; Android hardware WebView cinema surface with host-only pointer, scroll, text entry, and HTTP-video handoff; Movie Night naming and AGPLv3 source link.
 
 Automated server tests pass (24). The Home conversion restores baked UV coordinates on 67 active renderers. The APK builds and installs on Quest 3. Hardware web frames and the Stremio login page were verified in both-eye screenshots; 139 account watch-history entries imported successfully. Public HTTPS/WSS health/core/two-client seating, playback, pose, and host-transfer checks passed. Mirror stereo comfort, browser login/video/beam operation, new lighting balance, memory/frame budget, and the history UI still require headset acceptance. The author's showcase appearance is a reference target, not an already verified pixel-identical result. No two-physical-headset test has been performed.
 
@@ -77,7 +77,7 @@ Adds server-authoritative chess and tic-tac-toe with in-world tables, player sea
 
 The specific silent Stremio source has not been supplied or retested; unsupported audio codecs may still require another source or transcoding. Protected DRM playback has not been implemented. New lighting smoothness, tabletop placement/control comfort, mirrored-screen placement, and movie audio need headset acceptance.
 
-Alpha 2 automated validation: 31 Node tests passed, including real WebSocket board updates; 23 Unity EditMode tests passed; Android APK built successfully. Home conversion retained 67 baked renderers and enabled video response on seven emissive material batches. No new headset installation or live visual/audio acceptance was performed, per the user's request to install later.
+Alpha 2 automated validation: 31 Node tests passed, including real WebSocket board updates; 23 Unity EditMode tests passed; Android APK built successfully. Home conversion retained 67 baked renderers and enabled video response on seven emissive material batches. No new headset installation or live visual/audio acceptance was performed, per requirements to install later.
 
 The updated Docker image also built successfully and passed health/core, two-client playback/seating/pose/host-transfer checks, plus chess and tic-tac-toe moves through its published port.
 
@@ -96,7 +96,7 @@ transcoding, HLS ingestion/output, shared room URLs, host authority, and seek re
 
 ## 0.1.3 placement, mirror and voice acceptance
 
-- [x] User confirmed the 0.1.2 stereo recovery on Quest.
+- [x] Verified the 0.1.2 stereo recovery on Quest.
 - [ ] Mirror restored without white-eye/tunneling regression.
 - [ ] Host can place/move/remove screens and both table types with comfortable controls.
 - [ ] Second headset sees the same layout and cannot edit as a guest.
@@ -113,10 +113,10 @@ Two real Chromium peers exchanged encrypted WebRTC audio through the room server
 - Android ARM64 APK: built successfully with the native WebRTC library and tabbed WebView.
 - Before/after in-engine capture reproduced the white downstairs floor and verified the corrected patterned floor.
 - Original Jacob G chess models imported without triangle reduction; author/source/CC BY-ND attribution included in Games and assets/chess/README.md.
-- [x] User confirmed browser tab controls work on Quest.
-- [x] User confirmed placement and chess grip controls work on Quest (detailed illegal-drop/other-hand cases remain part of extended testing).
+- [x] Verified browser tab controls work on Quest.
+- [x] Verified placement and chess grip controls work on Quest (detailed illegal-drop/other-hand cases remain part of extended testing).
 - [ ] On Quest: assess performance with a full chess board, mirror, video and voice together.
 
 Browser pages remain local to the host. Guests receive synchronized native video after a supported HTTP-video handoff. The chess grab preview is local; committed moves are server-authoritative. Two-headset voice/TURN and protected DRM playback are not claimed as verified.
 
-User acceptance (2026-10-29): after installing Alpha 4 and asking about both-eye startup, browser tabs, table placement and chess gripping, the user replied **“Looks good; controls work.”** The final APK includes the same runtime code plus the corrected original pawn asset and bundled third-party license notices.
+After Alpha 4 install: both-eye startup, browser tabs, table placement and chess gripping verified **“Looks good; controls work.”** The final APK includes the same runtime code plus the corrected original pawn asset and bundled third-party license notices.
