@@ -1,0 +1,72 @@
+{
+  "data": {
+    "print": {
+      "id": "32741",
+      "name": "Chess Set",
+      "license": {
+        "name": "Creative Commons \u2014 Attribution \u2014 NoDerivatives"
+      },
+      "user": {
+        "publicUsername": "Jacob G"
+      },
+      "stls": [
+        {
+          "id": "134119",
+          "name": "Pawn.stl"
+        },
+        {
+          "id": "134115",
+          "name": "Rook.stl"
+        },
+        {
+          "id": "134120",
+          "name": "Knight.stl"
+        },
+        {
+          "id": "134114",
+          "name": "Bishop.stl"
+        },
+        {
+          "id": "134125",
+          "name": "Queen.stl"
+        },
+        {
+          "id": "134118",
+          "name": "King-Body.stl"
+        },
+        {
+          "id": "134110",
+          "name": "King-Cross.stl"
+        },
+        {
+          "id": "134108",
+          "name": "Pawn.3mf"
+        },
+        {
+          "id": "134113",
+          "name": "Rook.3mf"
+        },
+        {
+          "id": "134117",
+          "name": "Knight.3mf"
+        },
+        {
+          "id": "134111",
+          "name": "Bishop.3mf"
+        },
+        {
+          "id": "134126",
+          "name": "Queen.3mf"
+        },
+        {
+          "id": "134112",
+          "name": "King.3mf"
+        },
+        {
+          "id": "134127",
+          "name": "Chess-Set.3mf"
+        }
+      ]
+    }
+  }
+}

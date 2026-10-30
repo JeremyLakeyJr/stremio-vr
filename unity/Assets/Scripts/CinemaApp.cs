@@ -10,7 +10,7 @@ using UnityEngine.XR;
 
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
-    TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
+    int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
     Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
@@ -35,7 +35,7 @@ public sealed class CinemaApp : MonoBehaviour {
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
         motion.MoveSpeed=(float?)settings["moveSpeed"]??1.5f; motion.TurnSpeed=(float?)settings["turnSpeed"]??60; motion.RayPitch=(float?)settings["rayPitch"]??45;
-        motion.MenuVisible=()=>panelMotion!=null && panelMotion.Visible || browser!=null && browser.Active; motion.Status+=ShowStatus; motion.Initialize();
+        motion.MenuVisible=()=>placement!=null && placement.Active || panelMotion!=null && panelMotion.Visible || browser!=null && browser.Active; motion.Status+=ShowStatus; motion.Initialize();
         account=gameObject.AddComponent<StremioAccount>(); account.Status+=ShowStatus; account.AddonsImported+=ImportAccountAddons;
         account.HistoryLoaded+=()=>{if(pageTitle!=null && pageTitle.text=="Watch history") HistoryPage();};
         account.Changed+=()=> { if(pageTitle!=null && pageTitle.text=="Stremio account") AccountPage(); };
@@ -44,12 +44,15 @@ public sealed class CinemaApp : MonoBehaviour {
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
         browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus;
         games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
+        placement=gameObject.AddComponent<RoomPlacement>();placement.Room=room;placement.Head=head;placement.Status+=ShowStatus;
+        placement.Finished+=()=>{panelMotion.Show(true);Recenter();LayoutPage();};
         BuildCanvas(); Library();
         room.Message += message => {
             if ((string)message["type"] == "joined") { library.CoreEndpoint = room.ApiEndpoint; library.ValidateInstalled(); }
             if ((string)message["type"] == "state") {
                 var names = new List<string>(); foreach (var p in (JArray)message["players"]) names.Add((string)p["profile"]["name"] + ((string)p["id"] == (string)message["host"] ? " (host)" : "") + ((bool)p["connected"] ? "" : " (reconnecting)"));
                 if (shownRoom != room.RoomId) { shownRoom = room.RoomId; Recenter(); }
+                if(pageTitle.text=="Arrange room" && !placement.Active && layoutPageRevision!=((int?)message["layout"]?["revision"]??-1))LayoutPage();
                 members.text = "Room " + room.RoomId + "  •  " + string.Join(", ", names);
             }
             if ((string)message["type"] == "disconnected") members.text = "Not connected";
@@ -137,7 +140,7 @@ public sealed class CinemaApp : MonoBehaviour {
         roomInput = Field("Room code (empty creates a room)", "", null);
         ActionButton("Connect / create room", () => { room.Connect(serverInput.text.Trim(), roomInput.text.Trim(), profile); });
         ActionButton("Leave room", () => room.Leave());
-        ActionButton("Stremio Web screen / native player (host)",()=>{browser.Toggle(); if(browser.Active)panelMotion.Show(false);});
+        ActionButton("Web browser / native player (host)",()=>{browser.Toggle(); if(browser.Active)panelMotion.Show(false);});
         ActionButton("Web screen controls",BrowserControls);
         streamInput = Field("Direct video URL", "", null);
         ActionButton("Load video (host)", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
@@ -148,12 +151,26 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void GamesPage() {
         Clear();pageTitle.text="Tabletop games";
-        Heading("Walk to the tables and use the beam / trigger to move pieces.");
+        Heading("The host places tables using Arrange room. Grip a chess piece, move it, and release above a green square. Trigger also works.");
+        ActionButton("Arrange room (host)",LayoutPage);
         foreach(string id in new[]{"chess","tictactoe"}) {string game=id;Heading(id=="chess"?"Chess":"Tic-tac-toe");Heading(games.Description(id));
             ActionButton("Join "+id,()=>{games.Command(game,"join");});ActionButton("Leave "+id,()=>games.Command(game,"leave"));ActionButton("Reset "+id,()=>games.Command(game,"reset"));
         }
         ActionButton("Promotion: "+games.Promotion.ToUpperInvariant(),()=>{string choices="qrbn";games.SetPromotion(choices[(choices.IndexOf(games.Promotion)+1)%4].ToString());GamesPage();});
-        ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
+        Heading("Chess Set by Jacob G · CC BY-ND 4.0\nprintables.com/model/32741-chess-set\ncreativecommons.org/licenses/by-nd/4.0/\nOriginal geometry; technical format conversion only. Supplied as-is.");ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
+    }
+    void BeginPlacement(string kind,string id=null) {
+        if(browser.Active)browser.Close();placement.Begin(kind,id);if(placement.Active)panelMotion.Show(false);
+    }
+    void LayoutPage() {
+        Clear();pageTitle.text="Arrange room";layoutPageRevision=(int?)room.State?["layout"]?["revision"]??-1;
+        Heading(room.IsHost?"Aim to place; use sticks to adjust. Trigger confirms; menu cancels.":"Only the room host can place, move, or remove objects.");
+        ActionButton("Add movie screen",()=>BeginPlacement("screen"));
+        var items=room.State?["layout"]?["items"] as JArray??new JArray();
+        foreach(string kind in new[]{"chess","tictactoe"}) {bool found=false;foreach(var item in items)if((string)item["kind"]==kind)found=true;if(!found){string type=kind;ActionButton("Place "+kind+" table",()=>BeginPlacement(type));}}
+        int number=0;foreach(var item in items) {string id=(string)item["id"],kind=(string)item["kind"];Heading((++number)+" · "+kind);ActionButton("Move "+kind,()=>BeginPlacement(kind,id));ActionButton("Remove "+kind,()=>placement.Remove(id));}
+        Heading("Up to six extra screens and one table for each game. Layout lasts for this room.");
+        ActionButton("Refresh layout",LayoutPage);
     }
     void AudioSettings() {
         Clear();pageTitle.text="Movie audio";Heading(playback.AudioInfo);
@@ -163,13 +180,19 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading("If a source uses unsupported AC-3/DTS audio, choose an AAC source or configure a compatible transcoding service. Voice volume is separate.");
     }
     void BrowserControls() {
-        Clear(); pageTitle.text="Stremio Web";
+        Clear(); pageTitle.text="Web browser";
         Heading("Host's private browser — account session stays on this headset");
-        ActionButton(browser.Active?"Return to native player":"Open Stremio Web on the screen",()=>{browser.Toggle();BrowserControls();});
+        ActionButton(browser.Active?"Return to native player":"Open browser on the screen",()=>{browser.Toggle();BrowserControls();});
         ActionButton("Hide menu / interact with the screen",()=>panelMotion.Show(false));
-        ActionButton("Back",browser.Back); ActionButton("Reload",browser.Reload);
+        var address=Field("Web address", "https://web.stremio.com/",null);
+        ActionButton("Go to address",()=>browser.Navigate(address.text));
+        ActionButton("New tab",()=>{browser.NewTab(address.text);ShowStatus("Tab opened. Refresh tabs to see it.");});
+        foreach(var tab in browser.Tabs){int index=(int)tab["index"];Heading(((bool)tab["active"]?"● ":"")+(string)tab["title"]);ActionButton("Switch to tab "+(index+1),()=>{browser.SelectTab(index);panelMotion.Show(false);});ActionButton("Close tab "+(index+1),()=>{browser.CloseTab(index);ShowStatus("Tab closed. Refresh tabs to update the list.");});}
+        ActionButton("Refresh tabs",BrowserControls);
+        ActionButton("Back",browser.Back);ActionButton("Forward",browser.Forward); ActionButton("Reload",browser.Reload);
         Field("Type into the selected web input", "",browser.Text);
         ActionButton("Share playing HTTP video with room",browser.Share);
+        ActionButton("Forget web-screen sign-in",browser.ForgetSession);
         Heading("Select a web input with the beam, then enter text here. Web video plays locally until shared.");
     }
     void AddonsPage() {
@@ -321,6 +344,8 @@ public sealed class CinemaApp : MonoBehaviour {
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings["moveSpeed"]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
         Heading("Open Concept Home");
+        ActionButton("Arrange room (host)",LayoutPage);
+        ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});
         ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=1?0.25f:Mathf.Min(1,ambient.Strength+0.25f);settings["ambientStrength"]=ambient.Strength;Save();Comfort();});
@@ -381,11 +406,20 @@ public sealed class CinemaApp : MonoBehaviour {
         RecordHistory();
         var controller = InputDevices.GetDeviceAtXRNode(XRNode.RightHand); var leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
         leftController.TryGetFeatureValue(CommonUsages.menuButton, out bool menu);
-        if ((menu && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) Recenter(); } menuWasDown = menu;
+        if ((menu && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menu;
 
         pointer.enabled = true;
         Vector3 origin = controller.isValid ? right.position : head.position; Vector3 direction = controller.isValid ? RigMotion.RayDirection(right.rotation, motion.RayPitch) : head.forward;
-        var ray = new Ray(origin, direction); var plane = new Plane(panel.forward, panel.position);
+        var ray = new Ray(origin, direction);
+        if(placement.Active) {
+            controller.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 placementRight);leftController.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 placementLeft);
+            controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool placementTrigger);placementTrigger|=Input.GetMouseButton(0);
+            pointer.SetPosition(0,origin);pointer.SetPosition(1,ray.GetPoint(3));pointer.material.color=Color.cyan;
+            placement.Tick(ray,placementRight,placementLeft,placementTrigger&&!triggerWasDown);triggerWasDown=placementTrigger;return;
+        }
+        leftController.TryGetFeatureValue(CommonUsages.gripButton,out bool leftGrip);controller.TryGetFeatureValue(CommonUsages.gripButton,out bool rightGrip);
+        if(games.Grip(left,right,leftGrip,rightGrip,!panelMotion.Visible&&!browser.Active)){pointer.enabled=false;controller.TryGetFeatureValue(CommonUsages.triggerButton,out triggerWasDown);return;}
+        var plane = new Plane(panel.forward, panel.position);
         float distance=0; bool intersects = panelMotion.Visible && plane.Raycast(ray, out distance) && distance < 10;
         var point = intersects ? ray.GetPoint(distance) : ray.GetPoint(3);
         pointer.SetPosition(0, origin); pointer.SetPosition(1, point);

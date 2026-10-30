@@ -7,7 +7,7 @@ public sealed class TabletopGames : MonoBehaviour {
  public RoomClient Room; public WorldManager World; public event Action<string> Status;
  public string Promotion="q";
  readonly List<Board> boards=new List<Board>(); readonly Dictionary<Color,Material> materials=new Dictionary<Color,Material>();
- GameObject tables;
+ GameObject tables; string layoutKey;
  public void Initialize(RoomClient room,WorldManager world) {Room=room;World=world;Room.Message+=Message;World.Changed+=Build;Build();}
  public void Command(string game,string action) {
   if(!Room.Connected||Room.State==null){Status?.Invoke("Create or join a room to play tabletop games");return;}
@@ -24,8 +24,12 @@ public sealed class TabletopGames : MonoBehaviour {
   var text=go.GetComponent<TextMesh>();text.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");go.GetComponent<Renderer>().sharedMaterial=text.font.material;text.text=value;text.fontSize=48;text.characterSize=size;text.anchor=TextAnchor.MiddleCenter;text.alignment=TextAlignment.Center;text.color=color;return text;
  }
  void Build() {
+  CancelGrab();
   if(tables){tables.SetActive(false);Destroy(tables);}boards.Clear();tables=new GameObject("Tabletop games");tables.transform.SetParent(transform,false);
-  MakeBoard("chess",8,World.Data.Spawn+new Vector3(-1.8f,0,1.5f)); MakeBoard("tictactoe",3,World.Data.Spawn+new Vector3(0.3f,0,1.5f));
+  foreach(var item in Room.State?["layout"]?["items"] as JArray??new JArray()) {
+   string kind=(string)item["kind"];if(kind!="chess"&&kind!="tictactoe")continue;
+   MakeBoard(kind,kind=="chess"?8:3,WorldManager.LayoutVector(item["position"]));boards[boards.Count-1].Root.rotation=Quaternion.Euler(WorldManager.LayoutVector(item["rotation"]));
+  }
   Refresh();
  }
  void MakeBoard(string game,int n,Vector3 position) {
@@ -47,7 +51,11 @@ public sealed class TabletopGames : MonoBehaviour {
  }
  static Vector3 Cell(int index,int n,float y) {float cell=1.12f/n;return new Vector3((index%n-(n-1)*0.5f)*cell,y,((n-1)*0.5f-index/n)*cell);}
  static Color SquareColor(int i,int n) => (i/n+i%n)%2==0?new Color(0.67f,0.64f,0.75f):new Color(0.16f,0.12f,0.25f);
- void Message(JObject message) {if((string)message["type"]=="state"||(string)message["type"]=="disconnected")Refresh();}
+ void Message(JObject message) {
+  string type=(string)message["type"];if(type!="state"&&type!="disconnected"&&type!="left")return;
+  string key=Room.RoomId+":"+(string)message["layout"]?["revision"];
+  if(key!=layoutKey){layoutKey=key;Build();}else Refresh();
+ }
  public string Description(string game) {
   var state=Room.State?["games"]?[game];if(state==null)return Room.State==null?"Join a room to play":"Update the room server to enable games";
   var players=state["players"] as JArray;string names="";for(int i=0;i<2;i++){if(i>0)names+=" vs ";string id=(string)players[i];names+=id==null?"Open seat":Name(id);}
@@ -59,7 +67,7 @@ public sealed class TabletopGames : MonoBehaviour {
   foreach(var board in boards) {
    board.Label.text=(board.Game=="chess"?"CHESS":"TIC-TAC-TOE")+"\n"+Description(board.Game);
    var state=Room.State?["games"]?[board.Game] as JObject; int revision=(int?)state?["revision"]??-1;
-   if(revision==board.Revision && Room.RoomId==board.RoomId)continue;board.Revision=revision;board.RoomId=Room.RoomId;board.Selected=-1;
+   if(revision==board.Revision && Room.RoomId==board.RoomId)continue;if(grabBoard==board)CancelGrab();board.Revision=revision;board.RoomId=Room.RoomId;board.Selected=-1;
    foreach(Transform child in board.Pieces){child.gameObject.SetActive(false);Destroy(child.gameObject);}
    for(int i=0;i<board.Cells.Length;i++)board.Cells[i].sharedMaterial=Material(SquareColor(i,board.N));
    if(!(state?["board"] is JArray cells))continue;
@@ -72,14 +80,12 @@ public sealed class TabletopGames : MonoBehaviour {
   Color color=char.IsUpper(piece)?new Color(0.95f,0.86f,0.62f):new Color(0.22f,0.31f,0.45f);Vector3 p=Cell(index,8,0.84f);char type=char.ToLowerInvariant(piece);
   var pieceRoot=new GameObject("Chess piece "+piece+" "+Square(index));pieceRoot.transform.SetParent(board.Pieces,false);
   var target=pieceRoot.AddComponent<TabletopTarget>();target.Owner=this;target.Game="chess";target.Cell=index;
-  Shape(pieceRoot.transform,PrimitiveType.Cylinder,p,new Vector3(0.095f,0.018f,0.095f),color);
-  float height=type=='p'?0.07f:type=='k'||type=='q'?0.15f:0.11f;
-  var collider=pieceRoot.AddComponent<BoxCollider>();collider.center=p+Vector3.up*(height*0.5f+0.025f);collider.size=new Vector3(0.1f,height+0.1f,0.1f);
-  Shape(pieceRoot.transform,PrimitiveType.Cylinder,p+Vector3.up*height*0.5f,new Vector3(0.043f,height*0.5f,0.043f),color);
-  var top=Shape(pieceRoot.transform,type=='n'||type=='r'?PrimitiveType.Cube:PrimitiveType.Sphere,p+Vector3.up*height,new Vector3(0.065f,0.055f,0.065f),color);
-  if(type=='n')top.transform.localRotation=Quaternion.Euler(25,0,0);
-  if(type=='k') {Shape(pieceRoot.transform,PrimitiveType.Cube,p+Vector3.up*(height+0.045f),new Vector3(0.018f,0.07f,0.018f),color);Shape(pieceRoot.transform,PrimitiveType.Cube,p+Vector3.up*(height+0.055f),new Vector3(0.055f,0.018f,0.018f),color);}
-  Text(pieceRoot.transform,char.ToUpperInvariant(piece).ToString(),p+new Vector3(0,0.006f,-0.045f),0.018f,Color.white);
+  string name=type=='p'?"Pawn":type=='r'?"Rook":type=='n'?"Knight":type=='b'?"Bishop":type=='q'?"Queen":"King";
+  var mesh=Resources.Load<Mesh>("Chess/"+name);if(!mesh){Destroy(pieceRoot);return;}
+  pieceRoot.transform.localPosition=p;
+  pieceRoot.AddComponent<MeshFilter>().sharedMesh=mesh;pieceRoot.AddComponent<MeshRenderer>().sharedMaterial=Material(color);
+  var collider=pieceRoot.AddComponent<BoxCollider>();collider.center=mesh.bounds.center;collider.size=mesh.bounds.size;
+
  }
  public void Select(string game,int index) {
   var board=boards.Find(b=>b.Game==game);var state=Room.State?["games"]?[game] as JObject;if(board==null||state==null){Status?.Invoke("Join a room with the updated game server");return;}
@@ -94,6 +100,42 @@ public sealed class TabletopGames : MonoBehaviour {
    Status?.Invoke("Selected "+Square(index)+". Green squares are legal moves.");return;
   }
   if(board.Selected>=0)Move(state,game,new JObject{["from"]=Square(board.Selected),["to"]=Square(index),["promotion"]=Promotion});
+ }
+ Board grabBoard;Transform grabbed;Vector3 originalPosition,grabOffset;Quaternion originalRotation;int grabCell,grabHand;bool leftGripWas,rightGripWas;
+ public bool Grabbing=>grabbed;
+ void CancelGrab(){if(grabbed){grabbed.localPosition=originalPosition;grabbed.localRotation=originalRotation;}grabbed=null;grabBoard=null;}
+ public bool Grip(Transform left,Transform right,bool leftGrip,bool rightGrip,bool allowStart){
+  bool consumed=Grabbing;
+  if(grabbed){
+   Transform hand=grabHand==0?left:right;bool held=grabHand==0?leftGrip:rightGrip;
+   if(held){grabbed.position=hand.position+hand.rotation*grabOffset;grabbed.rotation=hand.rotation;}
+   else{
+    var board=grabBoard;int from=grabCell;Vector3 local=board.Root.InverseTransformPoint(grabbed.position);
+    int col=Mathf.FloorToInt((local.x+0.56f)/(1.12f/8)),row=Mathf.FloorToInt((0.56f-local.z)/(1.12f/8));
+    var state=Room.State?["games"]?["chess"] as JObject;CancelGrab();
+    int to=row*8+col;bool legal=false;
+    if(state!=null && col>=0&&col<8&&row>=0&&row<8&&Mathf.Abs(local.y-0.84f)<0.5f)
+     foreach(var move in state["legal"] as JArray??new JArray())if((string)move["from"]==Square(from)&&(string)move["to"]==Square(to))legal=true;
+    if(legal)Move(state,"chess",new JObject{["from"]=Square(from),["to"]=Square(to),["promotion"]=Promotion});else Status?.Invoke("Piece returned. Drop above a green legal square.");
+   }
+  }else if(allowStart){
+   if(leftGrip&&!leftGripWas)consumed=TryGrab(left,0);
+   if(!consumed&&rightGrip&&!rightGripWas)consumed=TryGrab(right,1);
+  }
+  leftGripWas=leftGrip;rightGripWas=rightGrip;return consumed;
+ }
+ bool TryGrab(Transform hand,int handIndex){
+  TabletopTarget best=null;float distance=.18f;
+  foreach(var hit in Physics.OverlapSphere(hand.position,.18f)){
+   var target=hit.GetComponent<TabletopTarget>();if(!target||target.Game!="chess"||target.Action!=null||!target.GetComponent<MeshFilter>())continue;
+   // Board squares are cubes; only original imported pieces have a Chess piece name.
+   if(!target.name.StartsWith("Chess piece ",StringComparison.Ordinal))continue;
+   float d=Vector3.Distance(hand.position,hit.ClosestPoint(hand.position));if(d<distance){distance=d;best=target;}
+  }
+  if(!best)return false;var board=boards.Find(b=>b.Game=="chess");var state=Room.State?["games"]?["chess"] as JObject;
+  if(board==null||state==null)return false;int turn=(int)state["turn"];string piece=(string)state["board"]?[best.Cell];
+  if((string)state["players"]?[turn]!=Room.PlayerId||string.IsNullOrEmpty(piece)||char.IsUpper(piece[0])!=(turn==0)){Status?.Invoke("Join a seat and pick up your own piece on your turn.");return false;}
+  Select("chess",best.Cell);grabBoard=board;grabbed=best.transform;grabCell=best.Cell;grabHand=handIndex;originalPosition=grabbed.localPosition;originalRotation=grabbed.localRotation;grabOffset=Quaternion.Inverse(hand.rotation)*(grabbed.position-hand.position);return true;
  }
  void Move(JObject state,string game,JObject message){message["type"]="game";message["game"]=game;message["action"]="move";message["revision"]=state["revision"].DeepClone();Room.Send(message);}
  public static string Square(int index)=>((char)('a'+index%8)).ToString()+(8-index/8);

@@ -16,7 +16,6 @@ unity/.vs/
 core/target/
 unity/.utmp/
 # Large source archive / imported originals: reproducibly imported from the author download.
-/Open Concept Home*.zip
 /assets/worlds/home/
 /unity/Assets/PrivateHome/
 /unity/Assets/PrivateHome.meta

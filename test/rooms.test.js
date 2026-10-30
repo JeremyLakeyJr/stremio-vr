@@ -67,21 +67,22 @@ test('poses accept full rotations, reject malformed values and stay in room', t 
   assert.equal(last(guest, 'pose').playerId, host.playerId); assert.equal(outsider.messages.length, 0);
   assert.throws(() => rooms.handle(host, { type: 'pose', pose: { head: { position: [Infinity, 0, 0], rotation: [0, 0, 0] } } }), /Invalid pose/);
 });
-test('voice requires opt-in, validates frames, throttles and isolates rooms', t => {
-  let now = 1000; const { rooms, host, id } = setup(t, { now: () => now }); const guest = join(rooms, id); const outsider = client(); rooms.handle(outsider, { type: 'create' }); outsider.messages = [];
-  const audio = { type: 'audio', pcm: Buffer.alloc(3200).toString('base64') };
-  assert.throws(() => rooms.handle(host, audio), /Enable voice/);
-  rooms.handle(host, { type: 'voice', enabled: true });
-  rooms.handle(host, audio); rooms.handle(host, audio); assert.equal(guest.messages.filter(m => m.type === 'audio').length, 1);
-  now += 100; rooms.handle(host, audio); assert.equal(guest.messages.filter(m => m.type === 'audio').length, 2);
-  assert.equal(outsider.messages.length, 0);
-  assert.throws(() => rooms.handle(host, { type: 'audio', pcm: 'bad' }), /Invalid PCM/);
-  rooms.handle(host, { type: 'voice', enabled: false }); assert.throws(() => rooms.handle(host, audio), /Enable voice/);
+test('WebRTC requires opt-in, retains receive readiness while muted, and rejects legacy PCM', t => {
+ const {rooms,host,id}=setup(t);const guest=join(rooms,id);
+ rooms.handle(host,{type:'voice',enabled:true,ready:true});assert.equal(last(guest,'state').players[0].voice,true);
+ rooms.handle(host,{type:'voice',enabled:false,ready:true});assert.equal(last(guest,'state').players[0].voice,false);assert.equal(last(guest,'state').players[0].voiceReady,true);
+ assert.throws(()=>rooms.handle(host,{type:'audio',pcm:Buffer.alloc(3200).toString('base64')}),/Unknown/);
+ assert.throws(()=>rooms.handle(host,{type:'signal',target:guest.playerId,data:{type:'offer',sdp:'v=0'}}),/Enable WebRTC/);
+ rooms.handle(guest,{type:'voice',enabled:true,ready:true});
+ rooms.handle(host,{type:'signal',target:guest.playerId,data:{type:'offer',sdp:'v=0'}});assert.equal(last(guest,'signal').data.type,'offer');
+ assert.throws(()=>rooms.handle(host,{type:'signal',target:guest.playerId,data:{type:'offer',sdp:'x'.repeat(14001)}}),/Invalid/);
+ rooms.leave(host);assert.equal(last(guest,'state').players[0].voiceReady,false);
 });
 test('signaling cannot target participants in another room', t => {
   const { rooms, host, id } = setup(t); const guest = join(rooms, id); const outsider = client(); rooms.handle(outsider, { type: 'create' });
   assert.throws(() => rooms.handle(host, { type: 'signal', target: outsider.playerId, data: {} }), /unavailable/);
-  rooms.handle(host, { type: 'signal', target: guest.playerId, data: { hello: true } }); assert.equal(last(guest, 'signal').from, host.playerId);
+  rooms.handle(host,{type:'voice',enabled:true,ready:true});rooms.handle(guest,{type:'voice',enabled:true,ready:true});
+  rooms.handle(host, { type: 'signal', target: guest.playerId, data: { type: 'offer', sdp:'v=0' } }); assert.equal(last(guest, 'signal').from, host.playerId);
 });
 test('malformed profiles do not leak empty rooms and null profiles normalize', t => {
   const rooms = new Rooms(); t.after(() => rooms.close());
@@ -122,4 +123,10 @@ test('Home is the only world and has six seats', t => {
   assert.throws(()=>rooms.handle(host,{type:'world',world:'cinema'}),/Unknown world/);
   assert.throws(()=>rooms.handle(guest,{type:'seat',seatIndex:6}),/Invalid seat/);
   rooms.handle(guest,{type:'seat',seatIndex:5});
+});
+
+test('TURN secret stays on server; joining player gets a temporary credential only',t=>{
+ const before={urls:process.env.TURN_URLS,secret:process.env.TURN_SECRET};process.env.TURN_URLS='turn:turn.example.com:3478';process.env.TURN_SECRET='test-only-secret';
+ t.after(()=>{if(before.urls===undefined)delete process.env.TURN_URLS;else process.env.TURN_URLS=before.urls;if(before.secret===undefined)delete process.env.TURN_SECRET;else process.env.TURN_SECRET=before.secret;});
+ const {host}=setup(t,{now:()=>1000000});const joined=last(host,'joined');const turn=joined.iceServers.at(-1);assert.equal(turn.username.split(':')[0],'44200');assert.ok(turn.credential);assert.ok(!JSON.stringify(joined).includes('test-only-secret'));assert.equal(last(host,'state').iceServers,undefined);
 });

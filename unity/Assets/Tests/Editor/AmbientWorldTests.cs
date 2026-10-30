@@ -25,6 +25,25 @@ public class AmbientWorldTests {
   Assert.That(reflection.MultiplyPoint(new Vector3(2,1,5)),Is.EqualTo(new Vector3(2,1,1)));
   Assert.That(reflection*reflection,Is.EqualTo(Matrix4x4.identity));
  }
+ [Test] public void DownstairsFloorRetainsTextureWithoutFalseEmission() {
+  var prefab=Resources.Load<GameObject>("Worlds/Home");if(!prefab)Assert.Ignore("Home source is not installed");
+  Renderer floor=null;foreach(var r in prefab.GetComponentsInChildren<Renderer>())if(r.name=="Cyberpunk_4")floor=r;
+  Assert.IsNotNull(floor);Assert.IsNotNull(floor.sharedMaterial.mainTexture);
+  Assert.Less(floor.sharedMaterial.GetColor("_EmissionColor").maxColorComponent,0.001f);
+  Assert.AreEqual(0,floor.sharedMaterial.GetFloat("_VideoReactive"));
+ }
+ [Test] public void OriginalChessMeshesFitBoardSquares() {
+  foreach(string name in new[]{"Pawn","Rook","Knight","Bishop","Queen","King"}){
+   var mesh=Resources.Load<Mesh>("Chess/"+name);Assert.IsNotNull(mesh,name);
+   Assert.Greater(mesh.vertexCount,20000,name);Assert.Less(mesh.bounds.size.x,.14f,name);Assert.Less(mesh.bounds.size.z,.14f,name);
+   Assert.Less(Mathf.Abs(mesh.bounds.min.y),0.0001f,name);Assert.Greater(mesh.bounds.size.y,.1f,name);
+  }
+ }
+ [Test] public void PawnIsDistinctFromRookDespiteMislabeledSource3mf(){
+  var pawn=Resources.Load<Mesh>("Chess/Pawn");var rook=Resources.Load<Mesh>("Chess/Rook");
+  Assert.IsNotNull(pawn);Assert.IsNotNull(rook);Assert.Less(pawn.bounds.size.y,rook.bounds.size.y);
+  Assert.AreEqual(54134*3,pawn.triangles.Length,"Original Pawn.stl triangles must be preserved");
+ }
  [Test] public void InstalledPrivateHomeHasScreenAndSixSeats() {
   var prefab=Resources.Load<GameObject>("Worlds/Home"); if(!prefab) Assert.Ignore("Private home asset is not installed");
   var data=prefab.GetComponent<CinemaWorldData>(); Assert.AreEqual(6,data.Seats.Length); Assert.Greater(data.ScreenSize.x,data.ScreenSize.y); Assert.Greater(data.ScreenPosition.z,2); Assert.Greater(prefab.GetComponentsInChildren<MeshCollider>().Length,0);

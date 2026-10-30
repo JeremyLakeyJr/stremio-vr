@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { Rooms } from './rooms.js';
 import { runCore } from './core.js';
 import { MediaServer } from './media.js';
+import { hostingInfo, dashboard } from './hosting.js';
 
 export async function createServer(options = {}) {
   const rooms = new Rooms(options);
@@ -47,6 +48,11 @@ export async function createServer(options = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', 'application/json');
     if (media && await media.serve(req, res)) return;
+    if (req.method === 'GET' && req.url === '/') { res.setHeader('Content-Type','text/html; charset=utf-8'); res.end(dashboard); return; }
+    if (req.method === 'GET' && req.url === '/api/hosting') {res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(await hostingInfo()));return;}
+    if (req.method === 'GET' && /^\/screenshots\/apartment-(lounge|screen|overview)\.png$/.test(req.url)) {
+      try {const body=await readFile(new URL('../docs'+req.url,import.meta.url));res.setHeader('Content-Type','image/png');res.end(body);}catch{res.writeHead(404);res.end();}return;
+    }
     if (req.method === 'POST' && req.url === '/api/core') {
       try {
         req.setEncoding('utf8');
@@ -100,7 +106,7 @@ export async function createServer(options = {}) {
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const tls = process.env.TLS_CERT && process.env.TLS_KEY ? { cert: await readFile(process.env.TLS_CERT), key: await readFile(process.env.TLS_KEY) } : undefined;
-  const app = await createServer({ tls, origin: process.env.PUBLIC_ORIGIN, iceServers: JSON.parse(process.env.ICE_SERVERS || '[]') });
+  const app = await createServer({ tls, origin: process.env.PUBLIC_ORIGIN, iceServers: JSON.parse(process.env.ICE_SERVERS || '[{"urls":"stun:stun.cloudflare.com:3478"}]') });
   app.server.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => console.log(`Cinema listening on ${tls ? 'https' : 'http'}://localhost:${process.env.PORT || 3000}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await app.close(); process.exit(0); });
 }

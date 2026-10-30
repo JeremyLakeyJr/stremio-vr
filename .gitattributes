@@ -4,3 +4,4 @@
 *.prefab whitespace=-blank-at-eol
 *.unity whitespace=-blank-at-eol
 *.mat whitespace=-blank-at-eol
+Open[[:space:]]Concept[[:space:]]Home*.zip filter=lfs diff=lfs merge=lfs -text

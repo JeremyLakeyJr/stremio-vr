@@ -1,5 +1,6 @@
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, createHmac } from 'node:crypto';
 import { TableGames } from './games.js';
+import { RoomLayout } from './layout.js';
 
 export const worlds = { home: { seats: 6 } };
 export const presets = { head: ['round', 'square'], body: ['regular', 'wide'], hair: ['none', 'short', 'tall'], outfit: ['casual', 'formal', 'sport'], accessory: ['none', 'glasses', 'hat', 'headset'] };
@@ -17,17 +18,17 @@ export function mediaURL(value) {
 }
 export function position(state, now = Date.now()) { return state.position + (state.paused ? 0 : Math.max(0, now - state.updatedAt) / 1000); }
 export class Rooms {
-  constructor({ now = Date.now, grace = 15000 } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; }
+  constructor({ now = Date.now, grace = 15000, iceServers = [{ urls: "stun:stun.cloudflare.com:3478" }] } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; this.iceServers = iceServers; }
   send(ws, data) { if (ws?.readyState === 1) ws.send(JSON.stringify(data)); }
   snapshot(room) {
-    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice })), mediaStatus: room.mediaStatus || '', playback: room.playback, games: room.games.snapshot() };
+    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice, voiceReady: !!p.voiceReady })), mediaStatus: room.mediaStatus || '', playback: room.playback, layout: room.layout.snapshot(), games: room.games.snapshot() };
   }
   broadcast(room, data, except) { for (const p of room.players.values()) if (p.id !== except) this.send(p.ws, data); }
   state(room) { this.broadcast(room, this.snapshot(room)); }
   leave(ws, immediate = false) {
     const room = this.rooms.get(ws.roomId), player = room?.players.get(ws.playerId);
     if (!player || player.ws !== ws) return;
-    player.ws = null; player.voice = false;
+    player.ws = null; player.voice = false; player.voiceReady = false;
     const remove = () => {
       if (player.ws) return;
       room.players.delete(player.id); room.games.remove(player.id);
@@ -48,7 +49,7 @@ export class Rooms {
       if (type === 'create') {
         if (this.rooms.size >= 500) throw new Error('Server is full');
         const id = randomBytes(6).toString('hex');
-        room = { id, games: new TableGames(), world: 'home', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
+        room = { id, layout: new RoomLayout(), games: new TableGames(), world: 'home', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
         this.rooms.set(id, room);
       } else { room = this.rooms.get(String(message.roomId)); if (!room) throw new Error('Room not found'); }
       let player = [...room.players.values()].find(p => p.token === message.token);
@@ -62,7 +63,7 @@ export class Rooms {
       }
       player.ws = ws; ws.roomId = room.id; ws.playerId = player.id;
       room.host ||= player.id;
-      this.send(ws, { type: 'joined', playerId: player.id, token: player.token, roomId: room.id }); this.state(room); return;
+      this.send(ws, { type: 'joined', playerId: player.id, token: player.token, roomId: room.id, iceServers: this.voiceServers(player.id) }); this.state(room); return;
     }
     const room = this.rooms.get(ws.roomId), player = room?.players.get(ws.playerId);
     if (!player || player.ws !== ws) throw new Error('Join a room first');
@@ -74,6 +75,10 @@ export class Rooms {
       if(room.world !== message.world) { room.world = message.world; for(const member of room.players.values()) { member.seatedSeat = -1; member.pose = undefined; } }
       this.state(room); return;
     }
+    if (type === 'layout') {
+      if (room.host !== player.id) throw new Error('Only the host arranges the room');
+      room.layout.handle(message); this.state(room); return;
+    }
     if (type === 'game') { room.games.handle(player.id,room.host,message); this.state(room); return; }
     if (type === 'seat') {
       const index = message.seatIndex;
@@ -81,7 +86,7 @@ export class Rooms {
       if (index >= 0 && [...room.players.values()].some(p => p.id !== player.id && p.seatedSeat === index)) throw new Error('Seat is occupied');
       player.seatedSeat = index; player.pose = undefined; this.state(room); return;
     }
-    if (type === 'voice') { player.voice = message.enabled === true; this.state(room); return; }
+    if (type === 'voice') { player.voiceReady = message.ready === true; player.voice = player.voiceReady && message.enabled === true; this.state(room); return; }
     if (type === 'playback') {
       if (room.host !== player.id) throw new Error('Only the host controls playback');
       const next = { ...room.playback, position: position(room.playback, this.now()) };
@@ -97,20 +102,23 @@ export class Rooms {
       if (!pose.head) throw new Error('Invalid pose');
       player.pose = pose; this.broadcast(room, { type: 'pose', playerId: player.id, seated: (player.seatedSeat ?? -1) >= 0, pose }, player.id); return;
     }
-    if (type === 'audio') {
-      if (!player.voice) throw new Error('Enable voice first');
-      if (typeof message.pcm !== 'string' || message.pcm.length !== 4268 || !/^[A-Za-z0-9+/]+=$/.test(message.pcm) || Buffer.from(message.pcm, 'base64').length !== 3200) throw new Error('Invalid PCM audio frame');
-      const now = this.now();
-      if (player.lastAudio !== undefined && now - player.lastAudio < 80) return;
-      player.lastAudio = now;
-      this.broadcast(room, { type: 'audio', playerId: player.id, pcm: message.pcm }, player.id); return;
-    }
     if (type === 'signal') {
       const target = room.players.get(message.target);
       if (!target?.ws || target === player) throw new Error('Participant unavailable');
+      if (!player.voiceReady || !target.voiceReady) throw new Error('Enable WebRTC voice first');
+      const data = message.data;
+      if (!data || typeof data !== 'object' || !((['offer','answer'].includes(data.type) && typeof data.sdp === 'string' && data.sdp.length <= 14000) || (typeof data.candidate === 'string' && data.candidate.length <= 2048 && typeof data.sdpMid === 'string' && data.sdpMid.length <= 64 && Number.isInteger(data.sdpMLineIndex) && data.sdpMLineIndex >= 0 && data.sdpMLineIndex < 8))) throw new Error('Invalid voice signaling');
       this.send(target.ws, { type: 'signal', from: player.id, data: message.data }); return;
     }
     throw new Error('Unknown message type');
+  }
+  voiceServers(playerId) {
+    const servers = [...this.iceServers];
+    if (process.env.TURN_URLS && process.env.TURN_SECRET) {
+      const username = `${Math.floor(this.now()/1000)+43200}:${playerId}`;
+      servers.push({ urls: process.env.TURN_URLS.split(','), username, credential: createHmac('sha1',process.env.TURN_SECRET).update(username).digest('base64') });
+    }
+    return servers;
   }
   close() { for (const room of this.rooms.values()) for (const p of room.players.values()) clearTimeout(p.timer); this.rooms.clear(); }
 }

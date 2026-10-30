@@ -53,6 +53,9 @@ public static class HomeWorldBuild {
    string matPath=Folder+"/HomeMaterial"+index+".mat"; var material=AssetDatabase.LoadAssetAtPath<Material>(matPath);
    if(!material) { material=new Material(Shader.Find("StremioVR/World")); AssetDatabase.CreateAsset(material,matPath); }
    material.shader=Shader.Find("StremioVR/World");
+   material.mainTexture=null;material.mainTextureScale=Vector2.one;material.mainTextureOffset=Vector2.zero;
+   material.SetTexture("_EmissionMap",null);material.SetTexture("_BumpMap",null);material.SetColor("_EmissionColor",Color.black);
+   material.SetFloat("_Glossiness",0.25f);material.SetFloat("_Metallic",0);material.SetFloat("_BumpScale",1);
    material.SetTexture("_BakedLight",group.Key.baked?lightmap:null); material.SetFloat("_HasBakedLight",group.Key.baked?1:0);
    var source=new SerializedObject(group.Key.material); var colors=source.FindProperty("m_SavedProperties.m_Colors"); material.color=Color.white;
    for(int i=0;i<colors.arraySize;i++) { var entry=colors.GetArrayElementAtIndex(i); if(entry.FindPropertyRelative("first").stringValue=="_Color") material.color=entry.FindPropertyRelative("second").colorValue; else if(entry.FindPropertyRelative("first").stringValue=="_EmissionColor") material.SetColor("_EmissionColor",entry.FindPropertyRelative("second").colorValue); }
@@ -66,7 +69,11 @@ public static class HomeWorldBuild {
     material.mainTextureScale=tex.FindPropertyRelative("m_Scale").vector2Value; material.mainTextureOffset=tex.FindPropertyRelative("m_Offset").vector2Value;
    }
    var floats=source.FindProperty("m_SavedProperties.m_Floats"); for(int i=0;i<floats.arraySize;i++) { var entry=floats.GetArrayElementAtIndex(i); string name=entry.FindPropertyRelative("first").stringValue; if(name=="_Glossiness"||name=="_BumpScale"||name=="_Metallic") material.SetFloat(name,entry.FindPropertyRelative("second").floatValue); }
-   material.SetFloat("_VideoReactive",material.GetColor("_EmissionColor").maxColorComponent>0.1f?1:0);
+   // Saved emission colors can remain white while Standard emission is disabled.
+   // In particular Cyberpunk_4 (the downstairs floor) must not glow solid white.
+   bool lightBar=group.Key.material.name.IndexOf("Emmissive",StringComparison.OrdinalIgnoreCase)>=0;
+   if(!lightBar && !group.Key.material.IsKeywordEnabled("_EMISSION"))material.SetColor("_EmissionColor",Color.black);
+   material.SetFloat("_VideoReactive",lightBar?1:0);
    EditorUtility.SetDirty(material);
    var part=new GameObject(group.Key.material.name,typeof(MeshFilter),typeof(MeshRenderer),typeof(MeshCollider)); part.transform.SetParent(root.transform,false); part.GetComponent<MeshFilter>().sharedMesh=mesh; part.GetComponent<MeshRenderer>().sharedMaterial=material;
    if(mesh.vertexCount<500000) part.GetComponent<MeshCollider>().sharedMesh=mesh;

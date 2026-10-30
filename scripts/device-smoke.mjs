@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
 server.listen(port, '127.0.0.1', () => console.log(`ADDON ${base}/manifest.json`));
 const ws = new WebSocket(process.env.ROOM_SERVER || 'ws://127.0.0.1:3000/ws');
 const send = data => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); };
-let previous = '', poseSeen = new Set(), voiceTimer, audioReceived = 0;
+let previous = '', poseSeen = new Set();
 ws.on('open', () => send({ type: 'create', profile: { name: 'Device test host', accessory: 'hat', color: '#238caa' } }));
 ws.on('message', raw => {
   const data = JSON.parse(raw);
@@ -43,7 +43,6 @@ ws.on('message', raw => {
     if (key !== previous) console.log('STATE', JSON.stringify({ players: data.players.map(p => ({ name: p.profile.name, connected: p.connected, voice: p.voice, seatedSeat: p.seatedSeat })), playback: data.playback })); previous = key;
   }
   if (data.type === 'pose' && !poseSeen.has(data.playerId)) { poseSeen.add(data.playerId); console.log('POSE received from native participant'); }
-  if (data.type === 'audio' && ++audioReceived % 10 === 1) console.log('MIC frames received', audioReceived);
   if (data.type === 'error') console.error(data.message);
 });
 ws.on('error', error => console.error(error.message));
@@ -55,13 +54,8 @@ input.on('line', line => {
   else if (command === 'pause') send({ type: 'playback', paused: true });
   else if (command === 'seek' && Number.isFinite(Number(argument))) send({ type: 'playback', seek: true, position: Number(argument) });
   else if (command === 'avatar') send({ type: 'profile', profile: { name: 'Changed test avatar', head: 'square', hair: 'tall', outfit: 'formal', accessory: 'glasses', color: '#ce5353' } });
-  else if (command === 'tone') {
-    clearInterval(voiceTimer); send({ type: 'voice', enabled: true });
-    const pcm = Buffer.alloc(3200); for (let i = 0; i < 1600; i++) pcm.writeInt16LE(Math.round(Math.sin(2 * Math.PI * 440 * i / 16000) * 1600), i * 2);
-    voiceTimer = setInterval(() => send({ type: 'audio', pcm: pcm.toString('base64') }), 100);
-  } else if (command === 'mute') { clearInterval(voiceTimer); send({ type: 'voice', enabled: false }); }
-  else if (command === 'leave') { clearInterval(voiceTimer); send({ type: 'leave' }); }
-  else console.log('Commands: play, pause, seek <seconds>, avatar, tone, mute, leave');
+  else if (command === 'leave') { send({ type: 'leave' }); }
+  else console.log('Commands: play, pause, seek <seconds>, avatar, leave');
 });
-function stop() { clearInterval(voiceTimer); input.close(); ws.close(); server.close(); }
+function stop() { input.close(); ws.close(); server.close(); }
 process.on('SIGINT', stop); process.on('SIGTERM', stop);

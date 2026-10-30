@@ -45,14 +45,21 @@ public sealed class WebCinema : MonoBehaviour {
   pressed=held&&hit; return hit;
  }
  public void Text(string value) { if(Active&&Room.IsHost)web?.Call("text",value); }
+ public JArray Tabs { get {try{return Active?JArray.Parse(web.Call<string>("tabs")):new JArray();}catch{return new JArray();}} }
+ public void Navigate(string url){if(Active&&Room.IsHost)web?.Call("navigate",url);}
+ public void NewTab(string url){if(Active&&Room.IsHost)web?.Call("newTab",url);}
+ public void SelectTab(int index){if(Active&&Room.IsHost)web?.Call("selectTab",index);}
+ public void CloseTab(int index){if(Active&&Room.IsHost)web?.Call("closeTab",index);}
+ public void Forward(){if(Active&&Room.IsHost)web?.Call("forward");}
  public void Back() { if(Active&&Room.IsHost)web?.Call("back"); }
  public void Reload() { if(Active&&Room.IsHost)web?.Call("reload"); }
+ public void ForgetSession(){if(Active&&Room.IsHost)web?.Call("forgetSession");}
  public void Share() { if(Active&&Room.IsHost)web?.Call("shareVideo"); }
  public void BrowserStatus(string value) { Status?.Invoke(value); }
  public void BrowserVideo(string value) {
   if(!Active||!Room.IsHost)return;
   try {
-   string decoded=JsonConvert.DeserializeObject<string>(value); if(string.IsNullOrEmpty(decoded))throw new Exception("Start a video in Stremio Web first.");
+   string decoded=JsonConvert.DeserializeObject<string>(value); if(string.IsNullOrEmpty(decoded))throw new Exception("Start a video in the browser first.");
    var data=JObject.Parse(decoded); string url=MediaLibrary.Http((string)data["url"]);
    Room.Send(new JObject { ["type"]="playback",["url"]=url,["title"]=(string)data["title"],["position"]=(double?)data["position"]??0,["paused"]=(bool?)data["paused"]??false }); Close(); Status?.Invoke("Shared with room. Native synchronized playback resumed.");
   } catch { Status?.Invoke("This browser video cannot be shared directly. Choose an HTTP source in Discover; blob/DRM browser playback cannot be handed to the room."); }

@@ -67,3 +67,17 @@ test('two WebSocket players see the same tabletop move', async t => {
   changed=receive(guest,'state',s=>s.games.tictactoe.revision>state.games.tictactoe.revision);host.send(JSON.stringify({type:'game',game:'tictactoe',action:'move',cell:4,revision:state.games.tictactoe.revision}));const next=await changed;
   assert.equal(next.games.tictactoe.board[4],'X');assert.equal(next.games.tictactoe.turn,1);
 });
+
+test('real room peers receive host placement updates and guests cannot remove objects',async t=>{
+ const {port}=await fixture(t);const host=await socket(port);let event=receive(host,'joined');host.send(JSON.stringify({type:'create'}));const joined=await event;
+ const guest=await socket(port);event=receive(guest,'state');guest.send(JSON.stringify({type:'join',roomId:joined.roomId}));assert.deepEqual((await event).layout.items,[]);
+ event=receive(guest,'state',s=>s.layout.revision===1);host.send(JSON.stringify({type:'layout',action:'place',kind:'screen',revision:0,position:[1,2,3],rotation:[0,45,0]}));const state=await event;const item=state.layout.items[0];assert.deepEqual(item.position,[1,2,3]);
+ event=receive(guest,'error');guest.send(JSON.stringify({type:'layout',action:'remove',id:item.id,revision:1}));assert.match((await event).message,/host/);
+ event=receive(guest,'state',s=>s.layout.revision===2);host.send(JSON.stringify({type:'layout',action:'remove',id:item.id,revision:1}));assert.deepEqual((await event).layout.items,[]);
+});
+test('friendly sharing page and apartment photos are served without exposing arbitrary files',async t=>{
+ const {port}=await fixture(t);const base=`http://127.0.0.1:${port}`;
+ assert.match(await(await fetch(base)).text(),/Copy invite/);
+ assert.equal((await fetch(base+'/screenshots/apartment-lounge.png')).headers.get('content-type'),'image/png');
+ assert.equal((await fetch(base+'/screenshots/not-an-image.png')).status,404);
+});

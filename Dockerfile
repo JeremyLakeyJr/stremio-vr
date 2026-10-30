@@ -12,6 +12,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=core /build/target/release/stremio-vr-core /app/bin/stremio-vr-core
 COPY server ./server
+COPY docs/screenshots ./docs/screenshots
+RUN mkdir /share && chown node:node /share
 COPY LICENSE ./LICENSE
 USER node
 EXPOSE 3000

@@ -13,7 +13,7 @@
 | Avatar presence | Supplied R6 meshes, head/arm poses, interpolation, room-only visibility | Verify tracking origin, seating, orientation, and frame cost |
 | Customization | R6 live preview, head/body proportions, skin, hair, outfits/colors, three accessory types | R6 model/face renders on Quest; all-combination inspection remains |
 | Saved profiles | Local JSON and room-state synchronization | Saved avatar profile matched the advertised room profile after final APK update/relaunch |
-| Voice | Opt-in microphone, 16 kHz PCM relay, mic mute and deafen | Quest mic permission granted and PCM received by peer; inbound tone heard; denial/latency/echo/stalls remain |
+| Voice | Native WebRTC/Opus, opt-in microphone, mute/deafen, room-scoped signaling, TURN configuration | Android build and two-headset audio/echo/NAT acceptance required; old PCM checks do not validate WebRTC |
 | VR interface | Controller ray, scroll, in-world keyboard, room/media/avatar pages | User confirmed both-eye R6 preview, appearance controls, and preview rotation on Quest |
 | MVP release | Server checks and build instructions | Native build, two-headset acceptance, performance and packaging |
 
@@ -49,7 +49,7 @@ Quest 3 test evidence: user confirmed both eyes and controls, video and room ton
 ## Remaining product work
 
 - Broader stream compatibility (headers/transcoding/DRM/subtitles) is outside the initial player.
-- Replace or improve PCM voice for internet-scale quality: echo cancellation, efficient codec, jitter/packet-loss handling.
+- Validate WebRTC echo cancellation, codec quality, jitter handling, and TURN on separate networks.
 - Add durable accounts/rooms, moderation, deployment operations and production signing if public distribution is intended.
 
 ## R6/menu device pass
@@ -93,3 +93,30 @@ The updated Docker image also built successfully and passed health/core, two-cli
 Mirror, runtime reflection probe, and bloom are disabled in this recovery build.
 Automated checks cover render-target restoration, source validation, AC3-to-AAC
 transcoding, HLS ingestion/output, shared room URLs, host authority, and seek replacement.
+
+## 0.1.3 placement, mirror and voice acceptance
+
+- [x] User confirmed the 0.1.2 stereo recovery on Quest.
+- [ ] Mirror restored without white-eye/tunneling regression.
+- [ ] Host can place/move/remove screens and both table types with comfortable controls.
+- [ ] Second headset sees the same layout and cannot edit as a guest.
+- [ ] WebRTC voice connects, mutes, deafens and reconnects across NAT/TURN.
+- [ ] Web sign-in persists across closing the screen and creating a new room.
+- [ ] Share page shows the current Cloudflare URL and copied invite joins the correct server.
+
+Two real Chromium peers exchanged encrypted WebRTC audio through the room server on 2026-10-29. This validates signaling and browser-to-browser media; it does not establish Quest microphone or cross-network TURN acceptance. The Cloudflare share helper produced a real public URL and the dashboard returned it.
+
+## Alpha 4 final build checks (0.1.3)
+
+- Unity EditMode: **27/27 passed**, including ambient framebuffer restoration, mirror geometry, downstairs texture/emission, and original chess mesh bounds.
+- Docker server: **41/41 passed**, including room placement authority/revisions, WebRTC signaling, TURN credentials, real WebSocket games, and FFmpeg AC3-to-AAC transcoding.
+- Android ARM64 APK: built successfully with the native WebRTC library and tabbed WebView.
+- Before/after in-engine capture reproduced the white downstairs floor and verified the corrected patterned floor.
+- Original Jacob G chess models imported without triangle reduction; author/source/CC BY-ND attribution included in Games and assets/chess/README.md.
+- [x] User confirmed browser tab controls work on Quest.
+- [x] User confirmed placement and chess grip controls work on Quest (detailed illegal-drop/other-hand cases remain part of extended testing).
+- [ ] On Quest: assess performance with a full chess board, mirror, video and voice together.
+
+Browser pages remain local to the host. Guests receive synchronized native video after a supported HTTP-video handoff. The chess grab preview is local; committed moves are server-authoritative. Two-headset voice/TURN and protected DRM playback are not claimed as verified.
+
+User acceptance (2026-10-29): after installing Alpha 4 and asking about both-eye startup, browser tabs, table placement and chess gripping, the user replied **“Looks good; controls work.”** The final APK includes the same runtime code plus the corrected original pawn asset and bundled third-party license notices.

@@ -14,7 +14,7 @@ With Docker and Docker Compose installed:
 docker compose --profile internet up --build
 ```
 
-The `internet` container prints an `https://…trycloudflare.com` address. Enter it
+Open **http://localhost:3000** and click **Copy invite**. The `internet` container also prints the `https://…trycloudflare.com` address. Enter it
 in My room on every headset; create a room and share its code. Keep this computer
 and all containers running. Stop with Ctrl-C, then `docker compose down`.
 
@@ -54,8 +54,9 @@ hosting suitable for continuous video delivery; a temporary development tunnel
 has not been validated for long movie sessions. Stremio account add-ons and auth
 stay on each headset; the selected source URL goes to the server for fetching.
 
-The current service supports eight people per room. PCM voice is bandwidth heavy,
-and there is no echo cancellation. Use headphones. Restarting/redeploying the
+The current service supports eight people per room. Voice uses WebRTC/Opus with
+DTLS-SRTP. Configure TURN for restrictive NATs; the HTTP tunnel does not carry
+WebRTC audio. Two-headset internet audio validation remains pending. Restarting/redeploying the
 server discards rooms. Production accounts, moderation, persistence, multiple
 regions, and shared state across replicas are separate work.
 

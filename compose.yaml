@@ -6,8 +6,14 @@ services:
     environment:
       STREAMING_SERVICE_URL: http://stremio:11470
       MEDIA_ALLOWED_HOSTS: stremio:11470
+      TUNNEL_LINK_FILE: /share/link.json
+      ICE_SERVERS: ${ICE_SERVERS:-[{"urls":"stun:stun.cloudflare.com:3478"}]}
+      TURN_URLS: ${TURN_URLS:-}
+      TURN_SECRET: ${TURN_SECRET:-}
       MEDIA_MAX_JOBS: "2"
       MEDIA_MAX_BYTES: "8589934592"
+    volumes:
+      - tunnel-link:/share:ro
     depends_on:
       - stremio
     restart: unless-stopped
@@ -22,9 +28,11 @@ services:
       - stremio-data:/data
     restart: unless-stopped
   internet:
-    image: cloudflare/cloudflared:latest
-    profiles: [internet]
-    command: tunnel --no-autoupdate --url http://cinema:3000
+    build:
+      context: .
+      dockerfile: Dockerfile.tunnel
+    volumes:
+      - tunnel-link:/share
     depends_on:
       cinema:
         condition: service_healthy
@@ -32,3 +40,4 @@ services:
 
 volumes:
   stremio-data:
+  tunnel-link:

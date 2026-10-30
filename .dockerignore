@@ -11,3 +11,8 @@ core/*
 !core/src/
 !core/src/**
 !LICENSE
+
+!Dockerfile.tunnel
+!docs/
+!docs/screenshots/
+!docs/screenshots/**
