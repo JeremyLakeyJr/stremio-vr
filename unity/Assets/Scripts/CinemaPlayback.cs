@@ -14,7 +14,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
     public string SourceUrl { get; private set; }
-    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek;
+    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek; double soloPosition;
     public void Initialize(RoomClient room, Renderer screen) {
         Room = room;
         Video = gameObject.AddComponent<VideoPlayer>();
@@ -37,7 +37,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
         if(!string.IsNullOrEmpty((string)message["mediaStatus"])) Status?.Invoke((string)message["mediaStatus"]);
         var next = message["playback"] as JObject; if (next == null) return;
         bool changed = (string)playback?["url"] != (string)next["url"] || (!Video.isPrepared && !preparing && (long?)playback?["revision"] != (long?)next["revision"]);
-        if(Room.IsSolo && (long?)playback?["revision"]!=(long?)next["revision"])soloSeek=true;
+        if(Room.IsSolo && (long?)playback?["revision"]!=(long?)next["revision"]){soloSeek=true;soloPosition=(double)next["position"];}
         playback = next;
         if (changed && !string.IsNullOrEmpty((string)next["url"])) {
             Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = PlaybackUrl((string)next["url"],Room.ApiEndpoint); preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
@@ -51,7 +51,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     void Apply() {
         if (Suspended || playback == null || preparing || !Video.isPrepared) return;
         bool paused = (bool)playback["paused"];
-        if(Room.IsSolo){if(soloSeek&&Video.canSetTime){Video.time=(double)playback["position"];soloSeek=false;}if(paused)Video.Pause();else if(!Video.isPlaying)Video.Play();return;}
+        if(Room.IsSolo){if(soloSeek&&Video.canSetTime){Video.time=soloPosition;soloSeek=false;}if(paused)Video.Pause();else if(!Video.isPlaying)Video.Play();return;}
         double desired = (double)playback["position"] + (paused ? 0 : Math.Max(0, Room.ServerTime - (double)playback["updatedAt"]) / 1000);
         desired = Math.Max(0, desired - ((double?)playback["mediaStart"] ?? 0));
         if (Video.length > 0 && !((string)playback["url"]).StartsWith("/media/")) desired = Math.Min(desired, Video.length);
@@ -81,6 +81,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public void NextAudioTrack() {
         if(!Video.isPrepared || Video.audioTrackCount<2) { Status?.Invoke(AudioInfo);return; }
         ushort count=(ushort)Math.Min(Video.audioTrackCount,VideoPlayer.controlledAudioTrackMaxCount);
+        if(Room.IsSolo){soloPosition=Video.time;soloSeek=true;}
         AudioTrack=(ushort)((AudioTrack+1)%count); Video.Stop(); ConfigureAudio(); preparing=true;Video.Prepare();
     }
     public void Load(string url, string title, double position=0) {
