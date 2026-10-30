@@ -14,7 +14,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
     public string SourceUrl { get; private set; }
-    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing;
+    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek;
     public void Initialize(RoomClient room, Renderer screen) {
         Room = room;
         Video = gameObject.AddComponent<VideoPlayer>();
@@ -37,14 +37,21 @@ public sealed class CinemaPlayback : MonoBehaviour {
         if(!string.IsNullOrEmpty((string)message["mediaStatus"])) Status?.Invoke((string)message["mediaStatus"]);
         var next = message["playback"] as JObject; if (next == null) return;
         bool changed = (string)playback?["url"] != (string)next["url"] || (!Video.isPrepared && !preparing && (long?)playback?["revision"] != (long?)next["revision"]);
+        if(Room.IsSolo && (long?)playback?["revision"]!=(long?)next["revision"])soloSeek=true;
         playback = next;
         if (changed && !string.IsNullOrEmpty((string)next["url"])) {
-            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = new Uri(new Uri(Room.ApiEndpoint), (string)next["url"]).AbsoluteUri; preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
+            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = PlaybackUrl((string)next["url"],Room.ApiEndpoint); preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
         } else Apply();
+    }
+    public static string PlaybackUrl(string value,string endpoint){
+        if(Uri.TryCreate(value,UriKind.Absolute,out var uri)&& (uri.Scheme=="http"||uri.Scheme=="https"))return MediaLibrary.Http(value);
+        if(string.IsNullOrEmpty(endpoint))throw new Exception("Solo playback needs a direct HTTP(S) video URL");
+        return new Uri(new Uri(endpoint),value).AbsoluteUri;
     }
     void Apply() {
         if (Suspended || playback == null || preparing || !Video.isPrepared) return;
         bool paused = (bool)playback["paused"];
+        if(Room.IsSolo){if(soloSeek&&Video.canSetTime){Video.time=(double)playback["position"];soloSeek=false;}if(paused)Video.Pause();else if(!Video.isPlaying)Video.Play();return;}
         double desired = (double)playback["position"] + (paused ? 0 : Math.Max(0, Room.ServerTime - (double)playback["updatedAt"]) / 1000);
         desired = Math.Max(0, desired - ((double?)playback["mediaStart"] ?? 0));
         if (Video.length > 0 && !((string)playback["url"]).StartsWith("/media/")) desired = Math.Min(desired, Video.length);

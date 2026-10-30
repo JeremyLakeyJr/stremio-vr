@@ -120,3 +120,20 @@ Two real Chromium peers exchanged encrypted WebRTC audio through the room server
 Browser pages remain local to the host. Guests receive synchronized native video after a supported HTTP-video handoff. The chess grab preview is local; committed moves are server-authoritative. Two-headset voice/TURN and protected DRM playback are not claimed as verified.
 
 After Alpha 4 install: both-eye startup, browser tabs, table placement and chess gripping verified **“Looks good; controls work.”** The final APK includes the same runtime code plus the corrected original pawn asset and bundled third-party license notices.
+
+## Alpha 5 solo mode
+
+- [x] Normal Quest launch (no server/room extras) initialized solo and wrote local state.
+- [x] User confirmed the solo browser and controls work without a room.
+- [ ] Retest direct-video decoding across representative sources without Docker.
+- [ ] Place/move objects, make game moves, restart, and recover the solo layout and boards.
+- [x] User confirmed solo tabletop play works; automated checks cover legal computer replies and both-side practice.
+- [ ] Switch between solo and multiplayer without retaining the wrong host, playback, or game state.
+
+The local rules engine is a bundled, network-disabled Android WebView. It has no room-server connection or listening socket. Stremio APIs, catalogs and websites still need internet; incompatible video formats still require a compatible source or external transcoding.
+
+Alpha 5 automated checks: **29/29 Unity EditMode tests**, **46/46 Node tests** (including five tests of the bundled offline rules), and a successful ARM64 Android APK build. The offline tests run without fetch/WebSocket/network APIs and cover legal bot replies, both-seat practice, layout/game restore, cancellation, stale edits, and unsupported sources.
+
+Quest 3 startup check: the normal launcher intent entered solo, created `solo.json`, fetched catalogs directly, imported account add-ons, and loaded watch history without a room-server endpoint. Hands-on solo play and restart acceptance remain pending user feedback.
+
+User acceptance (2026-10-30): after asking about browser access, table placement and a move against the local computer without creating a room, the user replied **“Solo mode works.”**

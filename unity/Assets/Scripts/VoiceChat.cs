@@ -11,6 +11,7 @@ public sealed class VoiceChat:MonoBehaviour {
  public void Initialize(RoomClient room){Room=room;room.Message+=OnMessage;}
  public void Toggle(){if(Enabled)StopVoice();else if(!starting)StartCoroutine(StartVoice());}
  IEnumerator StartVoice(){
+  if(Room.IsSolo){Status?.Invoke("You are in solo mode. Connect a multiplayer room to use voice.");yield break;}
   if(!Room.Connected||Room.State==null){Status?.Invoke("Join a room first");yield break;}
   starting=true;
 #if UNITY_ANDROID && !UNITY_EDITOR

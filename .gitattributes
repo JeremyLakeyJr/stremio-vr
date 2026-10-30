@@ -5,3 +5,6 @@
 *.unity whitespace=-blank-at-eol
 *.mat whitespace=-blank-at-eol
 Open[[:space:]]Concept[[:space:]]Home*.zip filter=lfs diff=lfs merge=lfs -text
+
+# Generated offline rules retain the upstream chess.js formatting.
+unity/Assets/StreamingAssets/solo.js -whitespace linguist-generated=true

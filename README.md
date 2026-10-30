@@ -19,13 +19,17 @@ Hang out in Open Concept Home on Meta Quest, choose something to watch with Stre
 
 [Download the Quest alpha](https://github.com/JeremyLakeyJr/stremio-vr/releases) · [What still needs testing](docs/ACCEPTANCE.md)
 
-One person runs the Docker server on a computer. Everyone installs the Quest app. The person hosting opens **http://localhost:3000**, clicks **Copy invite**, and sends the link plus the headset's room code to friends. Keep the computer running while you hang out.
+**Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout and board progress save on the headset.
+
+**Playing with friends?** One person runs the Docker server on a computer. Everyone installs the Quest app. The person hosting opens **http://localhost:3000**, clicks **Copy invite**, and sends the link plus the headset's room code to friends. Keep the computer running while you hang out.
 
 ## Goal checklist
 
 Checked items are implemented; separate acceptance tasks below remain open.
 
 - [x] Native Quest app with OpenXR controls and a Stremio-inspired animated menu.
+- [x] Start automatically in server-free solo mode with saved layout and game progress.
+- [x] Play chess/tic-tac-toe against local computer opponents or practice both sides.
 - [x] Fix Alpha 2's stereo startup bug — stererecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
 - [x] Customize R6 avatars; show hand nubs in first person and full characters to peers.
@@ -48,7 +52,15 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [ ] Validate prolonged movie sessions, audio synchronization, and Quest performance.
 - [ ] Add provider-authorized DRM playback; current player does not support it.
 
-## Quick start: Docker + Quest
+## Play solo — no server setup
+
+Install the [latest Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Solo mode** also leaves multiplayer and restores your saved solo apartment.
+
+Discover, Stremio account/add-on import, watch history, and the web browser connect directly to their online services. Direct HTTP(S) videos play on the headset without a room server. Websites and streamed movies still need internet access. Unsupported codecs, torrent delivery, and sources requiring proxy headers still need an appropriate streaming/transcoding service; solo does not secretly start or connect to Docker. DRM support is unchanged.
+
+Games start ready to play against a local computer: you control White/X. In **Games**, switch to **Practice both sides** to control both players. The same chess rules run entirely on-device, including castling, en passant, promotion and game outcomes. Layout, board moves and opponent mode restore after restarting the app. Voice and shared playback become available when you choose to connect to a multiplayer room.
+
+## Quick start: Docker + Quest (multiplayer)
 
 You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server, Rust core, FFmpeg transcoder, and an internal Stremio streaming service. It does **not** build or install the Quest app. Node.js and Rust do not need to be installed on the computer when using Docker.
 
@@ -381,10 +393,14 @@ The server does not need your Stremio account session to stream a selected sourc
 
 ## Browser tabs and hands-on chess
 
-The host can open **Web browser** from My room. While the browser is showing, press the **left controller menu button** to manage up to six tabs: enter a web address, open a tab, switch tabs, close tabs, or go back/forward/reload. Hide the menu to point at the screen and click with the trigger. Stremio Web is a starting bookmark; ordinary HTTP/HTTPS sites work too. Hidden tabs pause their media. All placed screens mirror the active tab on the host's headset. Browser pages are private to the host; sharing a compatible HTTP video switches the room to synchronized native playback. Protected video remains subject to the limitations above.
+In solo mode, or as the multiplayer host, open **Web browser** from My room. While the browser is showing, press the **left controller menu button** to manage up to six tabs: enter a web address, open a tab, switch tabs, close tabs, or go back/forward/reload. Hide the menu to point at the screen and click with the trigger. Stremio Web is a starting bookmark; ordinary HTTP/HTTPS sites work too. Hidden tabs pause their media. All placed screens mirror the active tab on the host's headset. Browser pages are private to the host; sharing a compatible HTTP video switches the room to synchronized native playback. Protected video remains subject to the limitations above.
 
 Cookies stay on the headset. Stremio's official web origin also has an encrypted local session backup, so creating another room does not require signing in again. **Forget web-screen sign-in** removes that backup and browser cookies. No browser account credential is handed to room guests or the server.
 
-Place a chess table with **Games → Arrange room**, then join a seat. On your turn, bring either controller close to one of your pieces, **hold grip**, move it, and **release above a green legal square**. An invalid drop returns the piece. Other players receive the committed move after server validation; the held-piece preview is local. Trigger-to-select remains available. Choose promotion in Games before moving a pawn onto its final rank.
+Place a chess table with **Games → Arrange room**. Solo games are ready immediately; in multiplayer, join a seat. On your turn, bring either controller close to one of your pieces, **hold grip**, move it, and **release above a green legal square**. An invalid drop returns the piece. Other players receive the committed move after server validation; the held-piece preview is local. Trigger-to-select remains available. Choose promotion in Games before moving a pawn onto its final rank.
 
 The downstairs floor now respects the source material's disabled emission setting, retaining its texture instead of glowing solid white.
+
+### Rebuild the offline rules
+
+The APK includes `unity/Assets/StreamingAssets/solo.js`, generated from the pinned chess.js dependency, shared multiplayer game/layout rules, and `solo/runtime.js`. No CDN or local HTTP server is used. After changing those rules, run `npm ci`, `npm run build:solo`, and `npm run check:solo` before building the APK. Offline rules tests exercise the exact bundled JavaScript with no network APIs available.

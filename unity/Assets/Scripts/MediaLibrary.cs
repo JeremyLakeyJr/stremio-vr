@@ -66,7 +66,13 @@ public sealed class MediaLibrary : MonoBehaviour {
         loaded(results);
     }
     public void ResolveStream(JObject stream, string service, Action<string> resolved) {
+        if(string.IsNullOrEmpty(CoreEndpoint)) {try{resolved(DirectStream(stream));}catch(Exception error){Status?.Invoke(error.Message);}return;}
         StartCoroutine(CoreRequest(new JObject { ["operation"] = "resolve", ["stream"] = stream, ["streamingService"] = service }, data => resolved(Http((string)data["url"]))));
+    }
+    public static string DirectStream(JObject stream){
+        if(stream["behaviorHints"]?["proxyHeaders"]!=null)throw new Exception("This source needs a proxy. Choose another HTTP source or use the web browser in solo mode.");
+        if(stream["url"]!=null)return Http((string)stream["url"]);
+        throw new Exception("Solo plays direct HTTP videos. Torrent sources need a streaming service; choose a direct source or use the web browser.");
     }
     IEnumerator CoreRequest(JObject data, Action<JObject> success) {
         if (string.IsNullOrEmpty(CoreEndpoint)) { Status?.Invoke("Connect to the room server to use Stremio core"); yield break; }

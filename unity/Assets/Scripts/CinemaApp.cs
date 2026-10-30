@@ -48,14 +48,14 @@ public sealed class CinemaApp : MonoBehaviour {
         placement.Finished+=()=>{panelMotion.Show(true);Recenter();LayoutPage();};
         BuildCanvas(); Library();
         room.Message += message => {
-            if ((string)message["type"] == "joined") { library.CoreEndpoint = room.ApiEndpoint; library.ValidateInstalled(); }
+            if ((string)message["type"] == "joined") { library.CoreEndpoint = room.ApiEndpoint; if(!room.IsSolo)library.ValidateInstalled(); }
             if ((string)message["type"] == "state") {
                 var names = new List<string>(); foreach (var p in (JArray)message["players"]) names.Add((string)p["profile"]["name"] + ((string)p["id"] == (string)message["host"] ? " (host)" : "") + ((bool)p["connected"] ? "" : " (reconnecting)"));
                 if (shownRoom != room.RoomId) { shownRoom = room.RoomId; Recenter(); }
                 if(pageTitle.text=="Arrange room" && !placement.Active && layoutPageRevision!=((int?)message["layout"]?["revision"]??-1))LayoutPage();
-                members.text = "Room " + room.RoomId + "  •  " + string.Join(", ", names);
+                members.text = room.IsSolo?"Solo mode • Your apartment • Saved on this headset":"Room " + room.RoomId + "  •  " + string.Join(", ", names);
             }
-            if ((string)message["type"] == "disconnected") members.text = "Not connected";
+            if ((string)message["type"] == "disconnected") {members.text = "Not connected";library.CoreEndpoint=null;}
         };
         var accountEndpoints=new HashSet<string>(); foreach(var endpoint in settings["accountAddons"] as JArray??new JArray()) accountEndpoints.Add((string)endpoint);
         foreach(var cached in settings["accountCache"] as JArray??new JArray()) if(cached is JObject addon) library.Addons.Add((JObject)addon.DeepClone());
@@ -66,7 +66,7 @@ public sealed class CinemaApp : MonoBehaviour {
         if(library.Addons.Count>0) Library();
     }
     void Start() {
-        account.Resume();
+        room.StartSolo(profile);account.Resume();
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
         // Explicit development-only launch options make USB smoke tests repeatable.
         using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -110,7 +110,7 @@ public sealed class CinemaApp : MonoBehaviour {
         pageTitle = Label("My room", panel, 280, 18, 750, 44, 30);
         Button("Hide", panel, 1150, 14, 105, () => panelMotion.Show(false));
         members = Label("Not connected", panel, 280, 95, 955, 65, 19);
-        status = Label("Create a room to watch alone or with friends.", panel, 280, 825, 955, 65, 20);
+        status = Label("Solo starts automatically. Connect a room only when you want company.", panel, 280, 825, 955, 65, 20);
         status.color = new Color(0.25f, 0.9f, 0.72f);
         Label("BROWSE & WATCH", panel, 20, 105, 215, 40, 17);
         Button("My room", panel, 15, 175, 215, Home);
@@ -135,26 +135,30 @@ public sealed class CinemaApp : MonoBehaviour {
     public void Recenter() { panel.position = head.position + head.forward * 1.8f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
     void Clear() { scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
     void Home() {
-        Clear(); pageTitle.text = "My room"; Heading("Room & playback");
+        Clear(); pageTitle.text = "My room"; Heading(room.IsSolo?"Solo mode — no server needed":"Room & playback");
+        ActionButton("Solo mode / return to my apartment",()=>{if(browser.Active)browser.Close();room.StartSolo(profile);Home();});
+        Heading("Solo: browse, watch direct videos, arrange your apartment, and play locally. Connect below for multiplayer.");
+        ActionButton("Web browser / native player",()=>{browser.Toggle(); if(browser.Active)panelMotion.Show(false);});
+        ActionButton("Web screen controls",BrowserControls);
+        streamInput = Field("Direct video URL", "", null);
+        ActionButton("Load video", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
+        ActionButton("Movie audio / track",AudioSettings);
+        ActionButton("Play / pause", () => playback.Toggle());
+        ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
+        Heading("Multiplayer — connect only when inviting friends");
         serverInput = Field("Server WebSocket URL", (string)settings["server"] ?? "ws://192.168.1.100:3000/ws", value => { settings["server"] = value; Save(); });
         roomInput = Field("Room code (empty creates a room)", "", null);
         ActionButton("Connect / create room", () => { room.Connect(serverInput.text.Trim(), roomInput.text.Trim(), profile); });
-        ActionButton("Leave room", () => room.Leave());
-        ActionButton("Web browser / native player (host)",()=>{browser.Toggle(); if(browser.Active)panelMotion.Show(false);});
-        ActionButton("Web screen controls",BrowserControls);
-        streamInput = Field("Direct video URL", "", null);
-        ActionButton("Load video (host)", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
-        ActionButton("Movie audio / track",AudioSettings);
-        ActionButton("Play / pause (host)", () => playback.Toggle());
-        ActionButton("Seek −10 seconds (host)", () => playback.Seek(-10)); ActionButton("Seek +10 seconds (host)", () => playback.Seek(10));
+        ActionButton("Leave room / return to solo", () => room.Leave());
         ActionButton("Hide / show panel: left controller menu button", () => panelMotion.Show(false));
     }
     void GamesPage() {
         Clear();pageTitle.text="Tabletop games";
-        Heading("The host places tables using Arrange room. Grip a chess piece, move it, and release above a green square. Trigger also works.");
-        ActionButton("Arrange room (host)",LayoutPage);
+        Heading("Place tables using Arrange room. Grip a chess piece, move it, and release above a green square. Trigger also works.");
+        ActionButton("Arrange room",LayoutPage);
+        if(room.IsSolo)ActionButton((bool?)room.State?["computer"]==false?"Practice both sides → play computer":"Play computer → practice both sides",()=>{room.Send(new JObject{["type"]="solo-opponent",["computer"]=(bool?)room.State?["computer"]==false});ShowStatus("Opponent updated. Refresh boards to see the mode.");});
         foreach(string id in new[]{"chess","tictactoe"}) {string game=id;Heading(id=="chess"?"Chess":"Tic-tac-toe");Heading(games.Description(id));
-            ActionButton("Join "+id,()=>{games.Command(game,"join");});ActionButton("Leave "+id,()=>games.Command(game,"leave"));ActionButton("Reset "+id,()=>games.Command(game,"reset"));
+            if(!room.IsSolo){ActionButton("Join "+id,()=>{games.Command(game,"join");});ActionButton("Leave "+id,()=>games.Command(game,"leave"));}ActionButton("Reset "+id,()=>games.Command(game,"reset"));
         }
         ActionButton("Promotion: "+games.Promotion.ToUpperInvariant(),()=>{string choices="qrbn";games.SetPromotion(choices[(choices.IndexOf(games.Promotion)+1)%4].ToString());GamesPage();});
         Heading("Chess Set by Jacob G · CC BY-ND 4.0\nprintables.com/model/32741-chess-set\ncreativecommons.org/licenses/by-nd/4.0/\nOriginal geometry; technical format conversion only. Supplied as-is.");ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
@@ -169,7 +173,7 @@ public sealed class CinemaApp : MonoBehaviour {
         var items=room.State?["layout"]?["items"] as JArray??new JArray();
         foreach(string kind in new[]{"chess","tictactoe"}) {bool found=false;foreach(var item in items)if((string)item["kind"]==kind)found=true;if(!found){string type=kind;ActionButton("Place "+kind+" table",()=>BeginPlacement(type));}}
         int number=0;foreach(var item in items) {string id=(string)item["id"],kind=(string)item["kind"];Heading((++number)+" · "+kind);ActionButton("Move "+kind,()=>BeginPlacement(kind,id));ActionButton("Remove "+kind,()=>placement.Remove(id));}
-        Heading("Up to six extra screens and one table for each game. Layout lasts for this room.");
+        Heading("Up to six extra screens and one table for each game. Solo layouts save on this headset; multiplayer layouts last for the room.");
         ActionButton("Refresh layout",LayoutPage);
     }
     void AudioSettings() {
@@ -181,7 +185,7 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void BrowserControls() {
         Clear(); pageTitle.text="Web browser";
-        Heading("Host's private browser — account session stays on this headset");
+        Heading("Your private browser — account session stays on this headset");
         ActionButton(browser.Active?"Return to native player":"Open browser on the screen",()=>{browser.Toggle();BrowserControls();});
         ActionButton("Hide menu / interact with the screen",()=>panelMotion.Show(false));
         var address=Field("Web address", "https://web.stremio.com/",null);
@@ -191,7 +195,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Refresh tabs",BrowserControls);
         ActionButton("Back",browser.Back);ActionButton("Forward",browser.Forward); ActionButton("Reload",browser.Reload);
         Field("Type into the selected web input", "",browser.Text);
-        ActionButton("Share playing HTTP video with room",browser.Share);
+        ActionButton(room.IsSolo?"Play this HTTP video on native screen":"Share playing HTTP video with room",browser.Share);
         ActionButton("Forget web-screen sign-in",browser.ForgetSession);
         Heading("Select a web input with the beam, then enter text here. Web video plays locally until shared.");
     }
@@ -278,7 +282,9 @@ public sealed class CinemaApp : MonoBehaviour {
         Clear(); ActionButton("Back to library", Library); Heading("Sources: " + title); ShowStatus("Finding streams…"); int generation = pageGeneration;
         library.Streams(type, id, streams => {
             if (generation != pageGeneration) return;
-            foreach (var token in streams) { var stream = (JObject)token; ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings["streamingService"], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; playback.Load(url, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
+            foreach (var token in streams) { var stream = (JObject)token;
+                if(room.IsSolo && stream["externalUrl"]!=null){string website=(string)stream["externalUrl"];ActionButton("Open website: "+((string)stream["name"]??"Source"),()=>{try{browser.Open(MediaLibrary.Http(website));panelMotion.Show(false);}catch(Exception error){ShowStatus(error.Message);}});continue;}
+                ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings["streamingService"], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; playback.Load(url, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
             ShowStatus(streams.Count == 0 ? "No streams. Install a stream-provider add-on." : "Choose a source, then use Room → Play.");
         });
     }
@@ -344,7 +350,7 @@ public sealed class CinemaApp : MonoBehaviour {
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings["moveSpeed"]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
         Heading("Open Concept Home");
-        ActionButton("Arrange room (host)",LayoutPage);
+        ActionButton("Arrange room",LayoutPage);
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});

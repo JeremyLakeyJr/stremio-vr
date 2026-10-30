@@ -21,7 +21,7 @@ public sealed class AvatarPresence : MonoBehaviour {
     void Update() {
         Track(XRNode.Head, Head, new Vector3(0, 1.65f, 0)); Track(XRNode.LeftHand, Left, new Vector3(-0.3f, 1.2f, 0.3f)); Track(XRNode.RightHand, Right, new Vector3(0.3f, 1.2f, 0.3f));
         foreach (var avatar in avatars.Values) avatar.Update();
-        if (!Room.Connected || Room.State == null || Time.unscaledTime < nextPose) return;
+        if (Room.IsSolo || !Room.Connected || Room.State == null || Time.unscaledTime < nextPose) return;
         nextPose = Time.unscaledTime + 0.1f;
         Room.Send(new JObject { ["type"] = "pose", ["pose"] = new JObject { ["head"] = Pose(Head), ["left"] = Pose(Left), ["right"] = Pose(Right) } });
     }

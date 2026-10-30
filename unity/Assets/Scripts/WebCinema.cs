@@ -44,6 +44,7 @@ public sealed class WebCinema : MonoBehaviour {
   else if(pressed) web?.Call("pointer",lastPoint.x,lastPoint.y,3);
   pressed=held&&hit; return hit;
  }
+ public void Open(string url){if(!Active)Toggle();if(Active)Navigate(url);}
  public void Text(string value) { if(Active&&Room.IsHost)web?.Call("text",value); }
  public JArray Tabs { get {try{return Active?JArray.Parse(web.Call<string>("tabs")):new JArray();}catch{return new JArray();}} }
  public void Navigate(string url){if(Active&&Room.IsHost)web?.Call("navigate",url);}
@@ -61,7 +62,7 @@ public sealed class WebCinema : MonoBehaviour {
   try {
    string decoded=JsonConvert.DeserializeObject<string>(value); if(string.IsNullOrEmpty(decoded))throw new Exception("Start a video in the browser first.");
    var data=JObject.Parse(decoded); string url=MediaLibrary.Http((string)data["url"]);
-   Room.Send(new JObject { ["type"]="playback",["url"]=url,["title"]=(string)data["title"],["position"]=(double?)data["position"]??0,["paused"]=(bool?)data["paused"]??false }); Close(); Status?.Invoke("Shared with room. Native synchronized playback resumed.");
+   Room.Send(new JObject { ["type"]="playback",["url"]=url,["title"]=(string)data["title"],["position"]=(double?)data["position"]??0,["paused"]=(bool?)data["paused"]??false }); Close(); Status?.Invoke(Room.IsSolo?"Playing locally on the native screen.":"Shared with room. Native synchronized playback resumed.");
   } catch { Status?.Invoke("This browser video cannot be shared directly. Choose an HTTP source in Discover; blob/DRM browser playback cannot be handed to the room."); }
  }
  public void Close() {

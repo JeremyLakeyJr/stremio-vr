@@ -62,7 +62,7 @@ public sealed class TabletopGames : MonoBehaviour {
   string outcome=(string)state["outcome"];string turn=game=="chess"?((int)state["turn"]==0?"White":"Black"):((int)state["turn"]==0?"X":"O");
   return names+"\n"+(!string.IsNullOrEmpty(outcome)?outcome:turn+" to move"+((bool?)state["check"]==true?" — check":""));
  }
- string Name(string id) {foreach(var player in Room.State?["players"] as JArray??new JArray())if((string)player["id"]==id)return (string)player["profile"]?["name"]??"Player";return "Player";}
+ string Name(string id) {if(Room.IsSolo&&id=="computer")return "Computer";foreach(var player in Room.State?["players"] as JArray??new JArray())if((string)player["id"]==id)return (string)player["profile"]?["name"]??"Player";return "Player";}
  void Refresh() {
   foreach(var board in boards) {
    board.Label.text=(board.Game=="chess"?"CHESS":"TIC-TAC-TOE")+"\n"+Description(board.Game);
@@ -90,6 +90,7 @@ public sealed class TabletopGames : MonoBehaviour {
  public void Select(string game,int index) {
   var board=boards.Find(b=>b.Game==game);var state=Room.State?["games"]?[game] as JObject;if(board==null||state==null){Status?.Invoke("Join a room with the updated game server");return;}
   var players=(JArray)state["players"];int seat=-1;for(int i=0;i<2;i++)if((string)players[i]==Room.PlayerId)seat=i;
+  if(Room.IsSolo && (bool?)Room.State["computer"]==false)seat=(int)state["turn"];
   if(seat<0){Status?.Invoke("Select JOIN on the table first");return;}
   if((int)state["turn"]!=seat){Status?.Invoke("Wait for your turn");return;}
   if(game=="tictactoe"){Move(state,game,new JObject{["cell"]=index});return;}
