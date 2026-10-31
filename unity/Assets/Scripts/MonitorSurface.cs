@@ -5,9 +5,10 @@ public sealed class MonitorSurface:MonoBehaviour {
  public float Curvature;
  public float Width {get;private set;} public float Height {get;private set;}
  const int Segments=48;const float Halo=.95f;
- Mesh screenMesh,haloMesh;MeshFilter screenFilter,haloFilter;Renderer haloRenderer;MaterialPropertyBlock properties=new MaterialPropertyBlock();float builtCurve=-1;
+ Mesh screenMesh;MeshFilter screenFilter;float builtCurve=-1;
  public void Initialize(Material glow){
-  screenFilter=GetComponent<MeshFilter>();var go=new GameObject("Video edge glow",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(transform,false);haloFilter=go.GetComponent<MeshFilter>();haloRenderer=go.GetComponent<Renderer>();haloRenderer.sharedMaterial=glow;
+  // Ambient color belongs on room surfaces; do not create a floating overlay.
+  screenFilter=GetComponent<MeshFilter>();
  }
  public static Vector3 SurfacePoint(float width,float height,float degrees,float u,float v){
   float angle=degrees*Mathf.Deg2Rad,x=u*width,z=0;
@@ -17,9 +18,8 @@ public sealed class MonitorSurface:MonoBehaviour {
  public void Configure(float width,float height){
   if(Mathf.Abs(width-Width)<.0001f&&Mathf.Abs(height-Height)<.0001f&&Mathf.Abs(Curvature-builtCurve)<.0001f)return;
   Width=width;Height=height;builtCurve=Curvature;
-  if(screenMesh)Destroy(screenMesh);if(haloMesh)Destroy(haloMesh);
-  screenMesh=BuildMesh(width,height,Curvature,false);haloMesh=BuildMesh(width,height,Curvature,true);screenFilter.sharedMesh=screenMesh;haloFilter.sharedMesh=haloMesh;
-  properties.SetVector("_CinemaHaloMetrics",new Vector4(width,height,Halo,0));haloRenderer.SetPropertyBlock(properties);
+  if(screenMesh)Destroy(screenMesh);
+  screenMesh=BuildMesh(width,height,Curvature,false);screenFilter.sharedMesh=screenMesh;
  }
  public static Mesh BuildMesh(float width,float height,float curve,bool halo){
   var vertices=new System.Collections.Generic.List<Vector3>();var uv=new System.Collections.Generic.List<Vector2>();var triangles=new System.Collections.Generic.List<int>();
@@ -46,6 +46,6 @@ public sealed class MonitorSurface:MonoBehaviour {
   if(Width<=0||Height<=0){distance=0;uv=Vector2.zero;return false;}
   var o=transform.InverseTransformPoint(ray.origin);var d=transform.InverseTransformVector(ray.direction);o=new Vector3(o.x*Width,o.y*Height,o.z);d=new Vector3(d.x*Width,d.y*Height,d.z);return Intersect(Width,Height,Curvature,o,d,out distance,out uv);
  }
- void OnDestroy(){if(screenMesh)Destroy(screenMesh);if(haloMesh)Destroy(haloMesh);}
+ void OnDestroy(){if(screenMesh){if(Application.isPlaying)Destroy(screenMesh);else DestroyImmediate(screenMesh);}}
 }
 }

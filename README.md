@@ -46,7 +46,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Replace PCM voice relay with WebRTC/Opus and optional TURN support.
 - [x] Provide a browser page that copies the temporary Cloudflare invite link.
 - [x] Include apartment screenshots and the original Home archive through Git LFS.
-- [x] Resize and curve the main screen and placed monitors, with matching glow and beam geometry.
+- [x] Resize and curve the main screen and placed monitors, with matching beam geometry and room lighting.
 - [x] Eight ambient color samples per edge with diffusion and display-correct top/bottom sampling.
 - [x] Walking/turning during web playback and beam visibility limited to interactive targets.
 - [x] Shared server browser with host tabs, WebRTC video/audio, and encrypted remembered profiles.
@@ -357,7 +357,7 @@ See [internet hosting](docs/INTERNET-MULTIPLAYER.md) for the tested Docker serve
 
 ## Worlds and screen options
 
-Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Eight segments on each of the four screen edges (32 samples) are sampled and smoothed on the GPU each frame, with soft spatial diffusion and sampling aligned to the displayed top/bottom edges, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home starts with its main movie screen. The host can place up to six extra displays; all use the same texture and decoder. Every placed display has its own edge glow, and its position, size, and rotation determine the colored diffuse/specular contribution to nearby room surfaces. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
+Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Eight segments on each of the four screen edges (32 samples) are sampled and smoothed on the GPU each frame, with soft spatial diffusion and sampling aligned to the displayed top/bottom edges, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home starts with its main movie screen. The host can place up to six extra displays; all use the same texture and decoder. Every placed display contributes colored diffuse/specular light to nearby room surfaces according to its position, size, and rotation. Ambient light fades with distance on the actual environment; no floating glow frame is drawn. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
 
 Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
 
@@ -386,7 +386,7 @@ Open **Settings → Arrange room** or **Games → Arrange room** as the host. Ad
 | Right trigger | Confirm placement |
 | Menu button | Cancel |
 
-Use the object list to move or remove an existing object. Each monitor, including the main screen, has **Smaller/Larger** controls (0.6–8 m wide) and **Less/More curved** controls (0–120°); **Flat screen** resets its curve. Height follows the video aspect ratio. Changes synchronize to room guests and save in Solo mode. The beam maps to the curved surface, and its glow ring shares the exact same edge geometry. There are up to six extra screens and one table per game. Moving/removing a table does not reset the game. Layout is stored with the current room, survives host handoff/reconnection, and ends when the room/server ends. Movement is paused while adjusting placement.
+Use the object list to move or remove an existing object. Each monitor, including the main screen, has **Smaller/Larger** controls (0.6–8 m wide) and **Less/More curved** controls (0–120°); **Flat screen** resets its curve. Height follows the video aspect ratio. Changes synchronize to room guests and save in Solo mode. The beam maps to the curved surface, and ambient lighting follows the monitor placement. There are up to six extra screens and one table per game. Moving/removing a table does not reset the game. Layout is stored with the current room, survives host handoff/reconnection, and ends when the room/server ends. Movement is paused while adjusting placement.
 
 ## Voice across networks
 

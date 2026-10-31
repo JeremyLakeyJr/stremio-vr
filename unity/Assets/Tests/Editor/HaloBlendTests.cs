@@ -2,6 +2,15 @@ using NUnit.Framework;
 using UnityEngine;
 namespace StremioVR.Tests {
 public class HaloBlendTests {
+ [Test] public void RuntimeScreenDoesNotDrawFloatingAmbientFrame(){
+  var surface=new GameObject("Runtime screen",typeof(MeshFilter),typeof(MeshRenderer));
+  var material=new Material(Shader.Find("StremioVR/ScreenGlow"));
+  try{
+   var monitor=surface.AddComponent<MonitorSurface>();monitor.Initialize(material);monitor.Configure(4,2.25f);
+   Assert.AreEqual(1,surface.GetComponentsInChildren<Renderer>().Length,"No floating ambient overlay should be created");
+  }finally{Object.DestroyImmediate(surface);Object.DestroyImmediate(material);}
+ }
+
  [Test] public void HaloFadesAtBothBoundariesAndPreservesBackgroundAlpha(){
   if(SystemInfo.graphicsDeviceType==UnityEngine.Rendering.GraphicsDeviceType.Null)Assert.Ignore("Requires graphics");
   var cameraObject=new GameObject("Halo test camera");var surface=new GameObject("Halo test surface",typeof(MeshFilter),typeof(MeshRenderer));

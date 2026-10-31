@@ -25,12 +25,12 @@ Shader "StremioVR/World" {
    float3 nearest=center+right*clamp(local.x,-.5,.5)+up*clamp(local.y,-.5,.5);
    float3 facingNormal=front;float angle=_CinemaScreenFronts[screen].w;
    if(angle>.0001){float sine=clamp(local.x*angle,-sin(angle*.5),sin(angle*.5)),cosine=sqrt(max(0,1-sine*sine));nearest=center+right*(sine/angle)+up*clamp(local.y,-.5,.5)+front*(_CinemaScreenCenters[screen].w/angle*(1-cosine));local.x=asin(sine)/angle;facingNormal=front*cosine-right*sqrt(_CinemaScreenRights[screen].w)*sine;}
-   float distanceSquared=dot(i.world-nearest,i.world-nearest);if(distanceSquared>144)continue;
-   float facing=saturate(dot(i.world-nearest,facingNormal)*2+.15);float range=saturate(1-distanceSquared/144)*facing;
+   float distanceSquared=dot(fromCenter,fromCenter);if(distanceSquared>144)continue;
+   float facing=.35+.65*saturate(dot(i.world-nearest,facingNormal)*2+.15);float range=saturate(1-distanceSquared/144);range*=range*facing;
    // A prefiltered 64x64 field retains all 32 edge samples with one lookup per display.
    float3 edgeColor=tex2Dlod(_CinemaBounceField,float4(saturate(local+.5),0,0)).rgb;
    float3 delta=nearest+facingNormal*.15-i.world;float d2=dot(delta,delta);float3 l=delta*rsqrt(max(d2,.01));
-   float attenuation=range/(1+d2*.18);barColor+=edgeColor*attenuation;barWeight+=attenuation;
+   float attenuation=range/(1+distanceSquared*.22);barColor+=edgeColor*attenuation;barWeight+=attenuation;
    float3 radiance=edgeColor*attenuation*_CinemaBounceStrength*1.6;
    bounce+=radiance*(.15+.85*saturate(dot(n,l)));
    specular+=radiance*pow(saturate(dot(n,normalize(l+view))),lerp(8,96,_Glossiness))*_Glossiness*.25;
