@@ -158,3 +158,9 @@ The initial seven-screen shader dropped Quest rendering into roughly 43–53 fps
 Final optimized seven-screen run on Quest 3 measured roughly 66–72 app fps in the tested view, compared with 43–53 before optimization. This is headset rendering FPS, distinct from the WebRTC video frame rate. The revised browser capture passed full-frame corner and scaled pointer checks; its Docker video test measured 46 fps under the concurrent test workload while retaining 1920×1080. Two viewer room video/audio and host-tab authority passed again. User visual acceptance of the revised build remains pending.
 
 Monitor controls follow-up: user confirmed full-frame browsing but reported the halo did not align. The glow is now a mesh ring whose inner vertices match the screen edge exactly, placed just behind the screen. Main and added monitors support widths 0.6–8 m and curvature 0–120°, including matching beam UVs and curved lighting geometry. Room authority, validation, move preservation, and Solo persistence tests pass. 35 Unity tests and 55 server tests passed. Revised on-headset acceptance is pending.
+
+## Alpha 7: soft ambient glow
+
+The user reported that the halo looked like a solid rectangular frame. The revised halo fades in from zero at the screen edge, has a softer Gaussian shoulder, and fades to zero before the mesh boundary. Its additive contribution is alpha-weighted and RGB-only, preserving the environment/background alpha. Halo reach increases from 0.7 m to 0.95 m while peak intensity decreases. The positioned environment lighting remains enabled for every screen.
+
+36 Unity EditMode tests passed, including an offscreen GPU render that checks the inner fade, brighter soft shoulder, invisible outer boundary, and preserved background alpha. Final on-headset appearance still requires user acceptance.

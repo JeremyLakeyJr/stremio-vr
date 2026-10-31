@@ -4,7 +4,7 @@ namespace StremioVR {
 public sealed class MonitorSurface:MonoBehaviour {
  public float Curvature;
  public float Width {get;private set;} public float Height {get;private set;}
- const int Segments=48;const float Halo=.7f;
+ const int Segments=48;const float Halo=.95f;
  Mesh screenMesh,haloMesh;MeshFilter screenFilter,haloFilter;Renderer haloRenderer;MaterialPropertyBlock properties=new MaterialPropertyBlock();float builtCurve=-1;
  public void Initialize(Material glow){
   screenFilter=GetComponent<MeshFilter>();var go=new GameObject("Video edge glow",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(transform,false);haloFilter=go.GetComponent<MeshFilter>();haloRenderer=go.GetComponent<Renderer>();haloRenderer.sharedMaterial=glow;
@@ -19,7 +19,7 @@ public sealed class MonitorSurface:MonoBehaviour {
   Width=width;Height=height;builtCurve=Curvature;
   if(screenMesh)Destroy(screenMesh);if(haloMesh)Destroy(haloMesh);
   screenMesh=BuildMesh(width,height,Curvature,false);haloMesh=BuildMesh(width,height,Curvature,true);screenFilter.sharedMesh=screenMesh;haloFilter.sharedMesh=haloMesh;
-  properties.SetVector("_ScreenSize",new Vector4(width,height,Halo,0));haloRenderer.SetPropertyBlock(properties);
+  properties.SetVector("_CinemaHaloMetrics",new Vector4(width,height,Halo,0));haloRenderer.SetPropertyBlock(properties);
  }
  public static Mesh BuildMesh(float width,float height,float curve,bool halo){
   var vertices=new System.Collections.Generic.List<Vector3>();var uv=new System.Collections.Generic.List<Vector2>();var triangles=new System.Collections.Generic.List<int>();
