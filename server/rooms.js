@@ -21,7 +21,7 @@ export class Rooms {
   constructor({ now = Date.now, grace = 15000, iceServers = [{ urls: "stun:stun.cloudflare.com:3478" }] } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; this.iceServers = iceServers; }
   send(ws, data) { if (ws?.readyState === 1) ws.send(JSON.stringify(data)); }
   snapshot(room) {
-    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice, voiceReady: !!p.voiceReady })), mediaStatus: room.mediaStatus || '', playback: room.playback, layout: room.layout.snapshot(), games: room.games.snapshot() };
+    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice, voiceReady: !!p.voiceReady })), browser: room.browser || {active:false}, mediaStatus: room.mediaStatus || '', playback: room.playback, layout: room.layout.snapshot(), games: room.games.snapshot() };
   }
   broadcast(room, data, except) { for (const p of room.players.values()) if (p.id !== except) this.send(p.ws, data); }
   state(room) { this.broadcast(room, this.snapshot(room)); }

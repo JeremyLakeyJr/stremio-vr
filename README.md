@@ -46,6 +46,10 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Replace PCM voice relay with WebRTC/Opus and optional TURN support.
 - [x] Provide a browser page that copies the temporary Cloudflare invite link.
 - [x] Include apartment screenshots and the original Home archive through Git LFS.
+- [x] Eight ambient color samples per edge with diffusion and display-correct top/bottom sampling.
+- [x] Walking/turning during web playback and beam visibility limited to interactive targets.
+- [x] Shared server browser with host tabs, WebRTC video/audio, and encrypted remembered profiles.
+- [ ] Verify shared-browser quality and audio on two physical Quests across different networks.
 - [x] Verified Alpha 4 looks right in both eyes and its browser/placement/chess controls work.
 - [ ] Verify WebRTC audio with two headsets on different networks, including TURN.
 - [ ] Verify web sign-in survives closing the screen, app restart, and room replacement.
@@ -62,7 +66,7 @@ Games start ready to play against a local computer: you control White/X. In **Ga
 
 ## Quick start: Docker + Quest (multiplayer)
 
-You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server, Rust core, FFmpeg transcoder, and an internal Stremio streaming service. It does **not** build or install the Quest app. Node.js and Rust do not need to be installed on the computer when using Docker.
+You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server, Rust core, FFmpeg transcoder, internal Stremio streaming service, and shared Chromium browser. It does **not** build or install the Quest app. Node.js and Rust do not need to be installed on the computer when using Docker.
 
 ### 1. Get the project and start the server
 
@@ -192,6 +196,7 @@ Configuration:
 | `CORE_BINARY` | `core/target/release/stremio-vr-core` | Stremio core bridge executable |
 | `HOST` | `0.0.0.0` | Listen address |
 | `TLS_CERT`, `TLS_KEY` | unset | PEM certificate/key paths for native HTTPS/WSS |
+| `BROWSER_SERVICE_URL` | unset outside Compose | Internal browser worker URL; Compose sets `http://browser:9000` |
 | `PUBLIC_ORIGIN` | server origin | Allowed browser Origin if a reverse proxy is used |
 
 Use a trusted TLS certificate and `wss://` for use outside a trusted development LAN. The server supports eight participants per room, 500 simultaneous rooms, 15-second reconnect grace, bounded messages, and message-rate limits. Rooms are in memory: restarting the server ends sessions. Room codes grant access; there are no accounts, persistent rooms, or moderation tools.
@@ -250,7 +255,7 @@ The **server fetches, transcodes, and serves the video**. One FFmpeg job per roo
 
 Compose includes the [official Stremio streaming server](https://github.com/Stremio/server-docker) on the internal Docker network for torrent and proxy-header sources. It is not exposed publicly. `STREAMING_SERVICE_URL=http://stremio:11470` overrides the headset's old streaming-service setting. No separate streaming-service URL is needed on each headset. Native Stremio sign-in and add-ons remain on the headset.
 
-Public HTTP(S) MP4/MKV and unencrypted HLS sources are supported. DASH, DRM, external-player handoffs, subtitle conversion, and alternate audio-track selection are not implemented in the server transcoder. The first source audio track is used. The tabbed web browser remains local browser playback; sharing a compatible HTTP source hands it to the server transcoder.
+Public HTTP(S) MP4/MKV and unencrypted HLS sources are supported. DASH, DRM, external-player handoffs, subtitle conversion, and alternate audio-track selection are not implemented in the server transcoder. The first source audio track is used. The room browser is a separate shared WebRTC video/audio stream; solo browsing stays local.
 
 Server configuration (under `cinema.environment` in `compose.yaml`):
 
@@ -268,13 +273,15 @@ Rebuild both app and server for this protocol change. For Node development, inst
 
 ### Use the browser on the cinema screen
 
-1. Create a room so you are the host, then select **My room → Web browser / native player (host)**.
-2. Point the beam at the cinema screen and pull the trigger to interact. Use the right stick to scroll. Walking/turning is suspended while the web screen is active.
-3. To type, first select the input on the web page with the beam. Open the menu, go to **My room → Web screen controls**, and use **Type into the selected web input**.
-4. Use the same controls page for Back, Reload, or returning to native playback.
-5. To watch with everyone, select **Share playing HTTP video with room**. A compatible current video URL and position are handed to the native synchronized player.
+1. In Solo mode, or as the room host, select **My room → Web browser / native player**.
+2. Point at the screen and pull the trigger. Walking and smooth turning work while browsing. **Hold right grip and move the right stick up/down** to scroll the page. The beam disappears when it has no interactive target.
+3. Press the **left controller menu button** to manage up to six tabs, enter an address, go back/forward, reload, or type into the selected web input.
+4. In a room, everyone automatically sees and hears the active server tab on all placed screens. Only the host controls it. Closing the browser returns to native playback.
+5. In Solo mode, the browser stays on the headset and targets 30 updates/second. **Play this HTTP video on native screen** hands a compatible source to the native player.
 
-Web sign-in is separate from native device-link sign-in. Browser playback and account pages are local to the host until a compatible video is shared; guests do not see the host's browser session. Blob/DRM browser videos cannot be handed off this way. The initial web surface updates at 12 Hz; use native playback for smoother movie viewing.
+The shared browser targets **1920×1080 at 60 fps, up to 20 Mbps per viewer**, using H.264-preferred WebRTC and hardware decoding on Quest. A 1280×720 logical page rendered at 1.5× keeps browser text readable in the 1080p stream; the capture fills the tab surface without debugger-banner padding. Video colors are converted to linear light exactly once. Resolution is prioritized when bandwidth is limited; frame rate can fall on a slow server or connection. Allow roughly 20 Mbps of server upload per viewer plus overhead; each viewer has an encoder connection. Start with a modern four-core computer and 4 GB available RAM for a small group, and monitor CPU/network use. The default browser capacity is two simultaneous rooms. Protected content may refuse capture or playback; this does not add DRM redistribution support.
+
+Update both the APK and Docker services: `docker compose up -d --build`. The browser service has no published control port. Its encrypted profiles use the `browser-profiles` volume; decrypted working profiles live in temporary memory-backed storage. The Cloudflare link carries control/signaling, **not WebRTC video/audio**. Restrictive networks need the same TURN configuration described under Voice across networks.
 
 ### Play tabletop games
 
@@ -300,6 +307,7 @@ Select **Toggle mic**, allow Android microphone permission, and speak. Select it
 ## Architecture
 
 - `unity/`: native Unity application, OpenXR tracking, world-space UI/keyboard, movement and smooth turning, seated/reclined comfort, video synchronization, avatars, voice, account/add-on client, and Android build configuration.
+- `browser/`: isolated Chromium worker, shared tab capture, public-site proxy, and encrypted browser profiles.
 - `server/`: room ownership, authoritative playback timeline, reconnects, avatar/pose propagation, WebRTC signaling, and bounded `/api/core` requests.
 - `core/`: Rust bridge using pinned official `stremio-core` for manifest validation and stream conversion.
 - `unity/Assets/Editor/R6Import.cs`: prepares six rigid avatar meshes from the custom FBX, preserving geometry and UVs. The APK build refreshes the generated prefab.
@@ -348,13 +356,13 @@ See [internet hosting](docs/INTERNET-MULTIPLAYER.md) for the tested Docker serve
 
 ## Worlds and screen options
 
-Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Video edge colors are sampled and smoothed on the GPU each frame, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home starts with its main movie screen. The host can place up to six extra displays; all use the same texture and decoder. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
+Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Eight segments on each of the four screen edges (32 samples) are sampled and smoothed on the GPU each frame, with soft spatial diffusion and sampling aligned to the displayed top/bottom edges, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home starts with its main movie screen. The host can place up to six extra displays; all use the same texture and decoder. Every placed display has its own edge glow, and its position, size, and rotation determine the colored diffuse/specular contribution to nearby room surfaces. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
 
 Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
 
 Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your full R6 avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
 
-**My room → Web browser** opens the official web app in a hardware-accelerated Android WebView on the cinema screen. The room host uses the beam/trigger and right-stick scroll. Use Web screen controls to enter text into a selected web field, go back, reload, or return to native playback. Web sign-in is separate from native device-link sign-in; credentials/cookies stay on the device. Browser playback is local to the host. **Share playing HTTP video with room** hands a compatible URL and timeline to the synchronized native player. Blob/DRM media and browser account pages are not streamed to guests. The initial web surface updates at 12 Hz; native video remains the high-frame-rate viewing path.
+**My room → Web browser** uses local Android WebView in Solo mode and server Chromium in a room. See [browser controls and streaming quality](#use-the-browser-on-the-cinema-screen) above.
 
 The menu uses smooth panel fades, page transitions, hover/press animation, poster cards, and eased scrolling. **Watch history** switches between imported Stremio history and this headset's recent selections, with Continue Watching and resume. **Settings** exposes walk speed, smooth-turn speed, pointer angle, reclined view, and video lighting.
 
@@ -387,15 +395,15 @@ For an existing TURN provider, set `ICE_SERVERS` in `.env` to its JSON ICE confi
 
 ## Remembered web sign-in and server sessions
 
-Sign in once in **My room → Web browser**. Cookies are flushed to app storage, and the official Stremio Web `profile` is backed up under Android Keystore encryption. Reopening the web screen restores a missing profile locally. **Forget web-screen sign-in** removes that backup and the browser session; native account sign-in is separate.
+Solo browser cookies and the official Stremio Web profile remain on the headset, protected by its app storage and encrypted backup. Room browsing has a separate server profile: sign in there once, then subsequent rooms on the same server and headset reuse it. Native device-link sign-in is separate from both browser profiles.
 
-The server does not need your Stremio account session to stream a selected source. Source resolution stays on the headset; the server receives the selected media URL and issues an opaque, temporary room-stream URL. It is removed when the source changes or the empty room expires. This avoids handing long-lived Stremio credentials to a host computer or other participants. Room reconnect tokens are private to each client and are not broadcast. Browser sign-in persistence still needs on-headset acceptance; expired/revoked Stremio sessions require signing in again.
+The headset keeps a random profile secret under Android Keystore encryption and derives a separate key for each server address. It sends that key only to the selected server. The server uses it to encrypt the closed Chromium profile with AES-256-GCM and does not include it in room state or send it to guests. The server operator can access an active browser session, and everyone in your room sees the active page, including sign-in pages. Use a computer you trust. A new temporary Cloudflare hostname counts as a different server and requires a new browser sign-in; use a stable hostname for persistent reuse. Expired/revoked website sessions also require sign-in again.
+
+**Forget web-screen sign-in** deletes the current browser profile. Closing the room browser or leaving as host closes the server session and saves its encrypted profile. An abrupt container/host crash can lose changes since the last clean close. The native Discover account key stays on the headset; the server receives only the selected media URL for native transcoding. Room reconnect tokens remain private to each client.
 
 ## Browser tabs and hands-on chess
 
-In solo mode, or as the multiplayer host, open **Web browser** from My room. While the browser is showing, press the **left controller menu button** to manage up to six tabs: enter a web address, open a tab, switch tabs, close tabs, or go back/forward/reload. Hide the menu to point at the screen and click with the trigger. Stremio Web is a starting bookmark; ordinary HTTP/HTTPS sites work too. Hidden tabs pause their media. All placed screens mirror the active tab on the host's headset. Browser pages are private to the host; sharing a compatible HTTP video switches the room to synchronized native playback. Protected video remains subject to the limitations above.
-
-Cookies stay on the headset. Stremio's official web origin also has an encrypted local session backup, so creating another room does not require signing in again. **Forget web-screen sign-in** removes that backup and browser cookies. No browser account credential is handed to room guests or the server.
+Use the left controller menu button to manage browser tabs. Stremio Web is a starting bookmark; public HTTP/HTTPS sites work too. Switching tabs pauses media in the previous tab. Solo screens mirror your local browser; room screens mirror the shared server browser for every participant. Browser navigation cannot reach private LAN or Docker HTTP services.
 
 Place a chess table with **Games → Arrange room**. Solo games are ready immediately; in multiplayer, join a seat. On your turn, bring either controller close to one of your pieces, **hold grip**, move it, and **release above a green legal square**. An invalid drop returns the piece. Other players receive the committed move after server validation; the held-piece preview is local. Trigger-to-select remains available. Choose promotion in Games before moving a pawn onto its final rank.
 

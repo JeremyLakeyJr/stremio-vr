@@ -1,0 +1,11 @@
+FROM node:22-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends chromium ca-certificates tar fonts-liberation && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && mkdir -p /data/profiles && chown -R node:node /data
+COPY server ./server
+COPY browser ./browser
+USER node
+ENV PORT=9000 CHROMIUM=/usr/bin/chromium BROWSER_PROFILE_DIR=/data/profiles
+HEALTHCHECK --interval=15s --timeout=5s CMD node -e "fetch('http://localhost:9000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node","browser/worker.js"]

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { RoomBrowser } from './browser.js';
 import https from 'node:https';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -12,12 +13,18 @@ export async function createServer(options = {}) {
   const rooms = new Rooms(options);
   const media = options.media === false ? null : new MediaServer(options.mediaOptions);
   const streams = new Map();
+  const browser = new RoomBrowser(rooms, options.browserOptions);
   async function handle(ws, message) {
+    if (await browser.handle(ws, message)) {
+      if(message.type==='browser'&&message.action==='open'){const old=streams.get(ws.roomId);if(old){streams.delete(ws.roomId);await media?.stop(old.job);const room=rooms.rooms.get(ws.roomId);if(room){room.playback={...room.playback,url:'',paused:true,position:0,updatedAt:rooms.now(),revision:room.playback.revision+1};rooms.state(room);}}}
+      return;
+    }
     if (media && message?.type === 'playback') {
       const room = rooms.rooms.get(ws.roomId), player = room?.players.get(ws.playerId);
       if (!player || player.ws !== ws || room.host !== player.id) throw new Error('Only the host controls playback');
       if (message.position !== undefined && (!Number.isFinite(message.position) || message.position < 0 || message.position > 864000)) throw new Error('Invalid playback position');
       if (message.paused !== undefined && typeof message.paused !== 'boolean') throw new Error('Invalid paused state');
+      if(message.url!==undefined)await browser.stop(room.id);
       const old = streams.get(room.id);
       if (message.url !== undefined || message.seek === true) {
         const source = message.url ?? old?.source;
@@ -102,7 +109,7 @@ export async function createServer(options = {}) {
     }
     for (const room of rooms.rooms.values()) rooms.state(room);
   }, 5000); timer.unref();
-  return { server, rooms, close: async () => { clearInterval(timer); for (const ws of wss.clients) ws.terminate(); await new Promise(resolve => wss.close(resolve)); rooms.close(); if (media) await media.close(); await new Promise(resolve => server.close(resolve)); } };
+  return { server, rooms, close: async () => { clearInterval(timer); for (const ws of wss.clients) ws.terminate(); await new Promise(resolve => wss.close(resolve)); await browser.close(); rooms.close(); if (media) await media.close(); await new Promise(resolve => server.close(resolve)); } };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const tls = process.env.TLS_CERT && process.env.TLS_KEY ? { cert: await readFile(process.env.TLS_CERT), key: await readFile(process.env.TLS_KEY) } : undefined;

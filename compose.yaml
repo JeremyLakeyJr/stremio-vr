@@ -4,6 +4,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      BROWSER_SERVICE_URL: http://browser:9000
       STREAMING_SERVICE_URL: http://stremio:11470
       MEDIA_ALLOWED_HOSTS: stremio:11470
       TUNNEL_LINK_FILE: /share/link.json
@@ -16,6 +17,18 @@ services:
       - tunnel-link:/share:ro
     depends_on:
       - stremio
+      - browser
+    restart: unless-stopped
+  browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.browser
+    volumes:
+      - browser-profiles:/data
+    tmpfs:
+      - /tmp:size=2147483648,mode=1777
+    shm_size: 1gb
+    stop_grace_period: 45s
     restart: unless-stopped
   stremio:
     image: stremio/server:latest
@@ -39,5 +52,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  browser-profiles:
   stremio-data:
   tunnel-link:

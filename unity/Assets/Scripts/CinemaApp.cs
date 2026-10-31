@@ -35,14 +35,14 @@ public sealed class CinemaApp : MonoBehaviour {
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
         motion.MoveSpeed=(float?)settings["moveSpeed"]??1.5f; motion.TurnSpeed=(float?)settings["turnSpeed"]??60; motion.RayPitch=(float?)settings["rayPitch"]??45;
-        motion.MenuVisible=()=>placement!=null && placement.Active || panelMotion!=null && panelMotion.Visible || browser!=null && browser.Active; motion.Status+=ShowStatus; motion.Initialize();
+        motion.MenuVisible=()=>placement!=null && placement.Active || panelMotion!=null && panelMotion.Visible; motion.Status+=ShowStatus; motion.Initialize();
         account=gameObject.AddComponent<StremioAccount>(); account.Status+=ShowStatus; account.AddonsImported+=ImportAccountAddons;
         account.HistoryLoaded+=()=>{if(pageTitle!=null && pageTitle.text=="Watch history") HistoryPage();};
         account.Changed+=()=> { if(pageTitle!=null && pageTitle.text=="Stremio account") AccountPage(); };
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
-        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
+        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
-        browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus;
+        browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus; browser.Initialize();
         games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
         placement=gameObject.AddComponent<RoomPlacement>();placement.Room=room;placement.Head=head;placement.Status+=ShowStatus;
         placement.Finished+=()=>{panelMotion.Show(true);Recenter();LayoutPage();};
@@ -164,7 +164,7 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading("Chess Set by Jacob G · CC BY-ND 4.0\nprintables.com/model/32741-chess-set\ncreativecommons.org/licenses/by-nd/4.0/\nOriginal geometry; technical format conversion only. Supplied as-is.");ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
     }
     void BeginPlacement(string kind,string id=null) {
-        if(browser.Active)browser.Close();placement.Begin(kind,id);if(placement.Active)panelMotion.Show(false);
+        placement.Begin(kind,id);if(placement.Active)panelMotion.Show(false);
     }
     void LayoutPage() {
         Clear();pageTitle.text="Arrange room";layoutPageRevision=(int?)room.State?["layout"]?["revision"]??-1;
@@ -185,7 +185,7 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void BrowserControls() {
         Clear(); pageTitle.text="Web browser";
-        Heading("Your private browser — account session stays on this headset");
+        Heading(room.IsSolo?"Your private browser — account session stays on this headset":"Shared server browser — everyone in the room sees and hears it");
         ActionButton(browser.Active?"Return to native player":"Open browser on the screen",()=>{browser.Toggle();BrowserControls();});
         ActionButton("Hide menu / interact with the screen",()=>panelMotion.Show(false));
         var address=Field("Web address", "https://web.stremio.com/",null);
@@ -197,7 +197,7 @@ public sealed class CinemaApp : MonoBehaviour {
         Field("Type into the selected web input", "",browser.Text);
         ActionButton(room.IsSolo?"Play this HTTP video on native screen":"Share playing HTTP video with room",browser.Share);
         ActionButton("Forget web-screen sign-in",browser.ForgetSession);
-        Heading("Select a web input with the beam, then enter text here. Web video plays locally until shared.");
+        Heading("Walk and turn with the sticks. Hold right grip + right stick to scroll. Select a web input with the beam, then enter text here. Web video plays locally until shared.");
     }
     void AddonsPage() {
         pageTitle.text = "Add-ons";
@@ -424,7 +424,7 @@ public sealed class CinemaApp : MonoBehaviour {
             placement.Tick(ray,placementRight,placementLeft,placementTrigger&&!triggerWasDown);triggerWasDown=placementTrigger;return;
         }
         leftController.TryGetFeatureValue(CommonUsages.gripButton,out bool leftGrip);controller.TryGetFeatureValue(CommonUsages.gripButton,out bool rightGrip);
-        if(games.Grip(left,right,leftGrip,rightGrip,!panelMotion.Visible&&!browser.Active)){pointer.enabled=false;controller.TryGetFeatureValue(CommonUsages.triggerButton,out triggerWasDown);return;}
+        if(games.Grip(left,right,leftGrip,rightGrip,!panelMotion.Visible)){pointer.enabled=false;controller.TryGetFeatureValue(CommonUsages.triggerButton,out triggerWasDown);return;}
         var plane = new Plane(panel.forward, panel.position);
         float distance=0; bool intersects = panelMotion.Visible && plane.Raycast(ray, out distance) && distance < 10;
         var point = intersects ? ray.GetPoint(distance) : ray.GetPoint(3);
@@ -434,10 +434,13 @@ public sealed class CinemaApp : MonoBehaviour {
         hits.Clear(); if (panelMotion.Visible && (intersects || !XRSettings.isDeviceActive)) canvas.GetComponent<GraphicRaycaster>().Raycast(data, hits);
         var target = hits.Count > 0 ? hits[0].gameObject : null;
         controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool webTrigger); controller.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 webStick);
-        bool webHit=browser.Point(ray,target==null && (webTrigger||Input.GetMouseButton(0)),target==null?webStick.y:0,out var webPoint);
+        controller.TryGetFeatureValue(CommonUsages.gripButton,out bool webScrollGrip);
+        bool webHit=browser.Point(ray,target==null && (webTrigger||Input.GetMouseButton(0)),target==null&&webScrollGrip?webStick.y:0,out var webPoint);
         if(webHit && target==null) pointer.SetPosition(1,webPoint);
         TabletopTarget tableTarget=null; SeatTarget chair=null;
         if(target==null && !webHit && Physics.Raycast(ray,out var worldHit,12,~((1<<30)|(1<<8)),QueryTriggerInteraction.Collide)) { chair=worldHit.collider.GetComponent<SeatTarget>(); tableTarget=worldHit.collider.GetComponent<TabletopTarget>(); pointer.SetPosition(1,worldHit.point); }
+        bool uiInteractive=target!=null && (target.GetComponentInParent<Selectable>()!=null || target.GetComponentInParent<ScrollRect>()!=null);
+        pointer.enabled=uiInteractive||(target==null&&(webHit||chair!=null||tableTarget!=null));
         pointer.material.color=chair!=null||tableTarget!=null?Color.yellow:new Color(0.1f,0.9f,0.65f);
         if(!triggerWasDown && (webTrigger||Input.GetMouseButton(0))) {if(chair!=null)motion.RequestSeat(chair.Index);if(tableTarget!=null)tableTarget.Activate();}
         if (target != hovered) { if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerExitHandler); hovered = target; if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerEnterHandler); }

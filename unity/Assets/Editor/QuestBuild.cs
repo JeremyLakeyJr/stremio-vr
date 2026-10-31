@@ -24,7 +24,7 @@ public static class QuestBuild {
         Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/XR");
         PlayerSettings.companyName = "StremioVR"; PlayerSettings.productName = "Movie Night";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.jeremylakey.stremiovr");
-        PlayerSettings.bundleVersion = "0.1.4"; PlayerSettings.Android.bundleVersionCode = 5;
+        PlayerSettings.bundleVersion = "0.1.5"; PlayerSettings.Android.bundleVersionCode = 6;
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
@@ -64,7 +64,7 @@ public static class QuestBuild {
         // Runtime-created materials must survive shader stripping in an APK.
         var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
         var shaders = graphics.FindProperty("m_AlwaysIncludedShaders");
-        foreach (string name in new[] { "Unlit/Color", "Unlit/Texture", "UI/Default", "StremioVR/Avatar", "StremioVR/World", "StremioVR/ScreenGlow", "MovieNight/Mirror", "MovieNight/EdgeSmooth", "Skybox/Panoramic" }) {
+        foreach (string name in new[] { "Unlit/Color", "Unlit/Texture", "UI/Default", "StremioVR/Avatar", "StremioVR/World", "StremioVR/ScreenGlow", "MovieNight/Mirror", "MovieNight/EdgeSmooth", "MovieNight/BrowserYuv", "MovieNight/BounceField", "Skybox/Panoramic" }) {
             var shader = Shader.Find(name); if (shader == null) throw new BuildFailedException("Missing shader: " + name);
             bool found = false; for (int i = 0; i < shaders.arraySize; i++) if (shaders.GetArrayElementAtIndex(i).objectReferenceValue == shader) found = true;
             if (!found) { int index = shaders.arraySize; shaders.InsertArrayElementAtIndex(index); shaders.GetArrayElementAtIndex(index).objectReferenceValue = shader; }

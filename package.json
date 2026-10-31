@@ -1,6 +1,6 @@
 {
   "name": "movie-night",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Movie Night \u2014 multiplayer VR cinema for Meta Quest",
   "author": "Jeremy Lakey",
   "license": "AGPL-3.0-only",
@@ -15,7 +15,7 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test",
-    "check": "node --check server/index.js && node --check server/rooms.js && node --check server/core.js && node --check scripts/device-smoke.mjs && node --check server/games.js && node --check server/media.js && node --check server/layout.js && node --check server/hosting.js && node --check server/tunnel.js",
+    "check": "node --check server/index.js && node --check server/rooms.js && node --check server/core.js && node --check scripts/device-smoke.mjs && node --check server/games.js && node --check server/media.js && node --check server/layout.js && node --check server/hosting.js && node --check server/tunnel.js && node --check server/browser.js && node --check browser/worker.js && node --check browser/session.js && node --check browser/extension/capture.js",
     "build:core": "cargo build --locked --release --manifest-path core/Cargo.toml",
     "test:core": "cargo test --locked --manifest-path core/Cargo.toml",
     "build:solo": "node scripts/build-solo.mjs",

@@ -137,3 +137,22 @@ Alpha 5 automated checks: **29/29 Unity EditMode tests**, **46/46 Node tests** (
 Quest 3 startup check: the normal launcher intent entered solo, created `solo.json`, fetched catalogs directly, imported account add-ons, and loaded watch history without a room-server endpoint. Hands-on solo play and restart acceptance remain pending user feedback.
 
 User acceptance (2026-10-30): after asking about browser access, table placement and a move against the local computer without creating a room, the user replied **“Solo mode works.”**
+
+## Alpha 6: segmented lighting and shared browser
+
+- [x] 32 Unity EditMode tests: 32 edge samples, GPU orientation checks, linear YUV color conversion, preserved XR render target, and existing gameplay checks.
+- [x] 53 server tests including a pending-start disconnect regression test; browser host authority, room isolation, viewer cleanup, profile encryption and private-network proxy blocking.
+- [x] Real Chromium capture: 1920×1080 video and audio, 57–59 fps in a host test and 54 fps in the Docker test while Unity was building. These are local measurements, not a promised rate on every connection.
+- [x] Two real WebRTC receivers joined a room and decoded the same 1080p server browser with audio; host tab creation succeeded and guest navigation was rejected.
+- [x] Corrected APK installed on Quest 3; 1920×1080 server decoder frames received, browser orientation checked in both-eye screenshot, and app rendered at 72 fps while viewing the browser page.
+- [x] Actual Chromium cookie survives encrypted profile close/reopen.
+- [ ] User comfort check for segmented diffusion, moving-video audio, walking/turning during browsing, and conditional beam visibility.
+- [ ] Two physical Quests on different networks, including a TURN-only path; server/browser FPS under eight-viewer load.
+
+The first device run exposed missing Android network-state permissions in the WebRTC network monitor. Alpha 6 adds the normal ACCESS_NETWORK_STATE and CHANGE_NETWORK_STATE permissions; the crashing intermediate APK is not a release artifact. Shared browser DRM playback/capture is not guaranteed and no DRM bypass or licensed-content redistribution is implemented.
+
+Alpha 6 visual follow-up: the first user check rejected padded/washed-out room browsing and reversed vertical ambient samples. The revised build removes Chromium debugger-infobar padding, uses an explicit linear YUV output target, and maps ambient samples through the display texture transform. All seven supported screens now have independent glow geometry and position/orientation-based room bounce. The updated moving-image capture test checks frame corners for padding and pointer alignment in the higher-density viewport. Final visual acceptance remains pending.
+
+The initial seven-screen shader dropped Quest rendering into roughly 43–53 fps, so it was replaced before release with a shared 64×64 filtered color field: each screen retains all 32 samples while surfaces need one field lookup per monitor. Screen glow reuses that field.
+
+Final optimized seven-screen run on Quest 3 measured roughly 66–72 app fps in the tested view, compared with 43–53 before optimization. This is headset rendering FPS, distinct from the WebRTC video frame rate. The revised browser capture passed full-frame corner and scaled pointer checks; its Docker video test measured 46 fps under the concurrent test workload while retaining 1920×1080. Two viewer room video/audio and host-tab authority passed again. User visual acceptance of the revised build remains pending.

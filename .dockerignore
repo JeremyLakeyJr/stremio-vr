@@ -16,3 +16,7 @@ core/*
 !docs/
 !docs/screenshots/
 !docs/screenshots/**
+
+!Dockerfile.browser
+!browser/
+!browser/**

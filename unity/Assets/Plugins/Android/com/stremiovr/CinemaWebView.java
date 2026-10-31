@@ -80,7 +80,7 @@ public final class CinemaWebView {
             reader=ImageReader.newInstance(width,height,PixelFormat.RGBA_8888,3);
             reader.setOnImageAvailableListener(r -> {
                 try(Image image=r.acquireLatestImage()) {
-                    if(image==null || closed || SystemClock.uptimeMillis()-lastFrame<83) return;
+                    if(image==null || closed || SystemClock.uptimeMillis()-lastFrame<33) return;
                     lastFrame=SystemClock.uptimeMillis(); Image.Plane plane=image.getPlanes()[0];
                     ByteBuffer pixels=plane.getBuffer(); int stride=plane.getRowStride(), step=plane.getPixelStride();
                     if(step!=4) return;
