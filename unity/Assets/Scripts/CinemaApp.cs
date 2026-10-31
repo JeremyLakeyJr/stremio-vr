@@ -169,12 +169,18 @@ public sealed class CinemaApp : MonoBehaviour {
     void LayoutPage() {
         Clear();pageTitle.text="Arrange room";layoutPageRevision=(int?)room.State?["layout"]?["revision"]??-1;
         Heading(room.IsHost?"Aim to place; use sticks to adjust. Trigger confirms; menu cancels.":"Only the room host can place, move, or remove objects.");
+        MonitorControls("main",(float?)room.State?["layout"]?["mainScreen"]?["width"]??4.34f,(float?)room.State?["layout"]?["mainScreen"]?["curve"]??0,"Main screen");
         ActionButton("Add movie screen",()=>BeginPlacement("screen"));
         var items=room.State?["layout"]?["items"] as JArray??new JArray();
         foreach(string kind in new[]{"chess","tictactoe"}) {bool found=false;foreach(var item in items)if((string)item["kind"]==kind)found=true;if(!found){string type=kind;ActionButton("Place "+kind+" table",()=>BeginPlacement(type));}}
-        int number=0;foreach(var item in items) {string id=(string)item["id"],kind=(string)item["kind"];Heading((++number)+" · "+kind);ActionButton("Move "+kind,()=>BeginPlacement(kind,id));ActionButton("Remove "+kind,()=>placement.Remove(id));}
+        int number=0;foreach(var item in items) {string id=(string)item["id"],kind=(string)item["kind"];Heading((++number)+" · "+kind);ActionButton("Move "+kind,()=>BeginPlacement(kind,id));ActionButton("Remove "+kind,()=>placement.Remove(id));if(kind=="screen")MonitorControls(id,(float?)item["width"]??2.1f,(float?)item["curve"]??0,"Monitor");}
         Heading("Up to six extra screens and one table for each game. Solo layouts save on this headset; multiplayer layouts last for the room.");
         ActionButton("Refresh layout",LayoutPage);
+    }
+    void MonitorControls(string id,float width,float curve,string label){
+        Heading(label+" · width "+width.ToString("0.00")+" m · curve "+curve.ToString("0")+"°");
+        ActionButton("Smaller −0.25 m",()=>placement.Configure(id,width-.25f,curve));ActionButton("Larger +0.25 m",()=>placement.Configure(id,width+.25f,curve));
+        ActionButton("Less curved −15°",()=>placement.Configure(id,width,curve-15));ActionButton("More curved +15°",()=>placement.Configure(id,width,curve+15));ActionButton("Flat screen",()=>placement.Configure(id,width,0));
     }
     void AudioSettings() {
         Clear();pageTitle.text="Movie audio";Heading(playback.AudioInfo);

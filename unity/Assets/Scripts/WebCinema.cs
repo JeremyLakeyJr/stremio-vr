@@ -72,10 +72,8 @@ public sealed class WebCinema : MonoBehaviour {
   point=Vector3.zero; if(!Active||!screen||!Room.IsHost)return false;
   bool hit=false;float nearest=15;Vector3 local=Vector3.one;
   foreach(var display in World.Screens) {
-   var plane=new Plane(display.transform.forward,display.transform.position);
-   if(Vector3.Dot(ray.direction,display.transform.forward)<=0 || !plane.Raycast(ray,out float d)||d<=0||d>=nearest)continue;
-   var candidate=display.transform.InverseTransformPoint(ray.GetPoint(d)); if(Mathf.Abs(candidate.x)>0.5f||Mathf.Abs(candidate.y)>0.5f)continue;
-   nearest=d;local=candidate;hit=true;
+   var surface=display.GetComponent<MonitorSurface>();if(!surface||!surface.Point(ray,out float d,out var uv)||d>=nearest)continue;
+   nearest=d;local=new Vector3(uv.x-.5f,uv.y-.5f,0);hit=true;
   }
   if(hit) { point=ray.GetPoint(nearest); lastPoint=new Vector2(local.x+0.5f,0.5f-local.y); if(held||pressed) Pointer(held?(pressed?2:0):1); if(Mathf.Abs(scroll)>0.01f) Scroll(-scroll*90); }
   else if(pressed) Pointer(3);

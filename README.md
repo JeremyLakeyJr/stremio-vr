@@ -46,6 +46,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Replace PCM voice relay with WebRTC/Opus and optional TURN support.
 - [x] Provide a browser page that copies the temporary Cloudflare invite link.
 - [x] Include apartment screenshots and the original Home archive through Git LFS.
+- [x] Resize and curve the main screen and placed monitors, with matching glow and beam geometry.
 - [x] Eight ambient color samples per edge with diffusion and display-correct top/bottom sampling.
 - [x] Walking/turning during web playback and beam visibility limited to interactive targets.
 - [x] Shared server browser with host tabs, WebRTC video/audio, and encrypted remembered profiles.
@@ -385,7 +386,7 @@ Open **Settings → Arrange room** or **Games → Arrange room** as the host. Ad
 | Right trigger | Confirm placement |
 | Menu button | Cancel |
 
-Use the object list to move or remove an existing object. There are up to six extra screens and one table per game. Moving/removing a table does not reset the game. Layout is stored with the current room, survives host handoff/reconnection, and ends when the room/server ends. Movement is paused while adjusting placement.
+Use the object list to move or remove an existing object. Each monitor, including the main screen, has **Smaller/Larger** controls (0.6–8 m wide) and **Less/More curved** controls (0–120°); **Flat screen** resets its curve. Height follows the video aspect ratio. Changes synchronize to room guests and save in Solo mode. The beam maps to the curved surface, and its glow ring shares the exact same edge geometry. There are up to six extra screens and one table per game. Moving/removing a table does not reset the game. Layout is stored with the current room, survives host handoff/reconnection, and ends when the room/server ends. Movement is paused while adjusting placement.
 
 ## Voice across networks
 

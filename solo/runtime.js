@@ -9,6 +9,7 @@ class MovieNightSolo {
   try{
    if(save.version===1){
     this.computer=save.computer!==false;
+    if(save.layout?.mainScreen)this.layout.handle({...save.layout.mainScreen,action:'configure',id:'main',revision:this.layout.revision});
     for(const item of save.layout?.items||[])this.layout.handle({...item,type:'layout',action:'place',id:undefined,revision:this.layout.revision});
     for(const move of save.chessMoves||[])this.games.chess.move(move);
     if(Array.isArray(save.ticMoves))for(const cell of save.ticMoves)this.ticMove(cell);

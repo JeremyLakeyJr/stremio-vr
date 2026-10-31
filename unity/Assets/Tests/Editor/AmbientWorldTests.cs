@@ -38,6 +38,23 @@ public class AmbientWorldTests {
   try{y.LoadRawTextureData(new byte[]{126,126,126,126});y.Apply();uv.LoadRawTextureData(new byte[]{128});uv.Apply();material.SetTexture("_U",uv);material.SetTexture("_V",uv);target.Create();VideoAmbient.BlitPreservingTarget(y,target,material);RenderTexture.active=target;read.ReadPixels(new Rect(0,0,2,2),0,0);read.Apply();float expected=QualitySettings.activeColorSpace==ColorSpace.Linear?Mathf.GammaToLinearSpace(110f/219):110f/219;Assert.That(read.GetPixel(0,0).r,Is.EqualTo(expected).Within(.008f));}
   finally{RenderTexture.active=previous;target.Release();Object.DestroyImmediate(y);Object.DestroyImmediate(uv);Object.DestroyImmediate(target);Object.DestroyImmediate(read);Object.DestroyImmediate(material);}
  }
+ [Test] public void GlowRingInnerBoundaryMatchesFlatAndCurvedScreens(){
+  foreach(float curve in new[]{0f,60f,120f}){
+   var screen=MonitorSurface.BuildMesh(3,1.6875f,curve,false);var glow=MonitorSurface.BuildMesh(3,1.6875f,curve,true);
+   try{var sv=screen.vertices;var su=screen.uv;var gv=glow.vertices;var gu=glow.uv;
+    for(int i=0;i<sv.Length;i++){bool found=false;for(int j=0;j<gv.Length;j++)if(Vector2.Distance(su[i],gu[j])<.00001f){Assert.That(gv[j].x,Is.EqualTo(sv[i].x).Within(.00001));Assert.That(gv[j].y,Is.EqualTo(sv[i].y).Within(.00001));Assert.That(gv[j].z,Is.EqualTo(sv[i].z+.001f).Within(.00001));found=true;break;}Assert.IsTrue(found,"Every screen boundary vertex needs a matching halo vertex");}
+   }finally{Object.DestroyImmediate(screen);Object.DestroyImmediate(glow);}
+  }
+ }
+ [Test] public void CurvedMonitorPointerMatchesSurfaceUv(){
+  foreach(float curve in new[]{0f,30f,90f,120f})foreach(float width in new[]{.6f,2.1f,8f})foreach(float u in new[]{-.45f,0f,.45f}){
+   var p=MonitorSurface.SurfacePoint(width,width*9/16,curve,u,.2f);var origin=p+Vector3.back*10;
+   Assert.IsTrue(MonitorSurface.Intersect(width,width*9/16,curve,origin,Vector3.forward,out float distance,out var uv));Assert.That(distance,Is.EqualTo(10).Within(.001));Assert.That(uv.x,Is.EqualTo(u+.5f).Within(.001));Assert.That(uv.y,Is.EqualTo(.7f).Within(.001));
+  }
+ }
+ [Test] public void MonitorPointerRejectsBackAndOutside(){
+  foreach(float curve in new[]{0f,90f}){Assert.IsFalse(MonitorSurface.Intersect(2,1,curve,new Vector3(0,0,3),Vector3.back,out _,out _));Assert.IsFalse(MonitorSurface.Intersect(2,1,curve,new Vector3(0,2,-3),Vector3.forward,out _,out _));}
+ }
  [Test] public void TableSquaresRoundTripAcrossEveryRank() {for(int i=0;i<64;i++)Assert.AreEqual(i,TabletopGames.Index(TabletopGames.Square(i)));Assert.AreEqual("a8",TabletopGames.Square(0));Assert.AreEqual("h1",TabletopGames.Square(63));}
  [Test] public void MirrorReflectionPreservesPlaneAndFlipsDistance() {
   var reflection=RoomMirror.Reflection(new Vector4(0,0,1,-3));

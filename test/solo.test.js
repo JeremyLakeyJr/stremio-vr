@@ -36,3 +36,6 @@ test('solo rejects illegal chess and invalid URLs without changing state',()=>{
  const f=setup();const fen=f.state.games.chess.fen;f.move('chess',{from:'e2',to:'e5'});assert.match(f.messages.at(-1).message.message,/Illegal/);assert.equal(f.state.games.chess.fen,fen);
  f.send({type:'playback',url:'file:///private/test'});assert.equal(f.state.playback.url,'');assert.match(f.messages.at(-1).message.message,/HTTP/);
 });
+test('solo saves curved and resized monitors including the main screen',()=>{
+ const f=setup();f.send({type:'layout',action:'configure',id:'main',revision:f.state.layout.revision,width:5,curve:45});f.send({type:'layout',action:'place',kind:'screen',revision:f.state.layout.revision,position:[0,2,3],rotation:[0,15,0],width:3,curve:90});const restored=setup(JSON.parse(JSON.stringify(f.runtime.saved())));assert.deepEqual(restored.state.layout.mainScreen,{width:5,curve:45});assert.equal(restored.state.layout.items[0].width,3);assert.equal(restored.state.layout.items[0].curve,90);
+});

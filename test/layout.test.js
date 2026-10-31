@@ -24,3 +24,10 @@ test('host-only layout is isolated, survives host transfer and is sent to late j
  const late=socket();rooms.handle(late,{type:'join',roomId:host.roomId});assert.equal(late.messages.at(-1).layout.items.length,1);assert.equal(rooms.rooms.get(outsider.roomId).layout.items.length,0);
  rooms.handle(host,{type:'leave'});rooms.handle(guest,{...command,id:room.layout.items[0].id,revision:2,position:[4,0,5]});assert.deepEqual(room.layout.items[0].position,[4,0,5]);
 });
+test('monitor dimensions validate atomically, survive moving, and include the main screen',()=>{
+ const layout=new RoomLayout();place(layout,'screen',{width:3,curve:60});const id=layout.items[0].id;
+ place(layout,'screen',{id,position:[4,2,1]});assert.equal(layout.items[0].width,3);assert.equal(layout.items[0].curve,60);
+ for(const change of [{width:0},{width:9},{curve:-1},{curve:121},{width:NaN},{curve:'30'}]){const before=JSON.stringify(layout.snapshot());assert.throws(()=>layout.handle({action:'configure',id,revision:layout.revision,...change}),/Invalid/);assert.equal(JSON.stringify(layout.snapshot()),before);}
+ layout.handle({action:'configure',id,revision:layout.revision,width:4,curve:90});assert.equal(layout.items[0].width,4);
+ layout.handle({action:'configure',id:'main',revision:layout.revision,width:6,curve:30});assert.deepEqual(layout.snapshot().mainScreen,{width:6,curve:30});
+});

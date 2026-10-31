@@ -45,7 +45,7 @@ public sealed class VideoAmbient : MonoBehaviour {
   int count=World?Mathf.Min(MaxScreens,World.Screens.Count):(Screen?1:0);
   for(int i=0;i<count;i++){
    var t=World?World.Screens[i].transform:Screen;Vector3 right=t.TransformVector(Vector3.right),up=t.TransformVector(Vector3.up),front=-t.forward;
-   centers[i]=t.position;rights[i]=new Vector4(right.x,right.y,right.z,1/Mathf.Max(.001f,right.sqrMagnitude));ups[i]=new Vector4(up.x,up.y,up.z,1/Mathf.Max(.001f,up.sqrMagnitude));fronts[i]=front;
+   var surface=t.GetComponent<MonitorSurface>();var center=t.position;centers[i]=new Vector4(center.x,center.y,center.z,right.magnitude);rights[i]=new Vector4(right.x,right.y,right.z,1/Mathf.Max(.001f,right.sqrMagnitude));ups[i]=new Vector4(up.x,up.y,up.z,1/Mathf.Max(.001f,up.sqrMagnitude));fronts[i]=new Vector4(front.x,front.y,front.z,surface?surface.Curvature*Mathf.Deg2Rad:0);
   }
   Shader.SetGlobalInt("_CinemaScreenCount",count);Shader.SetGlobalVectorArray("_CinemaScreenCenters",centers);Shader.SetGlobalVectorArray("_CinemaScreenRights",rights);Shader.SetGlobalVectorArray("_CinemaScreenUps",ups);Shader.SetGlobalVectorArray("_CinemaScreenFronts",fronts);Shader.SetGlobalFloat("_CinemaBounceStrength",Strength);
  }

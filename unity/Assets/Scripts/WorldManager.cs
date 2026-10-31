@@ -11,17 +11,17 @@ public sealed class WorldManager : MonoBehaviour {
  public event Action Changed;
  public bool MirrorVisible=true; RoomMirror mirror;
  readonly Dictionary<string,Renderer> extras=new Dictionary<string,Renderer>();
- readonly Dictionary<Renderer,Renderer> glows=new Dictionary<Renderer,Renderer>(); readonly MaterialPropertyBlock glowProperties=new MaterialPropertyBlock();
+
  Material glowMaterial; GameObject container; RoomClient room;
  public void Initialize(RoomClient client) { room=client; Load("home"); room.Message+=Message; }
  void Update() {if(mirror)mirror.Visible=MirrorVisible;}
- void Message(JObject message) { if((string)message["type"]=="disconnected" || (string)message["type"]=="left") SyncScreens(null); if((string)message["type"]=="state") { string id=(string)message["world"]??"home"; if(id!=CurrentWorld) Load(id); SyncScreens(message["layout"]?["items"] as JArray); } }
+ void Message(JObject message) { if((string)message["type"]=="disconnected" || (string)message["type"]=="left") SyncScreens(null); if((string)message["type"]=="state") { string id=(string)message["world"]??"home"; if(id!=CurrentWorld) Load(id); SyncScreens(message["layout"]?["items"] as JArray,message["layout"]?["mainScreen"] as JObject); } }
  public void Load(string id) {
   id="home"; var prefab=Resources.Load<GameObject>("Worlds/Home");
   if(!prefab) { Debug.LogWarning("World is not included in this build: "+id); return; }
   if(glowMaterial) Destroy(glowMaterial);
   if(container) { if(Screen) Destroy(Screen.sharedMaterial); container.SetActive(false); Destroy(container); }
-  Screens.Clear();screenSizes.Clear();extras.Clear();glows.Clear();
+  Screens.Clear();screenSizes.Clear();extras.Clear();
   container=new GameObject("World: "+id); container.transform.SetParent(transform,false);
   var world=Instantiate(prefab,container.transform,false); Data=world.GetComponent<CinemaWorldData>(); CurrentWorld=id; RenderSettings.skybox=Data.Skybox; if(Camera.main) Camera.main.clearFlags=Data.Skybox?CameraClearFlags.Skybox:CameraClearFlags.SolidColor;
   var screen=GameObject.CreatePrimitive(PrimitiveType.Quad); screen.name="Cinema screen"; screen.transform.SetParent(container.transform,false); screen.transform.position=Data.ScreenPosition; screen.transform.localScale=new Vector3(Data.ScreenSize.x,Data.ScreenSize.y,1); Destroy(screen.GetComponent<Collider>());
@@ -36,11 +36,10 @@ public sealed class WorldManager : MonoBehaviour {
   var mirrorObject=GameObject.CreatePrimitive(PrimitiveType.Quad); mirrorObject.name="Room mirror"; mirrorObject.transform.SetParent(container.transform,false); mirrorObject.transform.position=Data.Spawn+new Vector3(-1.4f,1.5f,-1.5f); mirrorObject.transform.rotation=Quaternion.Euler(0,180,0); mirrorObject.transform.localScale=new Vector3(1.5f,2.2f,1); mirror=mirrorObject.AddComponent<RoomMirror>();
   Changed?.Invoke();
  }
- void AddGlow(Renderer display){
-  var go=GameObject.CreatePrimitive(PrimitiveType.Quad);go.name="Video edge glow";go.transform.SetParent(display.transform,false);go.transform.localPosition=new Vector3(0,0,-.04f);Destroy(go.GetComponent<Collider>());var r=go.GetComponent<Renderer>();r.sharedMaterial=glowMaterial;glows[display]=r;
- }
+ void AddGlow(Renderer display){display.gameObject.AddComponent<MonitorSurface>().Initialize(glowMaterial);}
  public static Vector3 LayoutVector(JToken value) => new Vector3((float)value[0],(float)value[1],(float)value[2]);
- void SyncScreens(JArray items) {
+ void SyncScreens(JArray items,JObject main=null) {
+  if(Screen){float width=(float?)main?["width"]??Data.ScreenSize.x;screenSizes[Screen]=new Vector2(width,width*Data.ScreenSize.y/Data.ScreenSize.x);Screen.GetComponent<MonitorSurface>().Curvature=(float?)main?["curve"]??0;}
   var keep=new HashSet<string>();
   foreach(var item in items??new JArray()) {
    if((string)item["kind"]!="screen")continue;string id=(string)item["id"];keep.Add(id);
@@ -48,15 +47,16 @@ public sealed class WorldManager : MonoBehaviour {
     var go=GameObject.CreatePrimitive(PrimitiveType.Quad);go.name="Placed movie screen";go.transform.SetParent(container.transform,false);Destroy(go.GetComponent<Collider>());
     display=go.GetComponent<Renderer>();display.sharedMaterial=Screen.sharedMaterial;extras[id]=display;Screens.Add(display);screenSizes[display]=new Vector2(2.1f,1.18125f);go.transform.localScale=new Vector3(2.1f,1.18125f,1);AddGlow(display);
    }
+   float width=(float?)item["width"]??2.1f;screenSizes[display]=new Vector2(width,width*9/16);display.GetComponent<MonitorSurface>().Curvature=(float?)item["curve"]??0;
    display.transform.position=LayoutVector(item["position"]);display.transform.rotation=Quaternion.Euler(LayoutVector(item["rotation"]));
   }
-  foreach(string id in new List<string>(extras.Keys))if(!keep.Contains(id)){var display=extras[id];Screens.Remove(display);screenSizes.Remove(display);glows.Remove(display);extras.Remove(id);display.gameObject.SetActive(false);Destroy(display.gameObject);}
+  foreach(string id in new List<string>(extras.Keys))if(!keep.Contains(id)){var display=extras[id];Screens.Remove(display);screenSizes.Remove(display);extras.Remove(id);display.gameObject.SetActive(false);Destroy(display.gameObject);}
  }
  void LateUpdate() {
   if(!Screen)return;var texture=Screen.sharedMaterial.mainTexture;
   foreach(var display in Screens){
-   var size=screenSizes[display];if(texture&&texture!=Texture2D.blackTexture){float aspect=(float)texture.width/Mathf.Max(1,texture.height);float width=Mathf.Min(size.x,size.y*aspect);display.transform.localScale=new Vector3(width,width/aspect,1);}
-   if(glows.TryGetValue(display,out var glow)){var actual=display.transform.localScale;glow.transform.localScale=new Vector3(1+2/actual.x,1+2/actual.y,1);glowProperties.SetVector("_ScreenFraction",new Vector4(actual.x/(actual.x+2),actual.y/(actual.y+2),0,0));glow.SetPropertyBlock(glowProperties);}
+   var size=screenSizes[display];float aspect=texture&&texture!=Texture2D.blackTexture?(float)texture.width/Mathf.Max(1,texture.height):size.x/size.y;float width=Mathf.Min(size.x,size.y*aspect);display.transform.localScale=new Vector3(width,width/aspect,1);
+   display.GetComponent<MonitorSurface>().Configure(display.transform.localScale.x,display.transform.localScale.y);
   }
  }
  void OnDestroy() { if(room) room.Message-=Message; }
