@@ -166,3 +166,5 @@ The user reported that the halo looked like a solid rectangular frame. The revis
 36 Unity EditMode tests passed, including an offscreen GPU render that checks the inner fade, brighter soft shoulder, invisible outer boundary, and preserved background alpha. Final on-headset appearance still requires user acceptance.
 
 Alpha 7 follow-up: the user rejected the softened overlay because it still looked like a frame. The overlay renderer and its runtime geometry are now removed. Ambient color remains on actual world surfaces and emissive light bars, with a smooth radial falloff from each screen center instead of a rectangle-distance plateau. 37 Unity EditMode tests passed, including a regression confirming runtime monitors create no overlay renderer. On-headset visual acceptance is pending.
+
+Headset feedback confirmed the floating frame is gone, but surface lighting was too faint. Increased indirect spill behind screens, diffuse gain and dark-material response; expanded the saved Ambient strength control to 200%. Final brightness acceptance is pending.

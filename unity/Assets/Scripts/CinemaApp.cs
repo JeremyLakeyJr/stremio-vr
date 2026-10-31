@@ -360,7 +360,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});
-        ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=1?0.25f:Mathf.Min(1,ambient.Strength+0.25f);settings["ambientStrength"]=ambient.Strength;Save();Comfort();});
+        ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=2?0.25f:Mathf.Min(2,ambient.Strength+0.25f);settings["ambientStrength"]=ambient.Strength;Save();Comfort();});
         Heading("Hide the menu: left stick walks, right stick turns.");
         ActionButton("Stand up / return to aisle",motion.Stand);
         ActionButton("Calibrate reclined view (look where you want the screen)",()=> { motion.CalibrateReclined(); Recenter(); Comfort(); });

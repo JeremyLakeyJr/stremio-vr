@@ -26,20 +26,20 @@ Shader "StremioVR/World" {
    float3 facingNormal=front;float angle=_CinemaScreenFronts[screen].w;
    if(angle>.0001){float sine=clamp(local.x*angle,-sin(angle*.5),sin(angle*.5)),cosine=sqrt(max(0,1-sine*sine));nearest=center+right*(sine/angle)+up*clamp(local.y,-.5,.5)+front*(_CinemaScreenCenters[screen].w/angle*(1-cosine));local.x=asin(sine)/angle;facingNormal=front*cosine-right*sqrt(_CinemaScreenRights[screen].w)*sine;}
    float distanceSquared=dot(fromCenter,fromCenter);if(distanceSquared>144)continue;
-   float facing=.35+.65*saturate(dot(i.world-nearest,facingNormal)*2+.15);float range=saturate(1-distanceSquared/144);range*=range*facing;
+   float facing=.65+.35*saturate(dot(i.world-nearest,facingNormal)*2+.15);float range=saturate(1-distanceSquared/144);range*=range*facing;
    // A prefiltered 64x64 field retains all 32 edge samples with one lookup per display.
    float3 edgeColor=tex2Dlod(_CinemaBounceField,float4(saturate(local+.5),0,0)).rgb;
    float3 delta=nearest+facingNormal*.15-i.world;float d2=dot(delta,delta);float3 l=delta*rsqrt(max(d2,.01));
    float attenuation=range/(1+distanceSquared*.22);barColor+=edgeColor*attenuation;barWeight+=attenuation;
-   float3 radiance=edgeColor*attenuation*_CinemaBounceStrength*1.6;
-   bounce+=radiance*(.15+.85*saturate(dot(n,l)));
+   float3 radiance=edgeColor*attenuation*_CinemaBounceStrength*3.2;
+   bounce+=radiance*(.5+.5*saturate(dot(n,l)));
    specular+=radiance*pow(saturate(dot(n,normalize(l+view))),lerp(8,96,_Glossiness))*_Glossiness*.25;
   }
   float3 baked=tex2D(_BakedLight,i.lightUV).rgb*lerp(1,0.65,_CinemaAmbientDim);
   float3 reflection=DecodeHDR(UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0,reflect(-view,n),(1-_Glossiness)*6),unity_SpecCube0_HDR);
   float3 emission=tex2D(_EmissionMap,i.uv).rgb*_EmissionColor.rgb;
   emission=lerp(emission,barColor/max(barWeight,0.001)*max(1,length(_EmissionColor.rgb))*_CinemaBounceStrength,_VideoReactive*_CinemaAmbientDim);
-  return float4(albedo*lerp(baseLight.xxx,baked,_HasBakedLight)+(albedo+0.06)*bounce+specular+reflection*lerp(0.04,albedo,_Metallic)*_Glossiness+emission,1);
+  return float4(albedo*lerp(baseLight.xxx,baked,_HasBakedLight)+(albedo+0.12)*bounce+specular+reflection*lerp(0.04,albedo,_Metallic)*_Glossiness+emission,1);
  }
  ENDCG
  } }
