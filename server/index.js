@@ -134,20 +134,21 @@ export async function createServer(options = {}) {
 
     if (req.method === 'GET' && req.url === '/api/providers') {
       res.setHeader('Cache-Control', 'no-store');
-      const check = async (u) => {
+      const check = async (u, headers = {}) => {
         if (!u) return { configured: false, online: false };
         try {
           const parsed = new URL(u);
-          const r = await fetch(parsed.origin, { signal: AbortSignal.timeout(2500) });
+          const r = await fetch(parsed.origin, { headers, signal: AbortSignal.timeout(2500) });
           return { configured: true, online: r.status < 500, status: r.status };
         } catch {
           return { configured: true, online: false };
         }
       };
+      const msHeaders = process.env.MEDIASTORM_KEY ? { 'X-MediaStorm-Key': process.env.MEDIASTORM_KEY } : {};
       const [stremio, jellyfin, mediastorm, silo, remux] = await Promise.all([
         check(process.env.STREAMING_SERVICE_URL || 'http://stremio:11470'),
         check(process.env.JELLYFIN_URL),
-        check(process.env.MEDIASTORM_URL),
+        check(process.env.MEDIASTORM_URL, msHeaders),
         check(process.env.SILO_URL),
         check(process.env.REMUX_URL)
       ]);

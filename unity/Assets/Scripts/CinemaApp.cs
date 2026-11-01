@@ -489,6 +489,19 @@ public sealed class CinemaApp : MonoBehaviour {
                 BackendsPage();
             }
         });
+        Heading("Connect MediaStorm instance (Debrid / Usenet)");
+        string msUrl = (string)settings["mediastormUrl"] ?? "";
+        string msKey = (string)settings["mediastormKey"] ?? "";
+        var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.100:8080)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
+        var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
+        ActionButton("Authenticate MediaStorm", async () => {
+            if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
+                ShowStatus("Connecting to MediaStorm...");
+                bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
+                ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm authentication failed.");
+                BackendsPage();
+            }
+        });
         Heading("Install custom Stremio Addon manifest");
         var addonField = Field("Addon Manifest URL", "https://", null);
         ActionButton("Install Stremio Addon", async () => {

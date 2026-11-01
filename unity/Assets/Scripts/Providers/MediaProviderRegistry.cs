@@ -171,5 +171,29 @@ namespace StremioVR.Providers
             // Sort items with the most recent resume ticks first
             return aggregated.OrderByDescending(item => item.ResumePositionTicks).ToList();
         }
+
+        /// <summary>
+        /// Searches across all authenticated search-capable providers (MediaStorm, etc.).
+        /// </summary>
+        public async Task<List<MediaItem>> SearchAllProvidersAsync(string query)
+        {
+            var results = new List<MediaItem>();
+            if (string.IsNullOrWhiteSpace(query)) return results;
+
+            if (MediaStorm != null && MediaStorm.IsAuthenticated)
+            {
+                try
+                {
+                    var msItems = await MediaStorm.SearchAsync(query);
+                    if (msItems != null) results.AddRange(msItems);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[MediaProviderRegistry] MediaStorm search failed: {e.Message}");
+                }
+            }
+
+            return results;
+        }
     }
 }

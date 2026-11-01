@@ -64,6 +64,10 @@ namespace StremioVR.Providers
             {
                 ReportJellyfinPlayback("Playing", positionSeconds);
             }
+            else if (providerId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
+            {
+                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(itemId, positionSeconds, false);
+            }
 
             if (IsTraktConfigured())
             {
@@ -87,6 +91,10 @@ namespace StremioVR.Providers
             {
                 ReportJellyfinPlayback("Progress", positionSeconds, isPaused: true);
             }
+            else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
+            {
+                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+            }
 
             if (IsTraktConfigured())
             {
@@ -104,6 +112,10 @@ namespace StremioVR.Providers
             {
                 ReportJellyfinPlayback("Progress", positionSeconds, isPaused: false);
             }
+            else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
+            {
+                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, false);
+            }
         }
 
         public void OnPlaybackStopped(double positionSeconds)
@@ -114,6 +126,10 @@ namespace StremioVR.Providers
             if (_activeProviderId == "jellyfin")
             {
                 ReportJellyfinPlayback("Stopped", positionSeconds);
+            }
+            else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
+            {
+                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
             }
 
             if (IsTraktConfigured())
@@ -131,6 +147,10 @@ namespace StremioVR.Providers
             if (_activeProviderId == "jellyfin")
             {
                 ReportJellyfinPlayback("Progress", _lastReportedPosition, isPaused: false);
+            }
+            else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
+            {
+                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, _lastReportedPosition, false);
             }
         }
 

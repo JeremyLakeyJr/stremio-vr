@@ -16,13 +16,13 @@ const c = {
   red: '\x1b[31m',
 };
 
-async function pingUrl(urlStr, timeoutMs = 2500) {
+async function pingUrl(urlStr, timeoutMs = 2500, headers = {}) {
   if (!urlStr) return { configured: false, online: false };
   try {
     const url = new URL(urlStr);
     const client = url.protocol === 'https:' ? https : http;
     return new Promise((resolve) => {
-      const req = client.get(url, { timeout: timeoutMs }, (res) => {
+      const req = client.get(url, { headers, timeout: timeoutMs }, (res) => {
         resolve({ configured: true, online: res.statusCode < 500, status: res.statusCode });
       });
       req.on('error', () => resolve({ configured: true, online: false }));
@@ -82,11 +82,12 @@ async function run() {
 
   // 3. Media Backends & Providers
   console.log(`\n${c.bold}[3/4] Media Backends & Providers:${c.reset}`);
+  const msHeaders = process.env.MEDIASTORM_KEY ? { 'X-MediaStorm-Key': process.env.MEDIASTORM_KEY } : {};
   const providers = [
     { name: 'Stremio Streaming Service', url: process.env.STREAMING_SERVICE_URL || 'http://stremio:11470' },
     { name: 'Jellyfin', url: process.env.JELLYFIN_URL },
     { name: 'Remux (lostb1t/remux)', url: process.env.REMUX_URL },
-    { name: 'MediaStorm (Debrid/Usenet)', url: process.env.MEDIASTORM_URL },
+    { name: 'MediaStorm (Debrid/Usenet)', url: process.env.MEDIASTORM_URL, headers: msHeaders },
     { name: 'Silo (Go Backend)', url: process.env.SILO_URL }
   ];
 
@@ -95,9 +96,10 @@ async function run() {
       console.log(`  ${c.dim}○ ${prov.name}: Not configured${c.reset}`);
       continue;
     }
-    const res = await pingUrl(prov.url);
+    const res = await pingUrl(prov.url, 2500, prov.headers || {});
     if (res.online) {
-      console.log(`  ${c.green}✔ ${prov.name}:${c.reset} Online at ${prov.url} (HTTP ${res.status})`);
+      const extra = prov.name.includes('MediaStorm') && process.env.MEDIASTORM_KEY ? ' (API Key Authenticated)' : '';
+      console.log(`  ${c.green}✔ ${prov.name}:${c.reset} Online at ${prov.url}${extra} (HTTP ${res.status})`);
     } else {
       console.log(`  ${c.yellow}▲ ${prov.name}:${c.reset} Configured at ${prov.url} but unreachable`);
     }

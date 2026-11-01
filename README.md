@@ -115,9 +115,12 @@ flowchart TD
 - **Configuration:** Set `JELLYFIN_URL` in `.env` (e.g. `http://192.168.1.50:8096`).
 
 ### 2. MediaStorm (Debrid & Usenet Streaming)
-- **Adapter Client:** `MediaStormProvider.cs` maps MediaStorm's catalog search and resolve endpoints.
-- **Debrid Streaming:** passes authenticated stream URLs with sanitized `X-MediaStorm-Key` upstream headers.
-- **Configuration:** Set `MEDIASTORM_URL` in `.env`.
+- **Adapter Client:** `MediaStormProvider.cs` maps MediaStorm's catalog search, debrid stream resolution, and watch progress endpoints.
+- **Debrid Streaming:** passes authenticated stream URLs with sanitized `X-MediaStorm-Key` upstream headers, supporting Real-Debrid, AllDebrid, Premiumize, and Usenet indexers.
+- **Enriched Stream Details:** parses debrid provider tags (e.g. `[MediaStorm: RD+]`), quality tags (4K, 1080p), file sizes, audio track indices, and remote subtitle URLs.
+- **Playback Sync:** live watch progress is automatically synchronized with MediaStorm's `/api/v1/user/progress` endpoint.
+- **In-VR Setup:** configure your server URL and API key directly in the headset via "Media backends".
+- **Configuration:** Set `MEDIASTORM_URL` and `MEDIASTORM_KEY` in `.env`.
 
 ### 3. Silo (Go High-Performance Media Server)
 - **High-Throughput Streaming:** `SiloProvider.cs` connects to Silo media servers, supporting library browsing and stream resolution.
@@ -306,6 +309,7 @@ npm run diagnose
 | `JELLYFIN_URL` | *unset* | Jellyfin server URL (e.g. `http://192.168.1.50:8096`) |
 | `REMUX_URL` | *unset* | Standalone Remux (`lostb1t/remux`) server URL |
 | `MEDIASTORM_URL` | *unset* | MediaStorm Debrid/Usenet streaming server URL |
+| `MEDIASTORM_KEY` | *unset* | Optional MediaStorm API Key for backend health authentication |
 | `SILO_URL` | *unset* | Silo Go streaming backend URL |
 | **Hardware Transcoding** | | |
 | `MEDIA_DISABLE_REMUX` | `false` | Set `true` to force transcoding even on compatible H.264 streams |

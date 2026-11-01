@@ -239,3 +239,35 @@ test('api: /api/subtitles/search returns unconfigured payload when key is absent
   assert.equal(data.configured, false);
   assert.deepEqual(data.results, []);
 });
+
+test('api: /api/providers sends X-MediaStorm-Key header when MEDIASTORM_KEY is set', async (t) => {
+  let receivedHeader = null;
+  const mockMs = http.createServer((req, res) => {
+    receivedHeader = req.headers['x-mediastorm-key'];
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+  });
+  mockMs.listen(0, '127.0.0.1');
+  await once(mockMs, 'listening');
+  t.after(() => mockMs.close());
+
+  const msPort = mockMs.address().port;
+  process.env.MEDIASTORM_URL = `http://127.0.0.1:${msPort}`;
+  process.env.MEDIASTORM_KEY = 'secret-agent-key-999';
+
+  try {
+    const app = await createServer({ media: false });
+    app.server.listen(0, '127.0.0.1');
+    await once(app.server, 'listening');
+    t.after(() => app.close());
+
+    const port = app.server.address().port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+    const data = await res.json();
+    assert.equal(data.providers.mediastorm.online, true);
+    assert.equal(receivedHeader, 'secret-agent-key-999');
+  } finally {
+    delete process.env.MEDIASTORM_URL;
+    delete process.env.MEDIASTORM_KEY;
+  }
+});

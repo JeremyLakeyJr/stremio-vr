@@ -12,6 +12,7 @@ services:
       JELLYFIN_URL: ${JELLYFIN_URL:-}
       REMUX_URL: ${REMUX_URL:-}
       MEDIASTORM_URL: ${MEDIASTORM_URL:-}
+      MEDIASTORM_KEY: ${MEDIASTORM_KEY:-}
       SILO_URL: ${SILO_URL:-}
       SOURCE_URL: ${SOURCE_URL:-https://github.com/oOflyeyesOo/Media-VR}
       TUNNEL_LINK_FILE: /share/link.json
