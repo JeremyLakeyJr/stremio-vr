@@ -1,6 +1,13 @@
 @echo off
 cd /d "%~dp0"
 
+if not exist .env (
+  if exist .env.example (
+    echo [Movie Night] Creating default .env configuration file...
+    copy .env.example .env >nul
+  )
+)
+
 set "COMPOSE_FILES=-f compose.yaml"
 where nvidia-smi >nul 2>nul
 if %errorlevel% equ 0 (
@@ -15,5 +22,5 @@ if errorlevel 1 (
   exit /b 1
 )
 start "" "http://localhost:3000"
-echo Movie Night is starting. The invite link will appear in your browser.
+echo Movie Night is starting. The invite link and QR code will appear in your browser.
 pause

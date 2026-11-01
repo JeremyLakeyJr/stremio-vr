@@ -128,6 +128,7 @@ export function buildTranscodeArgs({
   startTimeSeconds = 0,
   capabilities = {},
   sourceCodec = null,
+  audioTrackIndex = null,
   upstreamHeaders = {},
   outputDir,
   threads = 2
@@ -169,6 +170,10 @@ export function buildTranscodeArgs({
     ];
   }
 
+  const audioMap = (audioTrackIndex !== null && audioTrackIndex !== undefined)
+    ? `0:a:${audioTrackIndex}?`
+    : '0:a:0?';
+
   return [
     '-nostdin',
     '-hide_banner',
@@ -181,7 +186,7 @@ export function buildTranscodeArgs({
     ...seekArgs,
     '-i', input,
     '-map', '0:v:0',
-    '-map', '0:a:0?',
+    '-map', audioMap,
     '-sn',
     '-dn',
     ...videoArgs,

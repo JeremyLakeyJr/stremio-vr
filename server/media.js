@@ -14,13 +14,18 @@ import { mediaURL } from './rooms.js';
 import { buildTranscodeArgs, sanitizeUpstreamHeaders } from './hwaccel.js';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function destination(value, allowed = [], resolve = lookup) {
   const url = new URL(mediaURL(value));
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = ipaddr.isValid(host) ? [{ address: host, family: ipaddr.parse(host).kind() === 'ipv6' ? 6 : 4 }] : await resolve(host, { all: true });
-  if (!addresses.length || (!allowed.includes(url.host) && addresses.some(({ address }) => ipaddr.process(address).range() !== 'unicast'))) throw new Error('Private media source blocked; configure MEDIA_ALLOWED_HOSTS for your trusted streaming service');
+  const allowPrivate = process.env.ALLOW_PRIVATE_NETWORKS === 'true';
+  if (!addresses.length || (!allowPrivate && !allowed.includes(url.host) && addresses.some(({ address }) => ipaddr.process(address).range() !== 'unicast'))) {
+    throw new Error('Private media source blocked; configure MEDIA_ALLOWED_HOSTS for your trusted streaming service');
+  }
   return { url, address: addresses[0] };
 }
+
 async function upstream(value, allowed, range, signal, redirects = 0, upstreamHeaders = {}) {
   if (redirects > 5) throw new Error('Too many media redirects');
   const { url, address } = await destination(value, allowed);
@@ -40,6 +45,7 @@ async function upstream(value, allowed, range, signal, redirects = 0, upstreamHe
   if (![200, 206].includes(response.statusCode)) { response.destroy(); throw new Error('Media source unavailable'); }
   return { response, url };
 }
+
 export function rewritePlaylist(text, base, register) {
   if (!text.trimStart().startsWith('#EXTM3U')) throw new Error('Invalid HLS playlist');
   if (/#EXT-X-(?:SESSION-)?KEY:.*METHOD=(?!NONE)/.test(text)) throw new Error('Encrypted HLS requires a supported licensed player');
@@ -55,7 +61,17 @@ export function rewritePlaylist(text, base, register) {
 export class MediaServer {
   constructor(options = {}) {
     this.capabilities = options.capabilities || { hwAccel: false, backend: null, maxHeight: 720, maxFps: 30, videoBitrate: '3500k', maxBytes: 8589934592, maxJobs: 2 };
-    this.allowed = options.allowedHosts ?? (process.env.MEDIA_ALLOWED_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const envHosts = (process.env.MEDIA_ALLOWED_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean);
+    // Auto-allow hosts configured for known upstream services in environment
+    for (const envKey of ['JELLYFIN_URL', 'SILO_URL', 'MEDIASTORM_URL', 'STREAMING_SERVICE_URL', 'REMUX_URL']) {
+      if (process.env[envKey]) {
+        try {
+          const u = new URL(process.env[envKey]);
+          if (u.host && !envHosts.includes(u.host)) envHosts.push(u.host);
+        } catch {}
+      }
+    }
+    this.allowed = options.allowedHosts ?? envHosts;
     this.maxJobs = options.maxJobs ?? Number(process.env.MEDIA_MAX_JOBS || this.capabilities.maxJobs || 2);
     this.maxBytes = options.maxBytes ?? Number(process.env.MEDIA_MAX_BYTES || this.capabilities.maxBytes || 8 * 1024 ** 3);
     this.binary = options.binary || process.env.FFMPEG_BINARY || 'ffmpeg';
@@ -101,7 +117,7 @@ export class MediaServer {
   async start(source, offset = 0, created = () => {}, transcodeOptions = {}) {
     if (this.closed || this.jobs.size >= this.maxJobs) throw new Error('Streaming server is busy; try again');
     const id = randomBytes(24).toString('hex');
-    const { sourceCodec = null, upstreamHeaders = {} } = transcodeOptions;
+    const { sourceCodec = null, audioTrackIndex = null, upstreamHeaders = {} } = transcodeOptions;
     const sanitizedHeaders = sanitizeUpstreamHeaders(upstreamHeaders);
     const job = { id, source: mediaURL(source), offset, sources: [], requests: new Set(), inputBytes: 0, stopped: false, failed: null, finished: false, upstreamHeaders: sanitizedHeaders, sourceCodec };
     this.jobs.set(id, job); created(job);
@@ -117,6 +133,7 @@ export class MediaServer {
         startTimeSeconds: offset,
         capabilities: this.capabilities,
         sourceCodec,
+        audioTrackIndex,
         upstreamHeaders: sanitizedHeaders,
         outputDir: job.dir,
         threads: 2

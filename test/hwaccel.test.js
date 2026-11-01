@@ -178,3 +178,49 @@ test('server: upstreamHeaders and sourceCodec in host:load_media are never leake
   assert.ok(!guestRawState.includes(secretHeader), 'Room state must not leak upstream auth headers');
   assert.ok(!guestRawState.includes('sourceCodec'), 'Room state must not leak sourceCodec');
 });
+
+test('hwaccel: audioTrackIndex maps requested audio stream', () => {
+  const args = buildTranscodeArgs({
+    input: 'http://127.0.0.1:3000/media.mkv',
+    audioTrackIndex: 2,
+    outputDir: '/tmp/test'
+  });
+
+  assert.ok(args.includes('0:a:2?'));
+});
+
+test('media: provider URLs in env are auto-appended to allowed hosts', async (t) => {
+  const oldJelly = process.env.JELLYFIN_URL;
+  try {
+    process.env.JELLYFIN_URL = 'http://192.168.1.123:8096';
+    const { MediaServer } = await import('../server/media.js?t=' + Date.now());
+    const ms = new MediaServer();
+    t.after(() => ms.close());
+    assert.ok(ms.allowed.includes('192.168.1.123:8096'));
+  } finally {
+    if (oldJelly) process.env.JELLYFIN_URL = oldJelly;
+    else delete process.env.JELLYFIN_URL;
+  }
+});
+
+test('hosting: named tunnel custom domains are accepted when mode is named', async (t) => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { hostingInfo } = await import('../server/hosting.js');
+
+  const dir = await mkdtemp(join(tmpdir(), 'movie-night-named-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'link.json');
+
+  await writeFile(file, JSON.stringify({
+    url: 'https://vr.mightysprite.dev',
+    mode: 'named',
+    updatedAt: Date.now()
+  }));
+
+  const info = await hostingInfo(file);
+  assert.equal(info.online, true);
+  assert.equal(info.url, 'https://vr.mightysprite.dev');
+  assert.equal(info.mode, 'named');
+});
