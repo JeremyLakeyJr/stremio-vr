@@ -32,6 +32,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Play chess/tic-tac-toe against local computer opponents or practice both sides.
 - [x] Fix Alpha 2's stereo startup bug — stererecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
+- [x] Browse 4,274 Open Source Avatars with saved selection, creator credits, VRM loading and peer/mirror support.
 - [x] Customize R6 avatars; show hand nubs in first person and full characters to peers.
 - [x] Restore the mirror with render-target state preservation and an On/Off setting.
 - [x] Let the host add, move, rotate, and remove extra screens and game tables.
@@ -240,7 +241,7 @@ The build targets ARM64/IL2CPP and OpenGLES3. Cleartext networking is enabled fo
 
 Open **Settings / worlds** to adjust walk speed, smooth-turn speed, and pointer angle. To watch lying down, get comfortable, look where you want the screen to appear, and select **Calibrate reclined view**. Use the ±5° controls or Reset to refine it. Your calibration does not change other players' worlds.
 
-Open Concept Home is the only world; the theater has been removed. Select a sofa seat from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings controls ambient video lighting/strength. **Avatar** customizes your R6 character; appearance persists on this headset. Your first-person view uses hand nubs; other players see your full R6 character. The mirror is restored with a local On/Off setting; full-screen bloom remains disabled.
+Open Concept Home is the only world; the theater has been removed. Select a sofa seat from Settings or point at it and pull the trigger. Chair reservations are exclusive. Settings controls ambient video lighting/strength. **Avatar** customizes your R6 character or lets you choose a VRM character from Open Source Avatars; appearance persists on this headset. Your first-person view uses hand nubs; other players see your selected full character. The mirror is restored with a local On/Off setting; full-screen bloom remains disabled.
 
 ### Sign in, browse, and watch together
 
@@ -361,7 +362,7 @@ Home restores the supplied baked lightmap, emissive materials, normal maps, and 
 
 Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
 
-Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your full R6 avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
+Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your selected full avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
 
 **My room → Web browser** uses local Android WebView in Solo mode and server Chromium in a room. See [browser controls and streaming quality](#use-the-browser-on-the-cinema-screen) above.
 
@@ -413,3 +414,16 @@ The downstairs floor now respects the source material's disabled emission settin
 ### Rebuild the offline rules
 
 The APK includes `unity/Assets/StreamingAssets/solo.js`, generated from the pinned chess.js dependency, shared multiplayer game/layout rules, and `solo/runtime.js`. No CDN or local HTTP server is used. After changing those rules, run `npm ci`, `npm run build:solo`, and `npm run check:solo` before building the APK. Offline rules tests exercise the exact bundled JavaScript with no network APIs available.
+
+
+### Open Source Avatars
+
+Open **Avatar → Browse Open Source Avatars**, search by name, creator or collection, and select a character. Wait for its 3D preview, then choose **Use this avatar**. **Use customizable R6** restores the original appearance controls. Preview rotation, the mirror, tracked head/arms, seated poses and room peers support the selected character; your own view keeps the hand nubs.
+
+The app includes a pinned catalog of 4,274 entries from [ToxSam/open-source-avatars](https://github.com/ToxSam/open-source-avatars). Models download directly from the original HTTPS hosts when first selected or encountered on a peer. A bounded 256 MB device cache supports offline reuse; uncached avatars need internet. Failed or unsupported downloads show R6 with a status message. Quest limits are 32 MB per file, 120,000 mesh vertices, 64 primitives, 16 images and 512 nodes. These are loading limits, not a guarantee that every catalog avatar performs equally well. Browse another avatar if one exceeds the limits. No NFT ownership or wallet is needed.
+
+Creator, collection license and source appear in each avatar's details. **Avatar → Room avatar credits** lists the registry characters used in the room. Models retain their original CC0 or CC-BY terms; Movie Night's AGPLv3 does not replace asset licenses. The registry metadata is CC0; [UniVRM](https://github.com/vrm-c/UniVRM) is MIT. Third-party notices ship in the APK.
+
+Rebuild the Docker room server with `docker compose up -d --build` when updating to this version: older servers discard the new avatar selection field. Solo needs no server. Only catalog IDs cross the room protocol; peers cannot provide arbitrary download URLs.
+
+Maintainers: refresh the pinned catalog using `node scripts/import-avatar-registry.mjs /path/to/open-source-avatars`, review license changes, and ship the generated headset/server catalogs together. UniVRM 0.131.4 is pinned in Unity's package manifest and loads VRM 1.0 plus migrated VRM 0.x models. Spring-bone physics and facial animation are currently disabled to keep tracked posing predictable on Quest.

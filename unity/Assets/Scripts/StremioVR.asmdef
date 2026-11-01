@@ -3,7 +3,10 @@
   "rootNamespace": "StremioVR",
   "references": [
     "Unity.ugui",
-    "Unity.Postprocessing.Runtime"
+    "Unity.Postprocessing.Runtime",
+    "VRM10",
+    "UniGLTF",
+    "UniGLTF.Utils"
   ],
   "autoReferenced": true,
   "allowUnsafeCode": true

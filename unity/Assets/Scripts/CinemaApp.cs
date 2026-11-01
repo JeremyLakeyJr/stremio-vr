@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -371,20 +372,55 @@ public sealed class CinemaApp : MonoBehaviour {
         for(int i=0;i<world.Data.Seats.Length;i++) { int seat=i; ActionButton("Sit in chair "+(i+1),()=> { motion.RequestSeat(seat); panelMotion.Show(false); }); }
     }
     void Customize() {
-        Clear(); pageTitle.text = "Avatar studio"; Heading("R6 avatar — saved on this device");
+        Clear(); pageTitle.text = "Avatar studio"; Heading("Your avatar — saved on this device");
         actionWidth = 500;
         var previewObject = new GameObject("R6 preview", typeof(RectTransform), typeof(RawImage), typeof(AvatarPreview));
         previewObject.transform.SetParent(content, false); Place(previewObject.GetComponent<RectTransform>(), 550, 150, 370, 490);
         previewObject.GetComponent<RawImage>().raycastTarget = false;
         var preview = previewObject.GetComponent<AvatarPreview>(); preview.Initialize(profile);
         Button("Turn left", content, 550, 655, 175, () => preview.Turn(-30)); Button("Turn right", content, 740, 655, 180, () => preview.Turn(30));
-        Label("Your character\nChanges sync to the room", content, 550, 720, 370, 90, 19);
+        preview.StatusLabel=Label("Loading preview…", content, 550, 720, 370, 130, 19);
+        ActionButton("Browse Open Source Avatars",()=>AvatarLibrary("",0));
+        ActionButton("Room avatar credits",RoomAvatarCredits);
+        if(OpenAvatarCatalog.Find((string)profile["avatarId"])!=null)ActionButton("Use customizable R6",()=>{profile.Remove("avatarId");UpdateProfile();Customize();});
         Field("Name", (string)profile["name"], value => { profile["name"] = value; UpdateProfile(); });
+        if(string.IsNullOrEmpty((string)profile["avatarId"])) {
         Choice("head", new[] { "round", "square" }); Choice("body", new[] { "regular", "wide" }); Choice("hair", new[] { "none", "short", "tall" });
         Choice("skin", new[] { "#f5d0ad", "#d7a17b", "#b98059", "#815335", "#452b20" });
         Choice("outfit", new[] { "casual", "formal", "sport" }); Choice("color", new[] { "#7958ff", "#238caa", "#ce5353", "#333333" });
         Choice("accessory", new[] { "none", "glasses", "hat", "headset" });
-        content.sizeDelta = new Vector2(930, Mathf.Max(830, row));
+        }
+        content.sizeDelta = new Vector2(930, Mathf.Max(900, row));
+    }
+    void RoomAvatarCredits() {
+        Clear();pageTitle.text="Room avatar credits";ActionButton("Back to Avatar studio",Customize);
+        var ids=new HashSet<string>();if(profile["avatarId"]!=null)ids.Add((string)profile["avatarId"]);
+        if(room.State?["players"] is JArray players)foreach(var player in players)if(player["profile"]?["avatarId"]!=null)ids.Add((string)player["profile"]["avatarId"]);
+        foreach(string id in ids){var entry=OpenAvatarCatalog.Find(id);if(entry==null)continue;Label(OpenAvatarCatalog.Credit(entry)+"\n"+entry["source"]+"\nAdapted for headset/controller posing and player height.",content,0,row,900,160,19);row+=180;}
+        if(ids.Count==0)Heading("No registry avatars in this room.");Resize();
+    }
+    void AvatarLibrary(string query,int offset) {
+        Clear(); pageTitle.text="Open Source Avatars";
+        ActionButton("Back to Avatar studio",Customize);
+        Field("Search name, collection or creator",query,value=>AvatarLibrary(value,0));
+        var matches=OpenAvatarCatalog.Entries.Where(a=>((string)a["name"]+" "+a["collection"]+" "+a["creator"]).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
+        Heading(matches.Count+" avatars · downloads require internet");
+        foreach(var entry in matches.Skip(offset).Take(10)) {var selected=entry;ActionButton(OpenAvatarCatalog.Credit(entry),()=>AvatarDetails(selected,query,offset));}
+        if(offset>0)ActionButton("Previous page",()=>AvatarLibrary(query,Math.Max(0,offset-10)));
+        if(offset+10<matches.Count)ActionButton("Next page",()=>AvatarLibrary(query,offset+10));
+        ShowStatus("Downloaded avatars work offline. Large or incompatible models fall back to R6.");
+    }
+    void AvatarDetails(JObject entry,string query,int offset) {
+        Clear();pageTitle.text=(string)entry["name"];actionWidth=500;
+        ActionButton("Back to results",()=>AvatarLibrary(query,offset));
+        var appearance=(JObject)profile.DeepClone();appearance["avatarId"]=entry["id"];
+        var go=new GameObject("Registry avatar preview",typeof(RectTransform),typeof(RawImage),typeof(AvatarPreview));go.transform.SetParent(content,false);Place(go.GetComponent<RectTransform>(),550,80,370,490);go.GetComponent<RawImage>().raycastTarget=false;
+        var preview=go.GetComponent<AvatarPreview>();preview.Initialize(appearance);preview.StatusLabel=Label("Loading avatar…",content,550,640,370,170,19);
+        Button("Turn left",content,550,585,175,()=>preview.Turn(-30));Button("Turn right",content,740,585,180,()=>preview.Turn(30));
+        Label("Collection: "+entry["collection"]+"\nCreator: "+entry["creator"]+"\nLicense: "+entry["license"],content,0,row,500,150,21);row+=165;
+        ActionButton("Use this avatar",()=>{if(!preview.Ready){ShowStatus("Wait for the preview to load. If it fails, choose another avatar.");return;}profile["avatarId"]=entry["id"];UpdateProfile();Customize();});
+        ActionButton("Source and license credits",()=>{Clear();pageTitle.text="Avatar credits";ActionButton("Back to avatar",()=>AvatarDetails(entry,query,offset));Label(OpenAvatarCatalog.Credit(entry)+"\n\nSource: "+entry["source"]+"\n\nLicense: "+((string)entry["license"]=="CC0"?"https://creativecommons.org/publicdomain/zero/1.0/":"CC-BY — see the collection source for its license terms")+"\n\nAdaptation: scaled to player height, posed from headset/controllers. Original creator and collection license remain applicable.",content,0,row,900,420,20);row+=440;Resize();});
+        content.sizeDelta=new Vector2(930,900);
     }
     void Choice(string key, string[] values) { ActionButton(key + ": " + profile[key] + "  →", () => { int index = Array.IndexOf(values, (string)profile[key]); profile[key] = values[(index + 1) % values.Length]; UpdateProfile(); Customize(); }); }
     void UpdateProfile() { localBody.Apply(profile); Save(); if (room.Connected && room.State != null) room.Send(new JObject { ["type"] = "profile", ["profile"] = profile }); }

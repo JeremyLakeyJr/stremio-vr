@@ -1,9 +1,23 @@
 {
   "name": "StremioVR.Tests",
-  "references": ["StremioVR", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
-  "includePlatforms": ["Editor"],
+  "references": [
+    "StremioVR",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner",
+    "VRM10",
+    "UniGLTF",
+    "UniGLTF.Utils"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
   "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
+  "precompiledReferences": [
+    "nunit.framework.dll",
+    "Newtonsoft.Json.dll"
+  ],
   "autoReferenced": false,
-  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ]
 }
