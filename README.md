@@ -15,7 +15,7 @@ Hang out in Open Concept Home on Meta Quest, stream your favorite movies and sho
 - **Watch together:** one host picks the video; playback and timeline are synchronized in real-time across the room.
 - **Universal media integration:** stream from **Stremio Add-ons**, **Jellyfin / Remux**, **MediaStorm** (Debrid/Usenet), **Silo**, or direct HTTP(S) sources.
 - **Hardware GPU transcoding & Smart Remux:** auto-detected NVENC, QSV, VAAPI, VideoToolbox, and AMF acceleration. Compatible H.264 streams bypass transcoding via Smart Remux for 0% CPU/GPU overhead.
-- **Cloudflare Tunnels (Free & Named):** zero-configuration TryCloudflare quick tunnels out of the box, with full support for paid/named Cloudflare Zero Trust / Argo tunnels (`TUNNEL_TOKEN`).
+- **Remote Access (Cloudflare & Tailscale):** zero-configuration TryCloudflare quick tunnels, named Cloudflare Zero Trust tunnels, or private encrypted Tailscale mesh (`compose.tailscale.yaml`).
 - **Subtitles & audio sync:** automatic SRT to WebVTT conversion, in-memory caching, and on-the-fly timing offset adjustments.
 - **Watch history & progress sync:** native playback synchronization with Jellyfin/Remux, MediaStorm, Silo, and local resume caching. Scrobbling to Trakt/Simkl is handled cleanly server-side by upstream media server plugins without client duplication.
 - **Make it yours:** place extra movie screens and game tables where you want them.
@@ -47,7 +47,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] **Multi-Provider Architecture:** unified client and registry for Stremio, Jellyfin/Remux, MediaStorm, Silo, and Nuvio/Mellon.
 - [x] **GPU Hardware Transcoding:** auto-detection for NVIDIA NVENC, Intel QuickSync (QSV), AMD/Intel VAAPI, Apple VideoToolbox, and AMD AMF.
 - [x] **Smart Remux:** direct stream passthrough (`-c:v copy`) for H.264 video to eliminate transcoding load.
-- [x] **Cloudflare Zero Trust / Argo Tunnels:** support for persistent named domains via `TUNNEL_TOKEN`, with automatic fallback to free TryCloudflare tunnels.
+- [x] **Remote Access & Tunnels:** Cloudflare Zero Trust tunnels (`TUNNEL_TOKEN`), free TryCloudflare quick tunnels, and native Tailscale sidecar profile (`compose.tailscale.yaml`).
 - [x] **Subtitles Pipeline:** on-the-fly SRT to WebVTT conversion, timing offset adjustments (`?offset=±seconds`), and multi-viewer caching.
 - [x] **Watch Progress & Sync:** native backend session reporting (`/Sessions/Playing`, `/api/progress`), server-side scrobbling delegation, and local resume caching.
 - [x] **Webhooks & Room Notifications:** rich Discord embeds, Slack blocks, and Apprise/generic webhook alerts.
@@ -190,6 +190,20 @@ Movie Night includes automated Cloudflare tunnel integration so friends can conn
      TUNNEL_URL=https://cinema.yourdomain.com
      ```
   4. Start Movie Night: `docker compose up -d`. The tunnel will run under your custom domain automatically!
+
+### 3. Private Tailscale Network (Tailnet / MagicDNS)
+If you prefer private peer-to-peer streaming over an encrypted WireGuard mesh rather than public Cloudflare relays:
+- **Tailscale Sidecar Profile:** Run Movie Night with the Tailscale Compose profile:
+  ```sh
+  docker compose -f compose.yaml -f compose.tailscale.yaml up -d
+  ```
+- **Configuration (.env):**
+  ```env
+  TS_AUTHKEY=tskey-auth-...
+  TS_HOSTNAME=movie-night
+  TAILSCALE_URL=https://movie-night.your-tailnet.ts.net
+  ```
+- **Automatic HTTPS:** Tailscale issues automatic Let's Encrypt TLS certificates for `.ts.net` addresses. Only devices on your Tailnet (or friends using Tailscale Node Sharing) can access the cinema.
 
 ---
 

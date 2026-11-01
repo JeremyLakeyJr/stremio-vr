@@ -224,3 +224,19 @@ test('hosting: named tunnel custom domains are accepted when mode is named', asy
   assert.equal(info.url, 'https://vr.mightysprite.dev');
   assert.equal(info.mode, 'named');
 });
+
+test('hosting: tailscale magicdns domain is accepted when configured in env', async () => {
+  const { hostingInfo } = await import('../server/hosting.js');
+
+  const oldTsUrl = process.env.TAILSCALE_URL;
+  try {
+    process.env.TAILSCALE_URL = 'https://cinema.tailnet123.ts.net';
+    const info = await hostingInfo('/nonexistent/file.json');
+    assert.equal(info.online, true);
+    assert.equal(info.url, 'https://cinema.tailnet123.ts.net');
+    assert.equal(info.mode, 'tailscale');
+  } finally {
+    if (oldTsUrl) process.env.TAILSCALE_URL = oldTsUrl;
+    else delete process.env.TAILSCALE_URL;
+  }
+});

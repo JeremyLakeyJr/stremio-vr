@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE) {
+  const tsUrl = process.env.TAILSCALE_URL || (process.env.TS_HOSTNAME ? `https://${process.env.TS_HOSTNAME}` : null);
+  if (tsUrl && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(tsUrl)) {
+    return { url: tsUrl, online: true, mode: 'tailscale' };
+  }
+
   try {
     const data = JSON.parse(await readFile(file, 'utf8'));
     if (data.url && data.url !== 'https://api.trycloudflare.com' && Number.isFinite(data.updatedAt) && Date.now() - data.updatedAt < 20000 && data.updatedAt <= Date.now() + 5000) {
@@ -12,6 +17,11 @@ export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE) {
       }
     }
   } catch {}
+
+  if (process.env.TUNNEL_URL && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(process.env.TUNNEL_URL)) {
+    return { url: process.env.TUNNEL_URL, online: true, mode: 'named' };
+  }
+
   return { url: null, online: false };
 }
 
@@ -156,7 +166,13 @@ export const dashboard = `<!doctype html>
         link.value = data.url;
         copyBtn.disabled = false;
         statusEl.textContent = 'Ready — share this link with your friends or scan with Quest!';
-        tunnelBadge.textContent = data.mode === 'named' ? '🛡️ Named Cloudflare Tunnel' : '☁️ TryCloudflare Quick Tunnel';
+        if (data.mode === 'tailscale') {
+          tunnelBadge.textContent = '🔒 Tailscale MagicDNS / Tailnet';
+        } else if (data.mode === 'named') {
+          tunnelBadge.textContent = '🛡️ Named Cloudflare Tunnel';
+        } else {
+          tunnelBadge.textContent = '☁️ TryCloudflare Quick Tunnel';
+        }
         tunnelBadge.className = 'badge active';
         qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(data.url);
         qrWrapper.style.display = 'flex';

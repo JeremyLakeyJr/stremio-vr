@@ -62,16 +62,19 @@ async function run() {
     console.log(`  ${c.red}✖ Capability check failed:${c.reset} ${err.message}`);
   }
 
-  // 2. Cloudflare Tunnel Configuration
-  console.log(`\n${c.bold}[2/4] Network & Cloudflare Tunnel:${c.reset}`);
+  // 2. Network & Remote Exposure Configuration
+  console.log(`\n${c.bold}[2/4] Network & Remote Exposure:${c.reset}`);
+  const tsUrl = process.env.TAILSCALE_URL || (process.env.TS_HOSTNAME ? `https://${process.env.TS_HOSTNAME}` : null);
   const tunnelToken = process.env.TUNNEL_TOKEN;
   const tunnelUrl = process.env.TUNNEL_URL || process.env.TUNNEL_HOSTNAME;
-  if (tunnelToken) {
+  if (tsUrl) {
+    console.log(`  ${c.green}✔ Tailscale MagicDNS / Tailnet:${c.reset} ${c.cyan}${tsUrl}${c.reset}`);
+  } else if (tunnelToken) {
     console.log(`  ${c.green}✔ Named / Paid Cloudflare Zero Trust Tunnel:${c.reset} Token configured`);
     if (tunnelUrl) console.log(`    Published Domain: ${c.cyan}${tunnelUrl}${c.reset}`);
   } else {
     console.log(`  ${c.blue}ℹ TryCloudflare Quick Tunnel:${c.reset} Free temporary tunnel (no account required).`);
-    console.log(`    (To use a custom domain, set ${c.bold}TUNNEL_TOKEN${c.reset} in .env)`);
+    console.log(`    (To use Tailscale, run with ${c.bold}-f compose.tailscale.yaml${c.reset}; for custom domain, set ${c.bold}TUNNEL_TOKEN${c.reset})`);
   }
   const allowPrivate = process.env.ALLOW_PRIVATE_NETWORKS !== 'false';
   if (allowPrivate) {
