@@ -276,6 +276,9 @@ cp .env.example .env
 # Edit .env with any optional provider URLs or tunnel tokens
 nano .env
 
+# Run Docker pre-flight check
+npm run docker-smoke
+
 # Start Movie Night (with GPU passthrough if available)
 docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
 ```

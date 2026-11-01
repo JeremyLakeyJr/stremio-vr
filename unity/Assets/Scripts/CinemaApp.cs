@@ -12,6 +12,7 @@ namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
     int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
     Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
+    AvatarPresence presence;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
     bool triggerWasDown; string shownRoom; GameObject hovered; LineRenderer pointer;
@@ -32,7 +33,7 @@ public sealed class CinemaApp : MonoBehaviour {
         cameraView.allowHDR=false;
         left = new GameObject("Left controller").transform; left.SetParent(tracking);
         right = new GameObject("Right controller").transform; right.SetParent(tracking);
-        var presence = gameObject.AddComponent<AvatarPresence>(); presence.Initialize(room, rig, head, left, right);
+        presence = gameObject.AddComponent<AvatarPresence>(); presence.Initialize(room, rig, head, left, right);
         localBody=gameObject.AddComponent<LocalBody>(); localBody.Head=head; localBody.Left=left; localBody.Right=right; localBody.Room=room; localBody.Apply(profile);
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
@@ -153,7 +154,49 @@ public sealed class CinemaApp : MonoBehaviour {
         roomInput = Field("Room code (empty creates a room)", "", null);
         ActionButton("Connect / create room", () => { room.Connect(serverInput.text.Trim(), roomInput.text.Trim(), profile); });
         ActionButton("Leave room / return to solo", () => room.Leave());
+        if (!room.IsSolo && room.Connected) {
+            Heading("Room: " + (room.RoomId ?? ""));
+            ActionButton("Choose a seat / sofa", SeatsPage);
+            Heading("Send Reaction (Floating Emojis)");
+            ActionButton("🍿 Popcorn", () => SendReaction("🍿"));
+            ActionButton("😂 Laugh", () => SendReaction("😂"));
+            ActionButton("👏 Clap", () => SendReaction("👏"));
+            ActionButton("❤️ Love", () => SendReaction("❤️"));
+            ActionButton("😱 Shock", () => SendReaction("😱"));
+            ActionButton("😴 Sleep", () => SendReaction("😴"));
+        }
         ActionButton("Hide / show panel: left controller menu button", () => panelMotion.Show(false));
+    }
+    void SendReaction(string emoji) {
+        room.Send(new JObject { ["type"] = "reaction", ["emoji"] = emoji });
+        presence?.ShowReaction(room.PlayerId, emoji);
+    }
+    void SeatsPage() {
+        Clear(); pageTitle.text = "Choose a seat / sofa";
+        Heading("Select any vacant cinema seat to teleport and snap into view:");
+        int seatCount = world != null && world.Data.Seats != null ? world.Data.Seats.Length : 6;
+        for (int i = 0; i < seatCount; i++) {
+            int seatIdx = i;
+            string occupant = null;
+            if (room.State != null && room.State["players"] is JArray players) {
+                foreach (var p in players) {
+                    if ((int?)p["seatedSeat"] == seatIdx && (bool?)p["connected"] == true) {
+                        occupant = (string)p["profile"]?["name"] ?? "Player";
+                        break;
+                    }
+                }
+            }
+            if (occupant != null) {
+                Heading("Chair " + (seatIdx + 1) + " · Occupied by " + occupant);
+            } else {
+                ActionButton("Sit in Chair " + (seatIdx + 1) + " (Vacant)", () => {
+                    motion.RequestSeat(seatIdx);
+                    panelMotion.Show(false);
+                });
+            }
+        }
+        ActionButton("Stand up / return to aisle", () => { motion.Stand(); SeatsPage(); });
+        ActionButton("Back to my room", Home);
     }
     void GamesPage() {
         Clear();pageTitle.text="Tabletop games";

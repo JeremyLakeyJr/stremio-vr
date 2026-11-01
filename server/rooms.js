@@ -80,6 +80,12 @@ export class Rooms {
       room.layout.handle(message); this.state(room); return;
     }
     if (type === 'game') { room.games.handle(player.id,room.host,message); this.state(room); return; }
+    if (type === 'reaction') {
+      const emoji = String(message.emoji || '').slice(0, 16);
+      if (!emoji) throw new Error('Invalid emoji reaction');
+      this.broadcast(room, { type: 'reaction', playerId: player.id, emoji });
+      return;
+    }
     if (type === 'seat') {
       const index = message.seatIndex;
       if (!Number.isInteger(index) || index < -1 || index >= worlds[room.world].seats) throw new Error('Invalid seat');

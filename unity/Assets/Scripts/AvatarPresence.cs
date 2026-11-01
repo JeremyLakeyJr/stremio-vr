@@ -53,10 +53,48 @@ public sealed class AvatarPresence : MonoBehaviour {
             foreach (var id in new List<string>(avatars.Keys)) if (!ids.Contains(id)) { avatars[id].Dispose(); avatars.Remove(id); }
         }
         if (type == "pose" && avatars.TryGetValue((string)message["playerId"], out var target)) { target.Pose((JObject)message["pose"]); target.Seated((bool?)message["seated"] ?? false); }
+        if (type == "reaction") {
+            string fromId = (string)message["playerId"];
+            string emoji = (string)message["emoji"];
+            if (!string.IsNullOrEmpty(emoji)) ShowReaction(fromId, emoji);
+        }
+    }
+    public void ShowReaction(string playerId, string emoji) {
+        Transform anchor = Head;
+        if (playerId != null && Room != null && playerId != Room.PlayerId && avatars.TryGetValue(playerId, out var av)) {
+            anchor = av.HeadTransform;
+        }
+        if (anchor != null) {
+            SpawnFloatingEmoji(anchor.position + Vector3.up * 0.45f, emoji);
+        }
+    }
+    void SpawnFloatingEmoji(Vector3 position, string emoji) {
+        var go = new GameObject("EmojiReaction", typeof(TextMesh));
+        go.transform.position = position;
+        go.transform.localScale = Vector3.one * 0.02f;
+        var tm = go.GetComponent<TextMesh>();
+        tm.text = emoji;
+        tm.fontSize = 64;
+        tm.alignment = TextAlignment.Center;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.color = Color.white;
+        StartCoroutine(AnimateEmoji(go));
+    }
+    System.Collections.IEnumerator AnimateEmoji(GameObject go) {
+        float elapsed = 0;
+        Vector3 start = go.transform.position;
+        while (elapsed < 2.5f && go != null) {
+            elapsed += Time.deltaTime;
+            go.transform.position = start + Vector3.up * (elapsed * 0.35f);
+            if (Head != null) go.transform.rotation = Quaternion.LookRotation(go.transform.position - Head.position);
+            yield return null;
+        }
+        if (go != null) Destroy(go);
     }
     void OnDestroy() { if (Room != null) Room.Message -= OnMessage; foreach (var avatar in avatars.Values) avatar.Dispose(); }
     sealed class Avatar {
         public string Appearance; readonly GameObject root; readonly Transform head, left, right; readonly R6Avatar model;
+        public Transform HeadTransform => head;
         readonly Dictionary<Transform, Vector3> positions = new Dictionary<Transform, Vector3>(); readonly Dictionary<Transform, Quaternion> rotations = new Dictionary<Transform, Quaternion>();
         public Avatar(Transform parent, JObject profile, Vector3 seat) {
             Appearance = profile.ToString(); root = new GameObject((string)profile["name"]); root.transform.SetParent(parent);

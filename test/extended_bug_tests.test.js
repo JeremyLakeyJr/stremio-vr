@@ -217,3 +217,25 @@ Late cue`;
   // 1h30m - 0.5s = 01:29:59.500
   assert.ok(shifted.includes('01:29:59.500 --> 01:30:05.000'));
 });
+
+test('reaction: room broadcasts emoji reactions to all peers in the room', async (t) => {
+  const { port } = await setupServer(t);
+  const host = await connectWs(port);
+  t.after(() => host.close());
+
+  host.send(JSON.stringify({ type: 'create' }));
+  const hostJoined = await waitForMessage(host, m => m.type === 'joined');
+  const roomId = hostJoined.roomId;
+
+  const guest = await connectWs(port);
+  t.after(() => guest.close());
+  guest.send(JSON.stringify({ type: 'join', roomId }));
+  await waitForMessage(guest, m => m.type === 'joined');
+
+  // Guest sends popcorn reaction
+  guest.send(JSON.stringify({ type: 'reaction', emoji: '🍿' }));
+
+  const hostRx = await waitForMessage(host, m => m.type === 'reaction');
+  assert.equal(hostRx.emoji, '🍿');
+  assert.ok(hostRx.playerId);
+});
