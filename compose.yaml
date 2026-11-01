@@ -24,6 +24,10 @@ services:
       MEDIA_VIDEO_BITRATE: ${MEDIA_VIDEO_BITRATE:-15M}
       MEDIA_DISABLE_REMUX: ${MEDIA_DISABLE_REMUX:-false}
       VAAPI_DEVICE: ${VAAPI_DEVICE:-/dev/dri/renderD128}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      APPRISE_URL: ${APPRISE_URL:-}
+      OPENSUBTITLES_API_KEY: ${OPENSUBTITLES_API_KEY:-}
     volumes:
       - tunnel-link:/share:ro
     depends_on:

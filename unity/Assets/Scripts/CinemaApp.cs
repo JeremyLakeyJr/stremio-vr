@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.XR;
-
+using StremioVR.Providers;
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
     int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
@@ -21,6 +21,8 @@ public sealed class CinemaApp : MonoBehaviour {
         try { settings = JObject.Parse(File.ReadAllText(SettingsPath)); } catch { settings = new JObject(); }
         profile = settings["profile"] as JObject ?? new JObject { ["name"] = "Guest", ["skin"] = "#b98059", ["color"] = "#7958ff", ["head"] = "round", ["body"] = "regular", ["hair"] = "none", ["outfit"] = "casual", ["accessory"] = "none" };
         room = gameObject.AddComponent<RoomClient>(); library = gameObject.AddComponent<MediaLibrary>();
+        gameObject.AddComponent<MediaProviderRegistry>();
+        gameObject.AddComponent<WatchProgressSync>();
         voice = gameObject.AddComponent<VoiceChat>(); voice.Initialize(room);
         room.Status += ShowStatus; library.Status += ShowStatus; voice.Status += ShowStatus;
         rig = new GameObject("XR Rig").transform;
@@ -121,7 +123,8 @@ public sealed class CinemaApp : MonoBehaviour {
 
         Button("Toggle mic", panel, 15, 525, 215, () => voice.Toggle());
         Button("Toggle audio", panel, 15, 595, 215, () => voice.ToggleDeafen());
-        Button("Stremio account", panel, 15, 665, 215, AccountPage);
+        Button("Stremio account", panel, 15, 640, 215, AccountPage);
+        Button("Media backends", panel, 15, 705, 215, BackendsPage);
         Button("Recenter", panel, 15, 755, 215, Recenter);
         Label("Hide menu to walk/turn\nLeft stick: move\nRight stick: turn / scroll", panel, 20, 835, 215, 120, 17);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
@@ -460,6 +463,19 @@ public sealed class CinemaApp : MonoBehaviour {
         controller.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 stick);
         float scroll = (panelMotion.Visible ? stick.y : 0) * Time.unscaledDeltaTime * 600 + Input.mouseScrollDelta.y * 35;
         scrollTarget=Mathf.Clamp(scrollTarget-scroll,0,Mathf.Max(0,content.sizeDelta.y-620)); content.anchoredPosition=Vector2.Lerp(content.anchoredPosition,new Vector2(0,scrollTarget),1-Mathf.Exp(-14*Time.unscaledDeltaTime));
+    }
+    void BackendsPage() {
+        Clear(); pageTitle.text = "Media backends";
+        Heading("Multi-provider media architecture (Jellyfin, MediaStorm, Silo, Stremio)");
+        var reg = MediaProviderRegistry.Instance;
+        if (reg != null) {
+            foreach (var prov in reg.Providers) {
+                string statusText = prov.IsAuthenticated ? "Connected / Ready" : "Standby / Offline";
+                Heading(prov.DisplayName + "  ·  " + statusText);
+            }
+        }
+        Heading("Configure backend URLs and tokens in Docker .env or provider manifests.");
+        ActionButton("Back to media library", Library);
     }
     bool editing;
     IEnumerator Edit(InputField field) {
