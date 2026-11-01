@@ -502,7 +502,7 @@ export const dashboard = `<!doctype html>
 
   copyBtn.onclick = async () => {
     const room = document.querySelector('#room').value.trim();
-    const invite = 'Join me in Movie Night VR!\nServer: ' + link.value + (room ? '\\nRoom: ' + room : '');
+    const invite = 'Join me in Movie Night VR!\\nServer: ' + link.value + (room ? '\\nRoom: ' + room : '');
     try {
       await navigator.clipboard.writeText(invite);
       statusEl.textContent = 'Invite link copied to clipboard!';
