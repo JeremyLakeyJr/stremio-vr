@@ -232,8 +232,19 @@ export async function createServer(options = {}) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16384 });
   server.on('upgrade', (req, socket, head) => {
     const origin = req.headers.origin;
-    const allowed = options.origin || `${options.tls ? 'https' : 'http'}://${req.headers.host}`;
-    if (req.url !== '/ws' || (origin && origin !== allowed)) { socket.destroy(); return; }
+    let allowed = false;
+    if (!origin) {
+      allowed = true;
+    } else if (options.origin && origin === options.origin) {
+      allowed = true;
+    } else {
+      try {
+        const originUrl = new URL(origin);
+        const hostHeader = (req.headers.host || '').toLowerCase();
+        if (originUrl.host.toLowerCase() === hostHeader) allowed = true;
+      } catch {}
+    }
+    if (req.url !== '/ws' || !allowed) { socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws));
   });
 
