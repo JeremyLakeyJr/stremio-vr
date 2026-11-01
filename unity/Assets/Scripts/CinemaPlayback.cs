@@ -1,81 +1,87 @@
 using System;
+using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.Video;
+using StremioVR.Providers;
 
 namespace StremioVR {
 public sealed class CinemaPlayback : MonoBehaviour {
-    public RoomClient Room;
-    public bool Suspended;
-    public VideoPlayer Video;
     public event Action<string> Status;
+    public VideoPlayer Video { get; private set; }
+    public RoomClient Room { get; private set; }
+    public string SourceUrl { get; private set; }
+    public float Volume { get; private set; } = 1;
     public ushort AudioTrack { get; private set; }
-    public float Volume { get; private set; }=1; public string AudioInfo {get; private set;}="No video prepared";
+    public string AudioInfo => Video.audioTrackCount > 0 ? "Track " + (AudioTrack + 1) + " of " + Video.audioTrackCount : "No alternate audio tracks";
     public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
-    public string SourceUrl { get; private set; }
+    public bool Suspended { get; set; }
     Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek; double soloPosition;
-    public void Initialize(RoomClient room, Renderer screen) {
-        Room = room;
-        Video = gameObject.AddComponent<VideoPlayer>();
-        screenRenderer=screen;
-        Video.playOnAwake = false; Video.source = VideoSource.Url;
-        Video.renderMode = VideoRenderMode.APIOnly; Video.targetMaterialRenderer = screen; Video.targetMaterialProperty = "_MainTex";
-        Video.audioOutputMode = VideoAudioOutputMode.Direct; ConfigureAudio();
-        screenSize=screen.transform.localScale;
-        Video.prepareCompleted += player => {
-            if(player.width>0 && player.height>0) { float ratio=(float)player.width/player.height; float width=Mathf.Min(screenSize.x,screenSize.y*ratio); Video.targetMaterialRenderer.transform.localScale=new Vector3(width,width/ratio,screenSize.z); }
+    public void Initialize(RoomClient room, GameObject screen) {
+        Room = room; Room.Message += OnMessage;
+        Video = gameObject.AddComponent<VideoPlayer>(); Video.playOnAwake = false; Video.isLooping = false;
+        Video.skipOnDrop = true; Video.renderMode = VideoRenderMode.MaterialOverride;
+        Video.errorReceived += (source, message) => { preparing = false; Status?.Invoke("Video playback error: " + message); };
+        Video.prepareCompleted += source => {
+            if(soloSeek){Video.time=Math.Min(soloPosition,Video.length>0?Video.length:soloPosition);soloSeek=false;}
             preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]); };
-        Video.errorReceived += (player, error) => { preparing = false; Status?.Invoke("Video failed: " + error + ". Try another source or supported codec."); };
-        Video.loopPointReached += player => { if (Room.IsHost) Control(true, Position); };
-        Room.Message += OnMessage;
+        SetScreen(screen);
     }
-    public void SetScreen(Renderer screen) { screenRenderer=screen; Video.targetMaterialRenderer=screen; screenSize=screen.transform.localScale; if(Video.isPrepared && Video.width>0 && Video.height>0) { float ratio=(float)Video.width/Video.height; float width=Mathf.Min(screenSize.x,screenSize.y*ratio); screen.transform.localScale=new Vector3(width,width/ratio,1); } }
+    public void SetScreen(GameObject screen) { screenRenderer = screen ? screen.GetComponent<Renderer>() : null; screenSize = screen ? screen.transform.localScale : Vector3.one; ApplyScreen(); }
+    void ApplyScreen() { if (screenRenderer) { Video.targetRenderer = screenRenderer; Video.targetMaterialProperty = "_MainTex"; } }
     void OnMessage(JObject message) {
         if ((string)message["type"] == "disconnected") { playback = null; Video.Stop(); preparing = false; return; }
-        if ((string)message["type"] != "state") return;
-        if(!string.IsNullOrEmpty((string)message["mediaStatus"])) Status?.Invoke((string)message["mediaStatus"]);
+        if (message["type"]?.ToString() != "state") return;
         var next = message["playback"] as JObject; if (next == null) return;
         bool changed = (string)playback?["url"] != (string)next["url"] || (!Video.isPrepared && !preparing && (long?)playback?["revision"] != (long?)next["revision"]);
         if(Room.IsSolo && (long?)playback?["revision"]!=(long?)next["revision"]){soloSeek=true;soloPosition=(double)next["position"];}
         playback = next;
         if (changed && !string.IsNullOrEmpty((string)next["url"])) {
-            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = PlaybackUrl((string)next["url"],Room.ApiEndpoint); preparing = true; Status?.Invoke("Preparing video…"); Video.Prepare();
-        } else Apply();
+            Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = PlaybackUrl((string)next["url"],Room.ApiEndpoint); preparing = true; Status?.Invoke("Preparing video."); Video.Prepare();
+        } else if (string.IsNullOrEmpty((string)next["url"])) Video.Stop(); else Apply();
     }
     public static string PlaybackUrl(string value,string endpoint){
-        if(Uri.TryCreate(value,UriKind.Absolute,out var uri)&& (uri.Scheme=="http"||uri.Scheme=="https"))return MediaLibrary.Http(value);
+        if(value.StartsWith("/media/"))return endpoint.TrimEnd('/')+value;
         if(string.IsNullOrEmpty(endpoint))throw new Exception("Solo playback needs a direct HTTP(S) video URL");
-        return new Uri(new Uri(endpoint),value).AbsoluteUri;
+        return MediaLibrary.Http(value);
     }
-    void Apply() {
+    void Update() {
         if (Suspended || playback == null || preparing || !Video.isPrepared) return;
         bool paused = (bool)playback["paused"];
-        if(Room.IsSolo){if(soloSeek&&Video.canSetTime){Video.time=soloPosition;soloSeek=false;}if(paused)Video.Pause();else if(!Video.isPlaying)Video.Play();return;}
         double desired = (double)playback["position"] + (paused ? 0 : Math.Max(0, Room.ServerTime - (double)playback["updatedAt"]) / 1000);
         desired = Math.Max(0, desired - ((double?)playback["mediaStart"] ?? 0));
         if (Video.length > 0 && !((string)playback["url"]).StartsWith("/media/")) desired = Math.Min(desired, Video.length);
-        double drift = desired - Video.time;
-        if (Debug.isDebugBuild && Time.unscaledTime >= nextDiagnostic) {
-            nextDiagnostic = Time.unscaledTime + 5;
-            Debug.Log($"[CinemaSync] target={desired:F2} actual={Video.time:F2} drift={drift:F2} paused={paused} playing={Video.isPlaying}");
+        double delta = desired - Video.time;
+        if (paused) { if (Video.isPlaying) Video.Pause(); if (Math.Abs(delta) > 0.3) Video.time = desired; return; }
+        if (!Video.isPlaying) Video.Play();
+        if (Math.Abs(delta) > 3) Video.time = desired;
+        else if (Math.Abs(delta) > 0.15 && Time.unscaledTime > nextSync) {
+            Video.time = desired; nextSync = Time.unscaledTime + 2.5f;
         }
-        if (Video.canSetTime && Math.Abs(drift) > (paused ? 0.1 : 0.75)) Video.time = desired;
-        // Android decoders can mute or distort audio during rate changes. Correct large drift by seeking.
         if (Video.canSetPlaybackSpeed) Video.playbackSpeed = 1;
-        if (paused) Video.Pause(); else if (!Video.isPlaying) Video.Play();
+        if (screenRenderer && Video.texture && (Video.texture.width != (int)screenSize.x || Video.texture.height != (int)screenSize.y)) {
+            float aspect = (float)Video.texture.width / Mathf.Max(1, Video.texture.height);
+            screenRenderer.transform.localScale = new Vector3(screenSize.y * aspect, screenSize.y, screenSize.z);
+        }
+        if (Time.unscaledTime > nextDiagnostic && !Video.isPlaying && !paused) {
+            nextDiagnostic = Time.unscaledTime + 10;
+            Status?.Invoke("Buffering video stream.");
+        }
     }
-    void Update() { if(!Suspended && Video.isPrepared && Video.texture && screenRenderer) screenRenderer.sharedMaterial.mainTexture=Video.texture; if (Time.unscaledTime >= nextSync) { nextSync = Time.unscaledTime + 0.5f; Apply(); } }
+    void Apply() {
+        if (playback == null || !Video.isPrepared) return;
+        if ((bool)playback["paused"] && Video.isPlaying) Video.Pause();
+        if (!(bool)playback["paused"] && !Video.isPlaying) Video.Play();
+    }
     void ConfigureAudio() {
-        Video.controlledAudioTrackCount=(ushort)(AudioTrack+1);
-        for(ushort i=0;i<Video.controlledAudioTrackCount;i++) Video.EnableAudioTrack(i,i==AudioTrack);
+        Video.audioOutputMode = VideoAudioOutputMode.Direct;
+        ushort tracks = (ushort)Math.Min(Video.audioTrackCount, VideoPlayer.controlledAudioTrackMaxCount);
+        for (ushort i = 0; i < tracks; i++) Video.EnableAudioTrack(i, i == AudioTrack);
     }
     void ApplyAudio() {
-        if(Video.audioTrackCount==0) { AudioInfo="No decodable audio track reported. Try an AAC source or a transcoding service."; Status?.Invoke(AudioInfo); return; }
-        if(AudioTrack>=Video.audioTrackCount) AudioTrack=0;
-        Video.SetDirectAudioMute(AudioTrack,Volume<=0.001f); if(Video.canSetDirectAudioVolume) Video.SetDirectAudioVolume(AudioTrack,Volume);
-        AudioInfo="Track "+(AudioTrack+1)+" / "+Video.audioTrackCount+" · "+Video.GetAudioLanguageCode(AudioTrack)+" · "+Video.GetAudioChannelCount(AudioTrack)+" channels";
-        Debug.Log("[MovieAudio] "+AudioInfo+" direct output, speed=1");
+        ushort tracks = (ushort)Math.Min(Video.audioTrackCount, VideoPlayer.controlledAudioTrackMaxCount);
+        for (ushort i = 0; i < tracks; i++) if (Video.GetAudioChannelCount(i) > 0) Video.SetDirectAudioVolume(i, i == AudioTrack ? Volume : 0);
     }
     public void SetVolume(float value) { Volume=Mathf.Clamp01(value); if(Video.isPrepared) ApplyAudio(); }
     public void NextAudioTrack() {
@@ -87,6 +93,26 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public void Load(string url, string title, double position=0) {
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
         try { SourceUrl=MediaLibrary.Http(url); Room.Send(new JObject { ["type"] = "playback", ["url"] = SourceUrl, ["title"] = title, ["position"] = Math.Max(0,position) }); } catch (Exception error) { Status?.Invoke(error.Message); }
+    }
+    public void Load(ResolvedStream stream, string title, double position=0) {
+        if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
+        if (stream == null || string.IsNullOrEmpty(stream.StreamUrl)) { Status?.Invoke("Invalid stream selection"); return; }
+        try {
+            SourceUrl = MediaLibrary.Http(stream.StreamUrl);
+            var payload = new JObject {
+                ["type"] = "playback",
+                ["url"] = SourceUrl,
+                ["title"] = title,
+                ["position"] = Math.Max(0, position),
+                ["sourceCodec"] = stream.SourceCodec
+            };
+            if (stream.Headers != null && stream.Headers.Count > 0) {
+                var headersObj = new JObject();
+                foreach (var kv in stream.Headers) headersObj[kv.Key] = kv.Value;
+                payload["upstreamHeaders"] = headersObj;
+            }
+            Room.Send(payload);
+        } catch (Exception error) { Status?.Invoke(error.Message); }
     }
     public void Toggle() { if (playback != null) Control(!(bool)playback["paused"], Position); }
     public void Seek(double delta) { if (playback != null) Control((bool)playback["paused"], Math.Max(0, Position + delta), true); }

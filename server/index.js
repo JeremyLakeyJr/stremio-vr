@@ -9,6 +9,8 @@ import { runCore } from './core.js';
 import { MediaServer } from './media.js';
 import { hostingInfo, dashboard } from './hosting.js';
 import { detectMediaCapabilities } from './hwaccel.js';
+import { fetchSubtitles } from './subtitles.js';
+import { sendNotification } from './notifications.js';
 
 export async function createServer(options = {}) {
   const capabilities = options.capabilities ?? await detectMediaCapabilities(options.ffmpegBinary || process.env.FFMPEG_BINARY || 'ffmpeg');
@@ -54,6 +56,7 @@ export async function createServer(options = {}) {
         try {
           const job = await media.start(source, pos || 0, job => { record.job = job; }, {
             sourceCodec: message.sourceCodec,
+            audioTrackIndex: message.audioTrackIndex,
             upstreamHeaders: message.upstreamHeaders
           });
           if (streams.get(room.id) !== record || !rooms.rooms.has(room.id) || room.host !== player.id || player.ws !== ws) {
@@ -70,6 +73,15 @@ export async function createServer(options = {}) {
             position: job.offset,
             paused: message.paused ?? true
           }, job);
+
+          hostingInfo().then(info => {
+            sendNotification({
+              event: 'playback',
+              title: message.title ?? room.playback.title ?? 'Movie',
+              roomId: room.id,
+              inviteUrl: info.url
+            }).catch(() => {});
+          }).catch(() => {});
         } catch (error) {
           if (streams.get(room.id) === record) { streams.delete(room.id); room.mediaStatus = error.message; rooms.state(room); throw error; }
         }
@@ -78,6 +90,15 @@ export async function createServer(options = {}) {
       if (old?.pending) throw new Error('Wait for server video preparation to finish');
     }
     rooms.handle(ws, message);
+    if (message?.type === 'create' && ws.roomId) {
+      hostingInfo().then(info => {
+        sendNotification({
+          event: 'room_created',
+          roomId: ws.roomId,
+          inviteUrl: info.url
+        }).catch(() => {});
+      }).catch(() => {});
+    }
   }
 
   const handler = async (req, res) => {
@@ -86,6 +107,48 @@ export async function createServer(options = {}) {
     if (media && await media.serve(req, res)) return;
     if (req.method === 'GET' && req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(dashboard); return; }
     if (req.method === 'GET' && req.url === '/api/hosting') { res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(await hostingInfo())); return; }
+
+    if (req.method === 'GET' && req.url === '/api/providers') {
+      res.setHeader('Cache-Control', 'no-store');
+      const check = async (u) => {
+        if (!u) return { configured: false, online: false };
+        try {
+          const parsed = new URL(u);
+          const r = await fetch(parsed.origin, { signal: AbortSignal.timeout(2500) });
+          return { configured: true, online: r.status < 500, status: r.status };
+        } catch {
+          return { configured: true, online: false };
+        }
+      };
+      const [stremio, jellyfin, mediastorm, silo] = await Promise.all([
+        check(process.env.STREAMING_SERVICE_URL || 'http://stremio:11470'),
+        check(process.env.JELLYFIN_URL),
+        check(process.env.MEDIASTORM_URL),
+        check(process.env.SILO_URL)
+      ]);
+      res.end(JSON.stringify({
+        ok: true,
+        providers: { stremio, jellyfin, mediastorm, silo }
+      }));
+      return;
+    }
+
+    if (req.method === 'GET' && (req.url === '/api/subtitles' || req.url.startsWith('/api/subtitles?'))) {
+      try {
+        const query = new URL(req.url, 'http://localhost').searchParams;
+        const subUrl = query.get('url');
+        if (!subUrl) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing subtitle url' })); return; }
+        const offset = parseFloat(query.get('offset') || '0');
+        const vtt = await fetchSubtitles(subUrl, media?.allowed || [], { offset });
+        res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.end(vtt);
+      } catch (err) {
+        res.writeHead(502); res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
     if (req.method === 'GET' && /^\/screenshots\/apartment-(lounge|screen|overview)\.png$/.test(req.url)) {
       try { const body = await readFile(new URL('../docs' + req.url, import.meta.url)); res.setHeader('Content-Type', 'image/png'); res.end(body); } catch { res.writeHead(404); res.end(); } return;
     }

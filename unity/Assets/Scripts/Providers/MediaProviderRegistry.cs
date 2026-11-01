@@ -79,6 +79,18 @@ namespace StremioVR.Providers
             ProvidersChanged?.Invoke();
         }
 
+        public async Task<bool> AddStremioAddonAsync(string manifestUrl, string displayName = null)
+        {
+            string providerId = "addon_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var addon = new StremioAddonProvider(providerId, displayName ?? "Stremio Addon");
+            bool ok = await addon.AuthenticateAsync(manifestUrl);
+            if (ok)
+            {
+                RegisterProvider(addon);
+            }
+            return ok;
+        }
+
         public IMediaProvider GetProvider(string providerId)
         {
             return _providers.TryGetValue(providerId, out var provider) ? provider : null;

@@ -111,7 +111,7 @@ export function sanitizeUpstreamHeaders(upstreamHeaders = {}) {
   for (const [key, value] of Object.entries(upstreamHeaders)) {
     const lowerKey = key.toLowerCase();
     if (!ALLOWED_UPSTREAM_HEADERS.has(lowerKey)) continue;
-    const cleanVal = String(value).replace(/[\r\n]/g, '').trim();
+    const cleanVal = String(value).replace(/[\r\n\x00]/g, '').trim();
     if (cleanVal) sanitized[lowerKey] = cleanVal;
   }
   return sanitized;
