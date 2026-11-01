@@ -63,6 +63,12 @@ namespace StremioVR.Providers
             return IsAuthenticated;
         }
 
+        public async Task ReportPlaybackAsync(string endpoint, string jsonBody)
+        {
+            if (!IsAuthenticated || string.IsNullOrEmpty(_serverUrl)) return;
+            await GetJsonAsync($"{_serverUrl}{endpoint}", "POST", jsonBody);
+        }
+
         public async Task<List<MediaCatalog>> GetCatalogsAsync()
         {
             var result = new List<MediaCatalog>();

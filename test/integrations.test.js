@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { srtToVtt, adjustVttOffset, fetchSubtitles, clearSubtitleCache } from '../server/subtitles.js';
+import { srtToVtt, adjustVttOffset, fetchSubtitles, clearSubtitleCache, searchOpenSubtitles } from '../server/subtitles.js';
 import { sendNotification, formatNotificationPayload } from '../server/notifications.js';
 import { createServer } from '../server/index.js';
 import { once } from 'node:events';
@@ -97,6 +97,7 @@ test('api: /api/providers reports media backend status', async (t) => {
   assert.ok('jellyfin' in data.providers);
   assert.ok('mediastorm' in data.providers);
   assert.ok('silo' in data.providers);
+  assert.ok('remux' in data.providers);
 });
 
 test('api: /api/subtitles validates query parameters and applies offset', async (t) => {
@@ -168,4 +169,73 @@ test('notifications: sendNotification completes silently without crashing on unr
     if (oldHook) process.env.DISCORD_WEBHOOK_URL = oldHook;
     else delete process.env.DISCORD_WEBHOOK_URL;
   }
+});
+
+test('subtitles: fetchSubtitles follows HTTP 302 redirects seamlessly', async (t) => {
+  clearSubtitleCache();
+  const server = http.createServer((req, res) => {
+    if (req.url === '/redirect-source.srt') {
+      res.writeHead(302, { Location: '/final.srt' });
+      res.end();
+      return;
+    }
+    if (req.url === '/final.srt') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('1\n00:00:01,000 --> 00:00:03,000\nRedirected subtitle text');
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => server.close());
+
+  const port = server.address().port;
+  const vtt = await fetchSubtitles(`http://127.0.0.1:${port}/redirect-source.srt`, [`127.0.0.1:${port}`]);
+  assert.ok(vtt.startsWith('WEBVTT'));
+  assert.ok(vtt.includes('Redirected subtitle text'));
+});
+
+test('subtitles: searchOpenSubtitles returns unconfigured when key is not set', async () => {
+  const res = await searchOpenSubtitles({ query: 'The Matrix' });
+  assert.equal(res.configured, false);
+  assert.deepEqual(res.results, []);
+});
+
+test('notifications: formatNotificationPayload formats participant_joined and playback_stop with clientCount', () => {
+  const joinRaw = formatNotificationPayload({
+    event: 'participant_joined',
+    roomId: 'join99',
+    inviteUrl: 'https://vr.example.com#join99',
+    clientCount: 4
+  }, 'https://discord.com/api/webhooks/123/xyz');
+
+  const joinPayload = JSON.parse(joinRaw);
+  assert.ok(joinPayload.embeds[0].title.includes('friend joined'));
+  assert.ok(joinPayload.embeds[0].fields.some(f => f.name === 'Viewers' && f.value === '4/8'));
+
+  const stopRaw = formatNotificationPayload({
+    event: 'playback_stop',
+    roomId: 'stop12',
+    clientCount: 2
+  }, 'https://discord.com/api/webhooks/123/xyz');
+
+  const stopPayload = JSON.parse(stopRaw);
+  assert.ok(stopPayload.embeds[0].title.includes('Playback Ended'));
+});
+
+test('api: /api/subtitles/search returns unconfigured payload when key is absent', async (t) => {
+  const app = await createServer({ media: false });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+
+  const port = app.server.address().port;
+  const res = await fetch(`http://127.0.0.1:${port}/api/subtitles/search?query=Inception`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.configured, false);
+  assert.deepEqual(data.results, []);
 });

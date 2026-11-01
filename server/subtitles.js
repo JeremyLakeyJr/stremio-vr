@@ -91,11 +91,16 @@ export function adjustVttOffset(vttContent, offsetSeconds = 0) {
 
 /**
  * Safely fetches remote subtitles and ensures output is valid WebVTT.
- * Includes in-memory caching and optional timestamp offset adjustment.
+ * Includes in-memory caching, redirect following, and optional timestamp offset adjustment.
  */
-export async function fetchSubtitles(urlStr, allowedHosts = [], options = {}) {
+export async function fetchSubtitles(urlStr, allowedHosts = [], options = {}, redirects = 0) {
+  if (redirects > 3) throw new Error('Too many subtitle redirects');
   const offset = typeof options.offset === 'number' ? options.offset : parseFloat(options.offset || '0');
   const now = Date.now();
+
+  for (const [key, entry] of subtitleCache.entries()) {
+    if (now - entry.timestamp >= CACHE_TTL_MS) subtitleCache.delete(key);
+  }
 
   const cached = subtitleCache.get(urlStr);
   if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
@@ -110,6 +115,11 @@ export async function fetchSubtitles(urlStr, allowedHosts = [], options = {}) {
       timeout: 10000,
       lookup: (_host, lookupOpts, cb) => lookupOpts.all ? cb(null, [address]) : cb(null, address.address, address.family)
     }, res => {
+      if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.destroy();
+        const nextUrl = new URL(res.headers.location, url).href;
+        return fetchSubtitles(nextUrl, allowedHosts, options, redirects + 1).then(resolve, reject);
+      }
       if (res.statusCode !== 200) {
         res.destroy();
         return reject(new Error(`Subtitle source returned HTTP ${res.statusCode}`));
@@ -139,5 +149,65 @@ export async function fetchSubtitles(urlStr, allowedHosts = [], options = {}) {
 
     req.on('error', reject);
     req.on('timeout', () => req.destroy(new Error('Subtitle request timed out')));
+  });
+}
+
+/**
+ * Searches subtitles via OpenSubtitles REST API (v1).
+ * Requires OPENSUBTITLES_API_KEY environment variable.
+ */
+export async function searchOpenSubtitles({ query, imdbId, type, season, episode, languages = 'en' } = {}) {
+  const apiKey = process.env.OPENSUBTITLES_API_KEY?.trim();
+  if (!apiKey) return { configured: false, results: [] };
+
+  const url = new URL('https://api.opensubtitles.com/api/v1/subtitles');
+  if (query) url.searchParams.set('query', query);
+  if (imdbId) {
+    const id = String(imdbId).replace(/^tt/, '');
+    url.searchParams.set('imdb_id', id);
+  }
+  if (type) url.searchParams.set('type', type);
+  if (season) url.searchParams.set('season_number', String(season));
+  if (episode) url.searchParams.set('episode_number', String(episode));
+  url.searchParams.set('languages', languages);
+
+  return new Promise((resolve) => {
+    const req = https.get(url, {
+      headers: {
+        'Api-Key': apiKey,
+        'User-Agent': 'MovieNightVR v1.0.0'
+      },
+      timeout: 6000
+    }, res => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve({ configured: true, results: [], error: `OpenSubtitles HTTP ${res.statusCode}` });
+      }
+      let raw = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { raw += chunk; });
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(raw);
+          const results = (data.data || []).map(item => {
+            const file = item.attributes?.files?.[0];
+            return {
+              id: item.id,
+              language: item.attributes?.language,
+              format: item.attributes?.format,
+              downloadCount: item.attributes?.download_count,
+              hearingImpaired: item.attributes?.hearing_impaired,
+              fileId: file?.file_id,
+              fileName: file?.file_name
+            };
+          });
+          resolve({ configured: true, results });
+        } catch {
+          resolve({ configured: true, results: [], error: 'Failed to parse OpenSubtitles response' });
+        }
+      });
+    });
+    req.on('error', err => resolve({ configured: true, results: [], error: err.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ configured: true, results: [], error: 'OpenSubtitles timed out' }); });
   });
 }

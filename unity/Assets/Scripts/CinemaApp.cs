@@ -474,7 +474,44 @@ public sealed class CinemaApp : MonoBehaviour {
                 Heading(prov.DisplayName + "  ·  " + statusText);
             }
         }
-        Heading("Configure backend URLs and tokens in Docker .env or provider manifests.");
+        Heading("Connect Jellyfin / Remux server");
+        string jUrl = (string)settings["jellyfinUrl"] ?? "";
+        string jUser = (string)settings["jellyfinUser"] ?? "";
+        string jPass = (string)settings["jellyfinPass"] ?? "";
+        var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
+        var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
+        var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
+        ActionButton("Authenticate Jellyfin", async () => {
+            if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
+                ShowStatus("Connecting to Jellyfin...");
+                bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
+                ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
+                BackendsPage();
+            }
+        });
+        Heading("Install custom Stremio Addon manifest");
+        var addonField = Field("Addon Manifest URL", "https://", null);
+        ActionButton("Install Stremio Addon", async () => {
+            if (reg != null && !string.IsNullOrEmpty(addonField.text) && addonField.text.EndsWith("manifest.json")) {
+                ShowStatus("Installing addon manifest...");
+                bool ok = await reg.AddStremioAddonAsync(addonField.text);
+                ShowStatus(ok ? "Addon installed successfully!" : "Failed to load addon manifest.");
+                BackendsPage();
+            }
+        });
+        Heading("Sync Mellon / Nuvio profile addons");
+        string mUrl = (string)settings["mellonUrl"] ?? "";
+        string mToken = (string)settings["mellonToken"] ?? "";
+        var mUrlInput = Field("Mellon Sync Server URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
+        var mTokenInput = Field("Mellon Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
+        ActionButton("Sync Mellon Addons", async () => {
+            if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
+                ShowStatus("Syncing Mellon profile addons...");
+                int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
+                ShowStatus("Synced " + count + " addon(s) from Mellon profile.");
+                BackendsPage();
+            }
+        });
         ActionButton("Back to media library", Library);
     }
     bool editing;

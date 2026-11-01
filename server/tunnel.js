@@ -13,7 +13,7 @@ async function publish() {
   if (!url || writing || stopping) return;
   writing = true;
   try {
-    await writeFile(file + '.tmp', JSON.stringify({ url, updatedAt: Date.now() }), { mode: 0o600 });
+    await writeFile(file + '.tmp', JSON.stringify({ url, updatedAt: Date.now(), mode: token ? 'named' : 'quick' }), { mode: 0o600 });
     await rename(file + '.tmp', file);
   } finally {
     writing = false;

@@ -177,7 +177,7 @@ namespace StremioVR.Providers
             // Dispatched asynchronously in background
             try
             {
-                // Jellyfin endpoint is contacted via provider session
+                await jellyfin.ReportPlaybackAsync(endpoint, body);
             }
             catch {}
         }

@@ -39,6 +39,10 @@ async function run() {
   console.log(`${c.bold}${c.magenta}╚═══════════════════════════════════════════════════════════╝${c.reset}\n`);
 
   // 1. Transcoding & GPU Capabilities
+  const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
+  if (nodeMajor < 22) {
+    console.log(`  ${c.yellow}▲ Node.js ${process.version} detected (Node.js 22+ recommended for Movie Night VR)${c.reset}\n`);
+  }
   process.stdout.write(`${c.bold}[1/4] Hardware Transcoding & Smart Remux:${c.reset}\n`);
   try {
     const caps = await detectMediaCapabilities(process.env.FFMPEG_BINARY || 'ffmpeg');
@@ -61,7 +65,7 @@ async function run() {
   // 2. Cloudflare Tunnel Configuration
   console.log(`\n${c.bold}[2/4] Network & Cloudflare Tunnel:${c.reset}`);
   const tunnelToken = process.env.TUNNEL_TOKEN;
-  const tunnelUrl = process.env.TUNNEL_URL;
+  const tunnelUrl = process.env.TUNNEL_URL || process.env.TUNNEL_HOSTNAME;
   if (tunnelToken) {
     console.log(`  ${c.green}✔ Named / Paid Cloudflare Zero Trust Tunnel:${c.reset} Token configured`);
     if (tunnelUrl) console.log(`    Published Domain: ${c.cyan}${tunnelUrl}${c.reset}`);
@@ -69,12 +73,19 @@ async function run() {
     console.log(`  ${c.blue}ℹ TryCloudflare Quick Tunnel:${c.reset} Free temporary tunnel (no account required).`);
     console.log(`    (To use a custom domain, set ${c.bold}TUNNEL_TOKEN${c.reset} in .env)`);
   }
+  const allowPrivate = process.env.ALLOW_PRIVATE_NETWORKS !== 'false';
+  if (allowPrivate) {
+    console.log(`  ${c.green}✔ LAN Access:${c.reset} Private IP networks permitted (ALLOW_PRIVATE_NETWORKS=true)`);
+  } else {
+    console.log(`  ${c.yellow}▲ LAN Access Restricted:${c.reset} Private networks blocked; ensure upstream hosts are in MEDIA_ALLOWED_HOSTS`);
+  }
 
   // 3. Media Backends & Providers
   console.log(`\n${c.bold}[3/4] Media Backends & Providers:${c.reset}`);
   const providers = [
     { name: 'Stremio Streaming Service', url: process.env.STREAMING_SERVICE_URL || 'http://stremio:11470' },
-    { name: 'Jellyfin / Remux', url: process.env.JELLYFIN_URL },
+    { name: 'Jellyfin', url: process.env.JELLYFIN_URL },
+    { name: 'Remux (lostb1t/remux)', url: process.env.REMUX_URL },
     { name: 'MediaStorm (Debrid/Usenet)', url: process.env.MEDIASTORM_URL },
     { name: 'Silo (Go Backend)', url: process.env.SILO_URL }
   ];
@@ -92,16 +103,25 @@ async function run() {
     }
   }
 
-  // 4. Notifications & Webhooks
-  console.log(`\n${c.bold}[4/4] Webhooks & Room Notifications:${c.reset}`);
+  // 4. Subtitles & Webhooks
+  console.log(`\n${c.bold}[4/4] Subtitles & Notifications:${c.reset}`);
+  const osKey = process.env.OPENSUBTITLES_API_KEY;
+  if (osKey) {
+    console.log(`  ${c.green}✔ OpenSubtitles REST API:${c.reset} Active (search endpoint ready)`);
+  } else {
+    console.log(`  ${c.dim}○ OpenSubtitles API Key: Not set (direct VTT/SRT URLs supported)${c.reset}`);
+  }
+
   const discord = process.env.DISCORD_WEBHOOK_URL;
   const slack = process.env.SLACK_WEBHOOK_URL;
   const apprise = process.env.APPRISE_URL;
+  const customHook = process.env.NOTIFICATION_WEBHOOK_URL;
 
   if (discord) console.log(`  ${c.green}✔ Discord Webhook:${c.reset} Configured`);
   if (slack) console.log(`  ${c.green}✔ Slack Webhook:${c.reset} Configured`);
   if (apprise) console.log(`  ${c.green}✔ Apprise / Generic:${c.reset} Configured`);
-  if (!discord && !slack && !apprise) {
+  if (customHook) console.log(`  ${c.green}✔ Custom Webhook:${c.reset} Configured`);
+  if (!discord && !slack && !apprise && !customHook) {
     console.log(`  ${c.dim}○ No notification webhooks configured (optional).${c.reset}`);
   }
 

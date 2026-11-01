@@ -209,12 +209,12 @@ Get notified in Discord, Slack, or smart home automations when a movie night sta
 - **Discord:** sends rich embeds displaying the movie title, active viewer count (`3/8`), room code, and one-click join link.
 - **Slack:** sends formatted mrkdwn blocks.
 - **Apprise / Generic:** dispatches clean JSON notifications.
-- **Triggers:** fires on `room_created` and `playback` start.
+- **Triggers:** fires on `room_created`, `participant_joined`, `playback` start, and `playback_stop`.
 
 Configure your webhook in `.env`:
 ```env
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-# or SLACK_WEBHOOK_URL / APPRISE_URL
+# or SLACK_WEBHOOK_URL / APPRISE_URL / NOTIFICATION_WEBHOOK_URL
 ```
 
 ---
@@ -298,11 +298,13 @@ npm run diagnose
 | `PORT` | `3000` | Host listen port for HTTP/WebSocket traffic |
 | `TUNNEL_TOKEN` | *unset* | Cloudflare Zero Trust / Argo tunnel token (uses TryCloudflare if unset) |
 | `TUNNEL_URL` | *unset* | Custom domain URL when using a named tunnel (e.g. `https://cinema.mydomain.com`) |
-| `ALLOW_PRIVATE_NETWORKS` | `false` | Set `true` to allow streaming from private LAN IPs (192.168.x.x, 10.x.x.x) |
+| `TUNNEL_HOSTNAME` | *unset* | Optional alias for `TUNNEL_URL` |
+| `ALLOW_PRIVATE_NETWORKS` | `true` | Set `true` to allow streaming from private LAN IPs (192.168.x.x, 10.x.x.x) |
 | `MEDIA_ALLOWED_HOSTS` | `stremio:11470` | Comma-separated list of trusted upstream host:port authorities |
 | **Media Providers** | | |
 | `STREAMING_SERVICE_URL` | `http://stremio:11470` | Internal Stremio engine URL |
-| `JELLYFIN_URL` | *unset* | Jellyfin / Remux server URL (e.g. `http://192.168.1.50:8096`) |
+| `JELLYFIN_URL` | *unset* | Jellyfin server URL (e.g. `http://192.168.1.50:8096`) |
+| `REMUX_URL` | *unset* | Standalone Remux (`lostb1t/remux`) server URL |
 | `MEDIASTORM_URL` | *unset* | MediaStorm Debrid/Usenet streaming server URL |
 | `SILO_URL` | *unset* | Silo Go streaming backend URL |
 | **Hardware Transcoding** | | |
@@ -318,6 +320,7 @@ npm run diagnose
 | `DISCORD_WEBHOOK_URL` | *unset* | Discord webhook URL for room and playback alerts |
 | `SLACK_WEBHOOK_URL` | *unset* | Slack webhook URL |
 | `APPRISE_URL` | *unset* | Apprise / Home Assistant notification webhook URL |
+| `NOTIFICATION_WEBHOOK_URL` | *unset* | Generic webhook notification URL |
 | `OPENSUBTITLES_API_KEY` | *unset* | Optional OpenSubtitles REST API key for subtitle search |
 
 ---

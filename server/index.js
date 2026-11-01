@@ -9,7 +9,7 @@ import { runCore } from './core.js';
 import { MediaServer } from './media.js';
 import { hostingInfo, dashboard } from './hosting.js';
 import { detectMediaCapabilities } from './hwaccel.js';
-import { fetchSubtitles } from './subtitles.js';
+import { fetchSubtitles, searchOpenSubtitles } from './subtitles.js';
 import { sendNotification } from './notifications.js';
 
 export async function createServer(options = {}) {
@@ -79,7 +79,8 @@ export async function createServer(options = {}) {
               event: 'playback',
               title: message.title ?? room.playback.title ?? 'Movie',
               roomId: room.id,
-              inviteUrl: info.url
+              inviteUrl: info.url,
+              clientCount: room?.players?.size ?? 1
             }).catch(() => {});
           }).catch(() => {});
         } catch (error) {
@@ -95,7 +96,30 @@ export async function createServer(options = {}) {
         sendNotification({
           event: 'room_created',
           roomId: ws.roomId,
-          inviteUrl: info.url
+          inviteUrl: info.url,
+          clientCount: 1
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+    if (message?.type === 'join' && ws.roomId) {
+      const room = rooms.rooms.get(ws.roomId);
+      hostingInfo().then(info => {
+        sendNotification({
+          event: 'participant_joined',
+          roomId: ws.roomId,
+          inviteUrl: info.url,
+          clientCount: room?.players?.size ?? 1
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+    if (message?.type === 'playback' && message.url === '' && ws.roomId) {
+      const room = rooms.rooms.get(ws.roomId);
+      hostingInfo().then(info => {
+        sendNotification({
+          event: 'playback_stop',
+          roomId: ws.roomId,
+          inviteUrl: info.url,
+          clientCount: room?.players?.size ?? 1
         }).catch(() => {});
       }).catch(() => {});
     }
@@ -120,16 +144,35 @@ export async function createServer(options = {}) {
           return { configured: true, online: false };
         }
       };
-      const [stremio, jellyfin, mediastorm, silo] = await Promise.all([
+      const [stremio, jellyfin, mediastorm, silo, remux] = await Promise.all([
         check(process.env.STREAMING_SERVICE_URL || 'http://stremio:11470'),
         check(process.env.JELLYFIN_URL),
         check(process.env.MEDIASTORM_URL),
-        check(process.env.SILO_URL)
+        check(process.env.SILO_URL),
+        check(process.env.REMUX_URL)
       ]);
       res.end(JSON.stringify({
         ok: true,
-        providers: { stremio, jellyfin, mediastorm, silo }
+        providers: { stremio, jellyfin, mediastorm, silo, remux }
       }));
+      return;
+    }
+
+    if (req.method === 'GET' && (req.url === '/api/subtitles/search' || req.url.startsWith('/api/subtitles/search?'))) {
+      try {
+        const query = new URL(req.url, 'http://localhost').searchParams;
+        const q = query.get('query');
+        const imdbId = query.get('imdb_id') || query.get('imdb');
+        const type = query.get('type');
+        const season = query.get('season');
+        const episode = query.get('episode');
+        const languages = query.get('languages') || 'en';
+        const searchResult = await searchOpenSubtitles({ query: q, imdbId, type, season, episode, languages });
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(searchResult));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+      }
       return;
     }
 

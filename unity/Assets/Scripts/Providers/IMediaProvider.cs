@@ -36,6 +36,8 @@ namespace StremioVR.Providers
         public string Title; // e.g., "1080p HEVC Direct" or "AIOStreams RD+"
         public string StreamUrl; // Upstream URL sent to server
         public string SourceCodec; // e.g., "h264" or "hevc"
+        public int? AudioTrackIndex; // Optional audio stream selection for server transcoder
+        public string SubtitleUrl; // Optional subtitle stream URL
         public Dictionary<string, string> Headers; // Upstream auth headers (X-Emby-Token, etc.)
         public bool RequiresServerProxy;
     }

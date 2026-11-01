@@ -8,8 +8,9 @@ services:
       STREAMING_SERVICE_URL: ${STREAMING_SERVICE_URL:-http://stremio:11470}
       # Allow Stremio + any local/private Jellyfin (8096), Remux (8096), Silo, or MediaStorm servers
       MEDIA_ALLOWED_HOSTS: ${MEDIA_ALLOWED_HOSTS:-stremio:11470}
-      ALLOW_PRIVATE_NETWORKS: ${ALLOW_PRIVATE_NETWORKS:-false}
+      ALLOW_PRIVATE_NETWORKS: ${ALLOW_PRIVATE_NETWORKS:-true}
       JELLYFIN_URL: ${JELLYFIN_URL:-}
+      REMUX_URL: ${REMUX_URL:-}
       MEDIASTORM_URL: ${MEDIASTORM_URL:-}
       SILO_URL: ${SILO_URL:-}
       SOURCE_URL: ${SOURCE_URL:-https://github.com/oOflyeyesOo/Media-VR}
@@ -17,6 +18,7 @@ services:
       ICE_SERVERS: ${ICE_SERVERS:-[{"urls":"stun:stun.cloudflare.com:3478"}]}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
+      FFMPEG_BINARY: ${FFMPEG_BINARY:-ffmpeg}
       MEDIA_MAX_JOBS: ${MEDIA_MAX_JOBS:-4}
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-25769803776}
       MEDIA_MAX_HEIGHT: ${MEDIA_MAX_HEIGHT:-1080}
@@ -27,6 +29,7 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       APPRISE_URL: ${APPRISE_URL:-}
+      NOTIFICATION_WEBHOOK_URL: ${NOTIFICATION_WEBHOOK_URL:-}
       OPENSUBTITLES_API_KEY: ${OPENSUBTITLES_API_KEY:-}
     volumes:
       - tunnel-link:/share:ro
@@ -63,6 +66,7 @@ services:
       # Optional Cloudflare Zero Trust / Argo Named Tunnel Token:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
       TUNNEL_URL: ${TUNNEL_URL:-}
+      TUNNEL_HOSTNAME: ${TUNNEL_HOSTNAME:-}
     volumes:
       - tunnel-link:/share
     depends_on:

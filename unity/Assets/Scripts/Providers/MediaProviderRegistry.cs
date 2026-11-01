@@ -91,6 +91,21 @@ namespace StremioVR.Providers
             return ok;
         }
 
+        public async Task<int> SyncMellonAddonsAsync(string mellonServerUrl, string authToken)
+        {
+            if (NuvioSync == null || string.IsNullOrWhiteSpace(mellonServerUrl)) return 0;
+            var manifests = await NuvioSync.FetchProfileAddonManifestsAsync(mellonServerUrl, authToken);
+            int added = 0;
+            foreach (var manifestUrl in manifests)
+            {
+                if (await AddStremioAddonAsync(manifestUrl))
+                {
+                    added++;
+                }
+            }
+            return added;
+        }
+
         public IMediaProvider GetProvider(string providerId)
         {
             return _providers.TryGetValue(providerId, out var provider) ? provider : null;

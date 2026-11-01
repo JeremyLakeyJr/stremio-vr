@@ -106,6 +106,12 @@ public sealed class CinemaPlayback : MonoBehaviour {
                 ["position"] = Math.Max(0, position),
                 ["sourceCodec"] = stream.SourceCodec
             };
+            if (stream.AudioTrackIndex.HasValue) {
+                payload["audioTrackIndex"] = stream.AudioTrackIndex.Value;
+            }
+            if (!string.IsNullOrEmpty(stream.SubtitleUrl)) {
+                payload["subtitles"] = stream.SubtitleUrl;
+            }
             if (stream.Headers != null && stream.Headers.Count > 0) {
                 var headersObj = new JObject();
                 foreach (var kv in stream.Headers) headersObj[kv.Key] = kv.Value;
