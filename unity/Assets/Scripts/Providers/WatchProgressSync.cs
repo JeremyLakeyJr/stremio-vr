@@ -68,6 +68,10 @@ namespace StremioVR.Providers
             {
                 _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(itemId, positionSeconds, false);
             }
+            else if (providerId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
+            {
+                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(itemId, positionSeconds, false);
+            }
 
             if (IsTraktConfigured())
             {
@@ -95,6 +99,10 @@ namespace StremioVR.Providers
             {
                 _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
             }
+            else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
+            {
+                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+            }
 
             if (IsTraktConfigured())
             {
@@ -116,6 +124,10 @@ namespace StremioVR.Providers
             {
                 _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, false);
             }
+            else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
+            {
+                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, false);
+            }
         }
 
         public void OnPlaybackStopped(double positionSeconds)
@@ -130,6 +142,10 @@ namespace StremioVR.Providers
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
                 _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+            }
+            else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
+            {
+                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
             }
 
             if (IsTraktConfigured())
@@ -151,6 +167,10 @@ namespace StremioVR.Providers
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
                 _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, _lastReportedPosition, false);
+            }
+            else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
+            {
+                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, _lastReportedPosition, false);
             }
         }
 

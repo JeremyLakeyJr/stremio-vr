@@ -29,11 +29,26 @@ namespace StremioVR.Providers
             _token = token;
         }
 
-        public async Task<bool> AuthenticateAsync(string serverUrl, string username, string password)
+        public async Task<bool> AuthenticateAsync(string serverUrl, string usernameOrToken, string secret = null)
         {
             _serverUrl = NormalizeUrl(serverUrl);
+
+            // Direct token authentication if secret is null or empty
+            if (string.IsNullOrEmpty(secret) && !string.IsNullOrEmpty(usernameOrToken))
+            {
+                _token = usernameOrToken.Trim();
+                string testUrl = $"{_serverUrl}/api/libraries";
+                using var testReq = UnityWebRequest.Get(testUrl);
+                testReq.SetRequestHeader("Authorization", $"Bearer {_token}");
+                await SendRequestAsync(testReq);
+                if (testReq.result == UnityWebRequest.Result.Success)
+                {
+                    return IsAuthenticated;
+                }
+            }
+
             string url = $"{_serverUrl}/api/auth/login";
-            string bodyJson = JsonUtility.ToJson(new LoginRequest { Username = username, Password = password });
+            string bodyJson = JsonUtility.ToJson(new LoginRequest { Username = usernameOrToken, Password = secret ?? "" });
 
             using var req = new UnityWebRequest(url, "POST");
             req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(bodyJson));
@@ -139,6 +154,58 @@ namespace StremioVR.Providers
             return result;
         }
 
+        public async Task<List<MediaItem>> SearchAsync(string query)
+        {
+            var result = new List<MediaItem>();
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(query)) return result;
+
+            string url = $"{_serverUrl}/api/search?query={UnityWebRequest.EscapeURL(query.Trim())}&limit=32";
+            string json = await GetJsonAsync(url);
+            if (string.IsNullOrEmpty(json)) return result;
+
+            var env = JsonUtility.FromJson<SiloItemsEnvelope>(json);
+            if (env?.Items == null) return result;
+
+            foreach (var item in env.Items)
+            {
+                result.Add(new MediaItem
+                {
+                    ProviderId = ProviderId,
+                    ItemId = item.Id,
+                    Title = item.Title,
+                    PosterUrl = item.PosterUrl,
+                    Type = item.Type ?? "movie",
+                    RuntimeTicks = item.RuntimeTicks,
+                    ResumePositionTicks = item.ResumePositionTicks
+                });
+            }
+
+            return result;
+        }
+
+        public async Task ReportPlaybackAsync(string itemId, double positionSeconds, bool isPaused = false)
+        {
+            if (!IsAuthenticated || string.IsNullOrEmpty(_serverUrl) || string.IsNullOrEmpty(itemId)) return;
+
+            long ticks = (long)(Math.Max(0, positionSeconds) * TimeSpan.TicksPerSecond);
+            string url = $"{_serverUrl}/api/progress";
+            string body = JsonUtility.ToJson(new SiloProgressPayload
+            {
+                ItemId = itemId,
+                PositionTicks = ticks,
+                IsPaused = isPaused
+            });
+
+            using var req = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            req.SetRequestHeader("Authorization", $"Bearer {_token}");
+
+            await SendRequestAsync(req);
+        }
+
         public async Task<List<ResolvedStream>> GetStreamsAsync(string itemId)
         {
             var streams = new List<ResolvedStream>();
@@ -153,11 +220,17 @@ namespace StremioVR.Providers
 
             foreach (var stream in env.Streams)
             {
+                string qual = !string.IsNullOrEmpty(stream.Quality) ? $" [{stream.Quality}]" : "";
+                string br = !string.IsNullOrEmpty(stream.Bitrate) ? $" ({stream.Bitrate})" : "";
+                string displayTitle = $"[{DisplayName}]{qual} {stream.Title}{br}".Trim();
+
                 streams.Add(new ResolvedStream
                 {
-                    Title = $"[{DisplayName}] {stream.Title}",
+                    Title = displayTitle,
                     StreamUrl = stream.Url,
                     SourceCodec = stream.Codec?.ToLowerInvariant() ?? "h264",
+                    AudioTrackIndex = stream.AudioTrackIndex >= 0 ? stream.AudioTrackIndex : (int?)null,
+                    SubtitleUrl = stream.SubtitleUrl,
                     RequiresServerProxy = true,
                     Headers = new Dictionary<string, string>
                     {
@@ -203,6 +276,23 @@ namespace StremioVR.Providers
             public long ResumePositionTicks;
         }
         [Serializable] private class SiloStreamsEnvelope { public SiloStreamDto[] Streams; }
-        [Serializable] private class SiloStreamDto { public string Title; public string Url; public string Codec; }
+        [Serializable]
+        private class SiloStreamDto
+        {
+            public string Title;
+            public string Url;
+            public string Codec;
+            public string Quality;
+            public string Bitrate;
+            public string SubtitleUrl;
+            public int AudioTrackIndex = -1;
+        }
+        [Serializable]
+        private class SiloProgressPayload
+        {
+            public string ItemId;
+            public long PositionTicks;
+            public bool IsPaused;
+        }
     }
 }

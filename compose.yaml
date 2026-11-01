@@ -14,6 +14,7 @@ services:
       MEDIASTORM_URL: ${MEDIASTORM_URL:-}
       MEDIASTORM_KEY: ${MEDIASTORM_KEY:-}
       SILO_URL: ${SILO_URL:-}
+      SILO_TOKEN: ${SILO_TOKEN:-}
       SOURCE_URL: ${SOURCE_URL:-https://github.com/oOflyeyesOo/Media-VR}
       TUNNEL_LINK_FILE: /share/link.json
       ICE_SERVERS: ${ICE_SERVERS:-[{"urls":"stun:stun.cloudflare.com:3478"}]}

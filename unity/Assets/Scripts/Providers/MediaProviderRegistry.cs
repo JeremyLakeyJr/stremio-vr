@@ -193,6 +193,19 @@ namespace StremioVR.Providers
                 }
             }
 
+            if (Silo != null && Silo.IsAuthenticated)
+            {
+                try
+                {
+                    var siloItems = await Silo.SearchAsync(query);
+                    if (siloItems != null) results.AddRange(siloItems);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[MediaProviderRegistry] Silo search failed: {e.Message}");
+                }
+            }
+
             return results;
         }
     }

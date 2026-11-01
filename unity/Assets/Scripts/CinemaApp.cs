@@ -502,6 +502,21 @@ public sealed class CinemaApp : MonoBehaviour {
                 BackendsPage();
             }
         });
+        Heading("Connect Silo server (Go High-Performance Backend)");
+        string sUrl = (string)settings["siloUrl"] ?? "";
+        string sUser = (string)settings["siloUser"] ?? "";
+        string sPass = (string)settings["siloPass"] ?? "";
+        var sUrlInput = Field("Silo Server URL (e.g. http://192.168.1.100:8082)", sUrl, v => { settings["siloUrl"] = v; Save(); });
+        var sUserInput = Field("Silo Username or API Token", sUser, v => { settings["siloUser"] = v; Save(); });
+        var sPassInput = Field("Silo Password (empty if token)", sPass, v => { settings["siloPass"] = v; Save(); });
+        ActionButton("Authenticate Silo", async () => {
+            if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
+                ShowStatus("Connecting to Silo...");
+                bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
+                ShowStatus(ok ? "Silo connected successfully!" : "Silo authentication failed.");
+                BackendsPage();
+            }
+        });
         Heading("Install custom Stremio Addon manifest");
         var addonField = Field("Addon Manifest URL", "https://", null);
         ActionButton("Install Stremio Addon", async () => {

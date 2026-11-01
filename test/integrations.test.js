@@ -271,3 +271,35 @@ test('api: /api/providers sends X-MediaStorm-Key header when MEDIASTORM_KEY is s
     delete process.env.MEDIASTORM_KEY;
   }
 });
+
+test('api: /api/providers sends Authorization Bearer header when SILO_TOKEN is set', async (t) => {
+  let receivedAuth = null;
+  const mockSilo = http.createServer((req, res) => {
+    receivedAuth = req.headers['authorization'];
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+  });
+  mockSilo.listen(0, '127.0.0.1');
+  await once(mockSilo, 'listening');
+  t.after(() => mockSilo.close());
+
+  const siloPort = mockSilo.address().port;
+  process.env.SILO_URL = `http://127.0.0.1:${siloPort}`;
+  process.env.SILO_TOKEN = 'jwt-token-xyz-123';
+
+  try {
+    const app = await createServer({ media: false });
+    app.server.listen(0, '127.0.0.1');
+    await once(app.server, 'listening');
+    t.after(() => app.close());
+
+    const port = app.server.address().port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+    const data = await res.json();
+    assert.equal(data.providers.silo.online, true);
+    assert.equal(receivedAuth, 'Bearer jwt-token-xyz-123');
+  } finally {
+    delete process.env.SILO_URL;
+    delete process.env.SILO_TOKEN;
+  }
+});

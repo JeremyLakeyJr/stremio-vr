@@ -123,8 +123,12 @@ flowchart TD
 - **Configuration:** Set `MEDIASTORM_URL` and `MEDIASTORM_KEY` in `.env`.
 
 ### 3. Silo (Go High-Performance Media Server)
-- **High-Throughput Streaming:** `SiloProvider.cs` connects to Silo media servers, supporting library browsing and stream resolution.
-- **Configuration:** Set `SILO_URL` in `.env`.
+- **High-Throughput Streaming:** `SiloProvider.cs` connects to Silo media servers, supporting library browsing, media search, and stream resolution.
+- **Enriched Stream Details:** parses resolution badges (`[Silo: 4K]`, `[Silo: 1080p]`), stream bitrates, subtitle URLs, and audio track indices.
+- **Playback Sync:** live watch progress is automatically synchronized with Silo's `/api/progress` endpoint.
+- **Flexible Authentication:** supports standard username/password login or direct JWT API token authentication.
+- **In-VR Setup:** configure your server URL, username/token, and password directly in the headset via "Media backends".
+- **Configuration:** Set `SILO_URL` and optional `SILO_TOKEN` in `.env`.
 
 ### 4. Stremio & Universal Add-on Protocol
 - **Built-in Stremio Core:** pinned Rust `stremio-core` bridge resolves manifests, torrents, and proxy headers.
@@ -311,6 +315,7 @@ npm run diagnose
 | `MEDIASTORM_URL` | *unset* | MediaStorm Debrid/Usenet streaming server URL |
 | `MEDIASTORM_KEY` | *unset* | Optional MediaStorm API Key for backend health authentication |
 | `SILO_URL` | *unset* | Silo Go streaming backend URL |
+| `SILO_TOKEN` | *unset* | Optional Silo API / JWT Token for backend health authentication |
 | **Hardware Transcoding** | | |
 | `MEDIA_DISABLE_REMUX` | `false` | Set `true` to force transcoding even on compatible H.264 streams |
 | `MEDIA_MAX_HEIGHT` | `1080` | Maximum transcoded vertical resolution (e.g. `720`, `1080`) |

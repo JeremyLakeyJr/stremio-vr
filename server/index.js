@@ -145,11 +145,12 @@ export async function createServer(options = {}) {
         }
       };
       const msHeaders = process.env.MEDIASTORM_KEY ? { 'X-MediaStorm-Key': process.env.MEDIASTORM_KEY } : {};
+      const siloHeaders = process.env.SILO_TOKEN ? { 'Authorization': `Bearer ${process.env.SILO_TOKEN}` } : {};
       const [stremio, jellyfin, mediastorm, silo, remux] = await Promise.all([
         check(process.env.STREAMING_SERVICE_URL || 'http://stremio:11470'),
         check(process.env.JELLYFIN_URL),
         check(process.env.MEDIASTORM_URL, msHeaders),
-        check(process.env.SILO_URL),
+        check(process.env.SILO_URL, siloHeaders),
         check(process.env.REMUX_URL)
       ]);
       res.end(JSON.stringify({
