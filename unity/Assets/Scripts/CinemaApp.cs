@@ -10,7 +10,7 @@ using UnityEngine.XR;
 using StremioVR.Providers;
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
-    int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
+    int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue; JObject watching; string watchingUrl; float nextHistory;
     Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
     AvatarPresence presence;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
@@ -39,9 +39,6 @@ public sealed class CinemaApp : MonoBehaviour {
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
         motion.MoveSpeed=(float?)settings["moveSpeed"]??1.5f; motion.TurnSpeed=(float?)settings["turnSpeed"]??60; motion.RayPitch=(float?)settings["rayPitch"]??45;
         motion.MenuVisible=()=>placement!=null && placement.Active || panelMotion!=null && panelMotion.Visible; motion.Status+=ShowStatus; motion.Initialize();
-        account=gameObject.AddComponent<StremioAccount>(); account.Status+=ShowStatus; account.AddonsImported+=ImportAccountAddons;
-        account.HistoryLoaded+=()=>{if(pageTitle!=null && pageTitle.text=="Watch history") HistoryPage();};
-        account.Changed+=()=> { if(pageTitle!=null && pageTitle.text=="Stremio account") AccountPage(); };
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
         ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
@@ -69,7 +66,7 @@ public sealed class CinemaApp : MonoBehaviour {
         if(library.Addons.Count>0) Library();
     }
     void Start() {
-        room.StartSolo(profile);account.Resume();
+        room.StartSolo(profile);
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
         // Explicit development-only launch options make USB smoke tests repeatable.
         using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -124,10 +121,8 @@ public sealed class CinemaApp : MonoBehaviour {
 
         Button("Toggle mic", panel, 15, 525, 215, () => voice.Toggle());
         Button("Toggle audio", panel, 15, 595, 215, () => voice.ToggleDeafen());
-        Button("Stremio account", panel, 15, 640, 215, AccountPage);
-        Button("Media backends", panel, 15, 705, 215, BackendsPage);
-        Button("Recenter", panel, 15, 755, 215, Recenter);
-        Label("Hide menu to walk/turn\nLeft stick: move\nRight stick: turn / scroll", panel, 20, 835, 215, 120, 17);
+        Button("Recenter", panel, 15, 665, 215, Recenter);
+        Label("Hide menu to walk/turn\nLeft stick: move\nRight stick: turn / scroll", panel, 20, 755, 215, 120, 17);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
         Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Games", panel, 745, 920, 220, GamesPage); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
         var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)); scrollGo.transform.SetParent(panel, false);
@@ -277,12 +272,10 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading("Walk and turn with the sticks. Hold right grip + right stick to scroll. Select a web input with the beam, then enter text here. Web video plays locally until shared.");
     }
     void AddonsPage() {
-        pageTitle.text = "Add-ons";
-        Clear(); Heading("Stremio add-ons");
-        ActionButton(account.SignedIn ? "Account / sync add-ons" : "Sign in to Stremio / import add-ons", AccountPage);
-        var addonUrl = Field("Manifest URL", "https://v3-cinemeta.strem.io/manifest.json", null);
-        ActionButton("Install add-on", () => library.Install(addonUrl.text, () => { SaveAddons(); Library(); }));
-        Field("Stremio streaming service URL (optional)", (string)settings["streamingService"] ?? "", value => { settings["streamingService"] = value; Save(); });
+        pageTitle.text = "Catalogs";
+        Clear(); Heading("Media Catalogs");
+        var addonUrl = Field("Catalog manifest URL", "https://v3-cinemeta.strem.io/manifest.json", null);
+        ActionButton("Install catalog", () => library.Install(addonUrl.text, () => { SaveAddons(); Library(); }));
         Heading("Installed catalogs");
         foreach (var addon in library.Addons) {
             var selected = addon; Heading((string)addon["name"] ?? (string)addon["id"]);
@@ -302,8 +295,8 @@ public sealed class CinemaApp : MonoBehaviour {
     void Library() {
         Clear(); pageTitle.text="Discover";
         Heading("Your cinema. Your collection.");
-        ActionButton("Manage add-ons / Stremio account",AddonsPage);
-        if(library.Addons.Count==0) { Heading("Sign in to bring your Stremio add-ons here."); ActionButton("Link Stremio account",AccountPage); ActionButton("Install Cinemeta catalog",()=>library.Install("https://v3-cinemeta.strem.io/manifest.json",()=>{SaveAddons(); Library();})); return; }
+        ActionButton("Manage catalogs",AddonsPage);
+        if(library.Addons.Count==0) { library.Install("https://v3-cinemeta.strem.io/manifest.json",()=>{SaveAddons(); Library();}); return; }
         JObject featuredAddon=null, featuredCatalog=null; int tabs=0;
         foreach(var addon in library.Addons) foreach(var token in addon["catalogs"] as JArray??new JArray()) {
             var selected=addon; var catalog=(JObject)token;
@@ -366,29 +359,6 @@ public sealed class CinemaApp : MonoBehaviour {
         });
     }
     static bool HasEndpoint(JArray values,string endpoint) { foreach(var value in values) if((string)value==endpoint) return true; return false; }
-    void ImportAccountAddons(JArray descriptors) {
-        var previous=new HashSet<string>(); foreach(var endpoint in settings["accountAddons"] as JArray??new JArray()) previous.Add((string)endpoint);
-        library.Addons.RemoveAll(addon=>previous.Contains((string)addon["endpoint"]));
-        var imported=new JArray(); int skipped=0;
-        foreach(var descriptor in descriptors) {
-            try { var addon=MediaLibrary.AccountAddon((JObject)descriptor); string endpoint=(string)addon["endpoint"]; library.Addons.RemoveAll(a=>(string)a["endpoint"]==endpoint); library.Addons.Add(addon); imported.Add(endpoint); }
-            catch { skipped++; }
-        }
-        settings["accountAddons"]=imported; var cache=new JArray(); foreach(var addon in library.Addons) if(HasEndpoint(imported,(string)addon["endpoint"])) cache.Add(addon.DeepClone()); settings["accountCache"]=cache; SaveAddons();
-        if(pageTitle.text=="Discover") Library();
-        ShowStatus("Imported "+imported.Count+" account add-ons"+(skipped>0?"; "+skipped+" unsupported entries skipped":""));
-    }
-    void AccountPage() {
-        Clear(); pageTitle.text="Stremio account";
-        if(account.SignedIn) { Heading("Signed in: "+(account.DisplayName??"Stremio account")); ActionButton("Sync my account add-ons",account.SyncAddons); ActionButton("Sign out and remove imported add-ons",account.SignOut); }
-        else if(!string.IsNullOrEmpty(account.LinkCode)) {
-            Heading("Sign-in code: "+account.LinkCode); Heading("Open this link on your phone or computer:");
-            Label(account.LinkUrl,content,0,row,920,100,22); row+=110;
-            ActionButton("Open sign-in in Quest browser",account.OpenLink); ActionButton("Cancel sign-in",account.CancelLink);
-            Heading("Waiting for Stremio approval…");
-        } else { Heading("Sign in on your phone, computer, or Quest browser"); ActionButton("Link my Stremio account",account.BeginLink); }
-        ActionButton("Back to media library",Library);
-    }
     void SpeedControl(string title,float current,float min,float max,float step,Action<float> changed,string unit,Action refresh=null) {
         Label(title+": "+current.ToString("0.##")+" "+unit,content,0,row,540,52,23);
         Button("−",content,570,row,150,()=>{changed(Mathf.Max(min,current-step));if(refresh!=null)refresh();else Comfort();});
@@ -396,10 +366,8 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void HistoryPage() {
         Clear(); pageTitle.text="Watch history";
-        Button(historyLocal?"Source: this headset":"Source: Stremio account",content,0,row,450,()=>{historyLocal=!historyLocal;HistoryPage();});
-        Button(historyContinue?"Continue watching":"All watched titles",content,470,row,450,()=>{historyContinue=!historyContinue;HistoryPage();}); row+=70;
-        if(!historyLocal) { if(!account.SignedIn) { ActionButton("Sign in to view Stremio history",AccountPage); return; } ActionButton("Refresh Stremio history",account.RefreshHistory); }
-        var entries=historyLocal?(settings["recent"] as JArray??new JArray()):account.History;
+        Button(historyContinue?"Continue watching":"All watched titles",content,0,row,450,()=>{historyContinue=!historyContinue;HistoryPage();}); row+=70;
+        var entries=settings["recent"] as JArray??new JArray();
         int count=0;
         foreach(var token in entries) {
             var item=(JObject)token; var state=item["state"] as JObject??new JObject(); double offset=(double?)state["timeOffset"]??0, duration=(double?)state["duration"]??0;
@@ -408,7 +376,7 @@ public sealed class CinemaApp : MonoBehaviour {
             double resume=duration>0 && offset>=duration*0.95?0:offset/1000;
             ActionButton(name+"  ·  "+(resume>0?"resume at "+TimeSpan.FromSeconds(resume).ToString(@"hh\:mm\:ss"):"watched"),()=>Streams(type,id,name,resume)); count++;
         }
-        if(count==0) Heading("No watched titles in this view yet.");
+        if(count==0) Heading("No watched titles yet. Play a title to track history.");
     }
     void RecordHistory() {
         if(watching==null || playback.SourceUrl!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
@@ -531,84 +499,6 @@ public sealed class CinemaApp : MonoBehaviour {
         controller.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 stick);
         float scroll = (panelMotion.Visible ? stick.y : 0) * Time.unscaledDeltaTime * 600 + Input.mouseScrollDelta.y * 35;
         scrollTarget=Mathf.Clamp(scrollTarget-scroll,0,Mathf.Max(0,content.sizeDelta.y-620)); content.anchoredPosition=Vector2.Lerp(content.anchoredPosition,new Vector2(0,scrollTarget),1-Mathf.Exp(-14*Time.unscaledDeltaTime));
-    }
-    void BackendsPage() {
-        Clear(); pageTitle.text = "Media backends";
-        Heading("Multi-provider media architecture (Jellyfin, MediaStorm, Silo, Stremio)");
-        var reg = MediaProviderRegistry.Instance;
-        if (reg != null) {
-            foreach (var prov in reg.Providers) {
-                string statusText = prov.IsAuthenticated ? "Connected / Ready" : "Standby / Offline";
-                Heading(prov.DisplayName + "  ·  " + statusText);
-            }
-        }
-        Heading("Connect Jellyfin / Remux server");
-        string jUrl = (string)settings["jellyfinUrl"] ?? "";
-        string jUser = (string)settings["jellyfinUser"] ?? "";
-        string jPass = (string)settings["jellyfinPass"] ?? "";
-        var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
-        var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
-        var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
-        ActionButton("Authenticate Jellyfin", async () => {
-            if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
-                ShowStatus("Connecting to Jellyfin...");
-                bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
-                ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Connect MediaStorm instance (Debrid / Usenet)");
-        string msUrl = (string)settings["mediastormUrl"] ?? "";
-        string msKey = (string)settings["mediastormKey"] ?? "";
-        var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.100:8080)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
-        var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
-        ActionButton("Authenticate MediaStorm", async () => {
-            if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
-                ShowStatus("Connecting to MediaStorm...");
-                bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
-                ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Connect Silo server (Go High-Performance Backend)");
-        string sUrl = (string)settings["siloUrl"] ?? "";
-        string sUser = (string)settings["siloUser"] ?? "";
-        string sPass = (string)settings["siloPass"] ?? "";
-        var sUrlInput = Field("Silo Server URL (e.g. http://192.168.1.100:8082)", sUrl, v => { settings["siloUrl"] = v; Save(); });
-        var sUserInput = Field("Silo Username or API Token", sUser, v => { settings["siloUser"] = v; Save(); });
-        var sPassInput = Field("Silo Password (empty if token)", sPass, v => { settings["siloPass"] = v; Save(); });
-        ActionButton("Authenticate Silo", async () => {
-            if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
-                ShowStatus("Connecting to Silo...");
-                bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
-                ShowStatus(ok ? "Silo connected successfully!" : "Silo authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Install custom Stremio Addon manifest");
-        var addonField = Field("Addon Manifest URL", "https://", null);
-        ActionButton("Install Stremio Addon", async () => {
-            if (reg != null && !string.IsNullOrEmpty(addonField.text) && addonField.text.EndsWith("manifest.json")) {
-                ShowStatus("Installing addon manifest...");
-                bool ok = await reg.AddStremioAddonAsync(addonField.text);
-                ShowStatus(ok ? "Addon installed successfully!" : "Failed to load addon manifest.");
-                BackendsPage();
-            }
-        });
-        Heading("Sync Mellon / Nuvio profile addons");
-        string mUrl = (string)settings["mellonUrl"] ?? "";
-        string mToken = (string)settings["mellonToken"] ?? "";
-        var mUrlInput = Field("Mellon Sync Server URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
-        var mTokenInput = Field("Mellon Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
-        ActionButton("Sync Mellon Addons", async () => {
-            if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
-                ShowStatus("Syncing Mellon profile addons...");
-                int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
-                ShowStatus("Synced " + count + " addon(s) from Mellon profile.");
-                BackendsPage();
-            }
-        });
-        ActionButton("Back to media library", Library);
     }
     bool editing;
     IEnumerator Edit(InputField field) {
