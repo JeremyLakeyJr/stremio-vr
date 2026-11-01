@@ -97,3 +97,23 @@ test('api: /api/system/capabilities returns system status and capabilities', asy
   assert.equal(typeof data.streamingService, 'boolean');
   assert.ok(data.providers);
 });
+
+test('api: /api/config allows reading and updating server settings at runtime', async t => {
+  const { port } = await fixture(t);
+  const getRes = await fetch(`http://127.0.0.1:${port}/api/config`);
+  assert.equal(getRes.status, 200);
+  const getData = await getRes.json();
+  assert.equal(getData.ok, true);
+  assert.ok(getData.config);
+
+  const postRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ maxHeight: 720, maxFps: 30 })
+  });
+  assert.equal(postRes.status, 200);
+  const postData = await postRes.json();
+  assert.equal(postData.ok, true);
+  assert.equal(postData.config.maxHeight, 720);
+  assert.equal(postData.config.maxFps, 30);
+});

@@ -30,106 +30,339 @@ export const dashboard = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Movie Night VR — Multi-Provider Cinema</title>
+  <title>Movie Night VR — Server Admin & Hub</title>
   <style>
     :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     body { margin: 0; background: #0c0a14; color: #f5f2fd; }
-    main { max-width: 960px; margin: auto; padding: 32px 20px; }
-    header { margin-bottom: 24px; }
-    h1 { font-size: clamp(32px, 6vw, 56px); margin: 0 0 8px; font-weight: 800; background: linear-gradient(135deg, #c7b0ff 0%, #a77eff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    p { line-height: 1.6; color: #bcb2d0; }
-    .hero { width: 100%; border-radius: 20px; max-height: 400px; object-fit: cover; box-shadow: 0 16px 48px rgba(0,0,0,0.4); border: 1px solid #2e2445; }
-    .card { background: #181326; border: 1px solid #34264f; padding: 24px; border-radius: 20px; margin: 24px 0; }
-    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
-    .badge { background: #261c3d; border: 1px solid #533980; padding: 6px 12px; border-radius: 999px; font-size: 13px; color: #d8c9ff; font-weight: 500; }
+    main { max-width: 960px; margin: auto; padding: 24px 16px; }
+    header { margin-bottom: 20px; }
+    h1 { font-size: clamp(28px, 5vw, 44px); margin: 0 0 6px; font-weight: 800; background: linear-gradient(135deg, #c7b0ff 0%, #a77eff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    p { line-height: 1.5; color: #bcb2d0; margin: 4px 0 12px; }
+    
+    .nav-tabs { display: flex; gap: 8px; border-bottom: 1px solid #2e2445; padding-bottom: 12px; margin-bottom: 24px; }
+    .nav-btn { background: #181326; color: #bcb2d0; border: 1px solid #34264f; padding: 10px 18px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.15s; }
+    .nav-btn:hover { background: #261c3d; color: #f5f2fd; }
+    .nav-btn.active { background: #7c4dff; color: #ffffff; border-color: #9667ff; box-shadow: 0 4px 16px rgba(124,77,255,0.3); }
+
+    .card { background: #181326; border: 1px solid #34264f; padding: 20px; border-radius: 18px; margin-bottom: 20px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
+    .badge { background: #261c3d; border: 1px solid #533980; padding: 6px 12px; border-radius: 999px; font-size: 12px; color: #d8c9ff; font-weight: 500; }
     .badge.active { background: #133a2a; border-color: #21875c; color: #78e8b4; }
-    .share-row { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+    .share-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
     @media (min-width: 680px) { .share-row { grid-template-columns: 1fr auto; align-items: start; } }
-    .qr-container { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0c0a14; padding: 14px; border-radius: 16px; border: 1px solid #34264f; min-width: 150px; text-align: center; }
-    .qr-container img { width: 140px; height: 140px; border-radius: 8px; background: white; padding: 4px; }
+    .qr-container { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0c0a14; padding: 14px; border-radius: 16px; border: 1px solid #34264f; min-width: 140px; text-align: center; }
+    .qr-container img { width: 130px; height: 130px; border-radius: 8px; background: white; padding: 4px; }
     .qr-container small { margin-top: 8px; color: #8f83ab; font-size: 11px; }
-    button { background: #9667ff; color: #0c0a14; border: 0; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.1s, background 0.15s; }
-    button:hover:not(:disabled) { background: #af87ff; transform: translateY(-1px); }
-    button:disabled { background: #3b3252; color: #776a91; cursor: not-allowed; }
-    input { box-sizing: border-box; width: 100%; background: #0c0a14; color: white; border: 1px solid #4a366e; border-radius: 10px; padding: 14px; margin: 8px 0 16px; font: inherit; }
-    input:focus { outline: none; border-color: #9667ff; box-shadow: 0 0 0 2px rgba(150,103,255,0.25); }
-    small { color: #9c8fb8; }
+
+    button.btn-primary { background: #7c4dff; color: #ffffff; border: 0; border-radius: 10px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+    button.btn-primary:hover:not(:disabled) { background: #9667ff; }
+    button.btn-primary:disabled { background: #3b3252; color: #776a91; cursor: not-allowed; }
+    button.btn-secondary { background: #261c3d; color: #d8c9ff; border: 1px solid #533980; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    button.btn-secondary:hover { background: #34264f; }
+    button.btn-danger { background: #4a1c24; color: #ff8595; border: 1px solid #803943; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    button.btn-danger:hover { background: #61222e; }
+
+    input, select { box-sizing: border-box; width: 100%; background: #0c0a14; color: white; border: 1px solid #4a366e; border-radius: 10px; padding: 12px; margin: 6px 0 14px; font: inherit; font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: #9667ff; box-shadow: 0 0 0 2px rgba(150,103,255,0.25); }
+    label { font-size: 13px; font-weight: 600; color: #d8c9ff; display: block; }
+    .field-hint { font-size: 11px; color: #8f83ab; margin-top: -10px; margin-bottom: 12px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 600px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+
+    .addon-item { display: flex; align-items: center; justify-content: space-between; background: #130e20; border: 1px solid #2e2445; padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; font-family: monospace; word-break: break-all; }
+    .toast { display: none; padding: 12px 18px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+    .toast.success { display: block; background: #133a2a; border: 1px solid #21875c; color: #78e8b4; }
+    .toast.error { display: block; background: #4a1c24; border: 1px solid #803943; color: #ff8595; }
+
     a { color: #bca1ff; text-decoration: none; }
     a:hover { text-decoration: underline; }
     ol { line-height: 1.8; color: #cfc6e4; padding-left: 20px; }
-    #status { color: #78e8b4; font-weight: 500; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px; }
-    .box { background: #130e20; border: 1px solid #2b1f42; padding: 16px; border-radius: 14px; }
-    .box h4 { margin: 0 0 6px; color: #e5ddfa; font-size: 15px; }
-    .box p { margin: 0; font-size: 13px; color: #9d90ba; }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Media-VR Cinema</h1>
-    <p>Multi-provider VR movie theater for Meta Quest with hardware transcoding, Jellyfin, Remux, MediaStorm, Silo, and Stremio.</p>
+    <h1>Movie Night VR</h1>
+    <p>Multi-provider cinema server for Meta Quest with hardware transcoding and zero-config streaming.</p>
   </header>
 
-  <img class="hero" src="/screenshots/apartment-lounge.png" alt="Movie Night VR Lounge">
+  <nav class="nav-tabs">
+    <button class="nav-btn active" onclick="switchTab('hub')">🎬 VR Hub & Invite</button>
+    <button class="nav-btn" onclick="switchTab('settings')">⚙️ Server Settings</button>
+    <button class="nav-btn" onclick="switchTab('remote')">📱 Room Remote</button>
+  </nav>
 
-  <section class="card">
-    <h2>Invite Friends to Your Room</h2>
-    <div class="badges">
-      <span id="transcoderBadge" class="badge">Detecting Transcoder…</span>
-      <span id="tunnelBadge" class="badge">Checking Tunnel…</span>
-      <span id="roomsBadge" class="badge">Rooms: 0</span>
-    </div>
-
-    <div class="share-row">
-      <div>
-        <p id="status" role="status">Checking your share link…</p>
-        <label for="link">Server Public URL</label>
-        <input id="link" readonly placeholder="Waiting for Cloudflare tunnel…">
-        <label for="room">Room Code (optional)</label>
-        <input id="room" maxlength="12" placeholder="e.g. 4-letter code from VR headset">
-        <button id="copy" disabled>Copy invite</button>
+  <!-- TAB 1: HUB & INVITE -->
+  <div id="tab-hub">
+    <section class="card">
+      <h2 style="margin-top:0;">Connect Headset to Room</h2>
+      <div class="badges">
+        <span id="transcoderBadge" class="badge">Detecting Transcoder…</span>
+        <span id="tunnelBadge" class="badge">Checking Tunnel…</span>
+        <span id="roomsBadge" class="badge">Active Rooms: 0</span>
       </div>
 
-      <div class="qr-container" id="qrWrapper" style="display:none;">
-        <img id="qrImg" alt="Room QR Code">
-        <small>Scan with phone or Quest browser</small>
-      </div>
-    </div>
-  </section>
+      <div class="share-row">
+        <div>
+          <p id="status" style="color:#78e8b4; font-weight:500;">Checking server access link…</p>
+          <label for="link">Server Public URL (Headset connects to this)</label>
+          <input id="link" readonly placeholder="Waiting for Cloudflare or network URL…">
+          <label for="room">Room Code (optional)</label>
+          <input id="room" maxlength="12" placeholder="e.g. 4-letter room code or leave blank">
+          <button id="copy" class="btn-primary" disabled>Copy invite</button>
+        </div>
 
-  <section class="card">
-    <h3>Integrated Media Backends</h3>
-    <div class="grid">
-      <div class="box">
-        <h4>🍿 Stremio + Add-ons</h4>
-        <p>AIOStreams, Torrentio, Comet, MediaFusion & Debrid streaming.</p>
+        <div class="qr-container" id="qrWrapper" style="display:none;">
+          <img id="qrImg" alt="Room QR Code">
+          <small>Scan with phone or Quest browser</small>
+        </div>
       </div>
-      <div class="box">
-        <h4>⚡ Jellyfin & Remux</h4>
-        <p>Native Jellyfin REST browsing & instant WebDAV/Debrid playback.</p>
-      </div>
-      <div class="box">
-        <h4>🌪️ MediaStorm</h4>
-        <p>Debrid/Usenet streaming server with direct HLS delivery.</p>
-      </div>
-      <div class="box">
-        <h4>🏰 Silo & Nuvio</h4>
-        <p>Self-hosted Go server libraries and Mellon profile sync.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <h2>How to Join in VR</h2>
-  <ol>
-    <li>Install <strong>Movie Night</strong> on your Meta Quest headset.</li>
-    <li>Open <strong>My Room</strong>, paste your server URL, and enter your room code.</li>
-    <li>Browse <strong>Discover</strong> or <strong>Accounts & Servers</strong> to choose movies or TV shows.</li>
-  </ol>
-  <p><a href="https://github.com/oOflyeyesOo/Media-VR" target="_blank" rel="noopener">GitHub Repository</a> · Multi-Provider VR Cinema</p>
+    <section class="card">
+      <h3>How to Join in VR</h3>
+      <ol>
+        <li>Put on your <strong>Meta Quest</strong> headset and launch Movie Night.</li>
+        <li>Open <strong>My Room</strong> $\rightarrow$ enter your server URL (or leave default on local network).</li>
+        <li>Click <strong>Connect</strong> and sit back on the couch with your friends!</li>
+      </ol>
+    </section>
+  </div>
+
+  <!-- TAB 2: SERVER SETTINGS (ADMIN PANEL) -->
+  <div id="tab-settings" style="display:none;">
+    <div id="settingsToast" class="toast"></div>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Media Companion & Streaming</h2>
+      <p>Configure your streaming backend without editing Docker Compose files or restarting containers.</p>
+      
+      <label for="cfgStreamingUrl">Streaming Service URL (Stremio / Media Companion)</label>
+      <input id="cfgStreamingUrl" placeholder="http://media:11470 or http://stremio:11470">
+      <div class="field-hint">Internal docker companion host (default: http://media:11470 or http://stremio:11470)</div>
+
+      <label>Installed Stremio Addons & Catalogs</label>
+      <div id="addonList" style="margin: 8px 0 12px;"></div>
+      <div style="display:flex; gap:8px;">
+        <input id="newAddonUrl" placeholder="https://torrentio.strem.fun/manifest.json" style="margin:0;">
+        <button type="button" class="btn-secondary" onclick="addAddon()" style="white-space:nowrap;">+ Add Catalog</button>
+      </div>
+      <div class="field-hint" style="margin-top:6px;">Add Torrentio, AIOStreams, Comet, MediaFusion, or Cinemeta manifest URLs.</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Transcoder & Video Quality</h2>
+      <div class="grid-2">
+        <div>
+          <label for="cfgMaxHeight">Maximum Video Resolution</label>
+          <select id="cfgMaxHeight">
+            <option value="720">720p (HD — Best for remote connections)</option>
+            <option value="1080" selected>1080p (Full HD — Recommended)</option>
+            <option value="2160">2160p (4K Ultra HD)</option>
+          </select>
+        </div>
+        <div>
+          <label for="cfgMaxFps">Target Framerate</label>
+          <select id="cfgMaxFps">
+            <option value="30">30 FPS</option>
+            <option value="60" selected>60 FPS (Smooth)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0;">External Servers & Subtitles (Optional)</h2>
+      <label for="cfgJellyfinUrl">Jellyfin / Emby Server URL</label>
+      <input id="cfgJellyfinUrl" placeholder="e.g. http://192.168.1.100:8096">
+
+      <label for="cfgOpenSubtitlesKey">OpenSubtitles.com API Key</label>
+      <input id="cfgOpenSubtitlesKey" placeholder="Optional OpenSubtitles API key for automatic subtitles">
+    </section>
+
+    <button id="saveSettingsBtn" class="btn-primary" onclick="saveSettings()" style="width:100%; padding:14px; font-size:15px;">💾 Save Server Settings</button>
+  </div>
+
+  <!-- TAB 3: ROOM REMOTE -->
+  <div id="tab-remote" style="display:none;">
+    <div id="remoteToast" class="toast"></div>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Send Video to VR Screen</h2>
+      <p>Play any direct stream, web video, or movie link directly in the headset room from your phone or browser.</p>
+
+      <label for="remoteVideoUrl">Video Stream URL</label>
+      <input id="remoteVideoUrl" placeholder="https://example.com/movie.mp4 or HLS m3u8 stream">
+      
+      <label for="remoteVideoTitle">Title (optional)</label>
+      <input id="remoteVideoTitle" placeholder="e.g. Inception (1080p)">
+
+      <button type="button" class="btn-primary" onclick="playInVR()" style="width:100%;">▶️ Play on VR Screen</button>
+    </section>
+
+    <section class="card">
+      <h3>Active Rooms Status</h3>
+      <div id="activeRoomsList">
+        <p style="color:#8f83ab; font-size:13px;">Loading active rooms…</p>
+      </div>
+    </section>
+  </div>
+
+  <p style="text-align:center; margin-top:32px; font-size:13px; color:#8f83ab;">
+    <a href="https://github.com/oOflyeyesOo/Media-VR" target="_blank" rel="noopener">Movie Night VR</a> · Open-Source Self-Hosted Cinema
+  </p>
 </main>
 
 <script>
+  let serverConfig = { addons: [] };
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#tab-hub, #tab-settings, #tab-remote').forEach(d => d.style.display = 'none');
+    
+    document.getElementById('tab-' + tabId).style.display = 'block';
+    event.target.classList.add('active');
+
+    if (tabId === 'settings') loadSettings();
+    if (tabId === 'remote') loadRooms();
+  }
+
+  async function loadSettings() {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        serverConfig = data.config || {};
+        document.getElementById('cfgStreamingUrl').value = serverConfig.streamingServiceUrl || '';
+        document.getElementById('cfgMaxHeight').value = serverConfig.maxHeight || 1080;
+        document.getElementById('cfgMaxFps').value = serverConfig.maxFps || 60;
+        document.getElementById('cfgJellyfinUrl').value = serverConfig.jellyfinUrl || '';
+        document.getElementById('cfgOpenSubtitlesKey').value = serverConfig.openSubtitlesApiKey || '';
+        renderAddonList();
+      }
+    } catch (err) {
+      console.error('Failed to load config:', err);
+    }
+  }
+
+  function renderAddonList() {
+    const listEl = document.getElementById('addonList');
+    listEl.innerHTML = '';
+    const addons = serverConfig.addons || [];
+    if (!addons.length) {
+      listEl.innerHTML = '<div style="color:#8f83ab; font-size:12px;">No custom catalogs added yet.</div>';
+      return;
+    }
+    addons.forEach((url, idx) => {
+      const row = document.createElement('div');
+      row.className = 'addon-item';
+      row.innerHTML = '<span>' + url + '</span><button type="button" class="btn-danger" onclick="removeAddon(' + idx + ')">Remove</button>';
+      listEl.appendChild(row);
+    });
+  }
+
+  function addAddon() {
+    const inp = document.getElementById('newAddonUrl');
+    const url = inp.value.trim();
+    if (!url) return;
+    if (!serverConfig.addons) serverConfig.addons = [];
+    if (!serverConfig.addons.includes(url)) {
+      serverConfig.addons.push(url);
+      inp.value = '';
+      renderAddonList();
+    }
+  }
+
+  function removeAddon(idx) {
+    if (serverConfig.addons && serverConfig.addons[idx]) {
+      serverConfig.addons.splice(idx, 1);
+      renderAddonList();
+    }
+  }
+
+  async function saveSettings() {
+    const toast = document.getElementById('settingsToast');
+    const btn = document.getElementById('saveSettingsBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+      streamingServiceUrl: document.getElementById('cfgStreamingUrl').value.trim(),
+      maxHeight: parseInt(document.getElementById('cfgMaxHeight').value, 10),
+      maxFps: parseInt(document.getElementById('cfgMaxFps').value, 10),
+      jellyfinUrl: document.getElementById('cfgJellyfinUrl').value.trim(),
+      openSubtitlesApiKey: document.getElementById('cfgOpenSubtitlesKey').value.trim(),
+      addons: serverConfig.addons || []
+    };
+
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        toast.className = 'toast success';
+        toast.textContent = '✓ Server settings successfully saved to /share/config.json!';
+        setTimeout(() => toast.style.display = 'none', 4000);
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch (e) {
+      toast.className = 'toast error';
+      toast.textContent = 'Failed to save settings: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Save Server Settings';
+    }
+  }
+
+  async function playInVR() {
+    const toast = document.getElementById('remoteToast');
+    const url = document.getElementById('remoteVideoUrl').value.trim();
+    const title = document.getElementById('remoteVideoTitle').value.trim();
+    if (!url) { alert('Please enter a video URL'); return; }
+
+    try {
+      const res = await fetch('/api/room/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, title })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.className = 'toast success';
+        toast.textContent = '▶️ Now playing "' + (data.title || 'video') + '" in room ' + (data.room || '') + '!';
+        document.getElementById('remoteVideoUrl').value = '';
+        setTimeout(() => toast.style.display = 'none', 4000);
+      } else {
+        toast.className = 'toast error';
+        toast.textContent = data.error || 'Failed to play in room';
+      }
+    } catch (e) {
+      toast.className = 'toast error';
+      toast.textContent = 'Error: ' + e.message;
+    }
+  }
+
+  async function loadRooms() {
+    const listEl = document.getElementById('activeRoomsList');
+    try {
+      const res = await fetch('/health');
+      if (res.ok) {
+        const h = await res.json();
+        const count = h.rooms || 0;
+        if (count === 0) {
+          listEl.innerHTML = '<p style="color:#8f83ab; font-size:13px;">No active VR rooms right now. Launch the app in Quest to join!</p>';
+        } else {
+          listEl.innerHTML = '<p style="color:#78e8b4; font-size:13px; font-weight:600;">● ' + count + ' active room(s) connected.</p>';
+        }
+      }
+    } catch {}
+  }
+
   const link = document.querySelector('#link');
   const statusEl = document.querySelector('#status');
   const copyBtn = document.querySelector('#copy');

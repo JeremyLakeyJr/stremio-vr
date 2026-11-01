@@ -11,9 +11,13 @@ import { hostingInfo, dashboard } from './hosting.js';
 import { detectMediaCapabilities } from './hwaccel.js';
 import { fetchSubtitles, searchOpenSubtitles } from './subtitles.js';
 import { sendNotification } from './notifications.js';
+import { loadConfig, getConfig, saveConfig, getPublicConfig } from './config.js';
 
 export async function createServer(options = {}) {
+  const serverConfig = await loadConfig();
   const capabilities = options.capabilities ?? await detectMediaCapabilities(options.ffmpegBinary || process.env.FFMPEG_BINARY || 'ffmpeg');
+  if (serverConfig.maxHeight && !options.capabilities) capabilities.maxHeight = serverConfig.maxHeight;
+  if (serverConfig.maxFps && !options.capabilities) capabilities.maxFps = serverConfig.maxFps;
   const rooms = new Rooms(options);
   const media = options.media === false ? null : new MediaServer({ ...options.mediaOptions, capabilities });
   const streams = new Map();
@@ -203,26 +207,90 @@ export async function createServer(options = {}) {
         let input = ''; let bytes = 0;
         for await (const chunk of req) { bytes += Buffer.byteLength(chunk); if (bytes > 65536) { res.writeHead(413); res.end(JSON.stringify({ error: 'Request too large' })); return; } input += chunk.toString(); }
         let data; try { data = JSON.parse(input); } catch { res.writeHead(400); res.end(JSON.stringify({ error: 'Invalid JSON' })); return; }
-        if (data?.operation === 'resolve' && process.env.STREAMING_SERVICE_URL) data.streamingService = process.env.STREAMING_SERVICE_URL;
+        if (data?.operation === 'resolve') {
+          const cfg = getConfig();
+          data.streamingService = cfg.streamingServiceUrl || process.env.STREAMING_SERVICE_URL || 'http://media:11470';
+        }
         const result = await runCore(data, options.coreBinary);
         res.end(JSON.stringify(result));
       } catch (error) { res.writeHead(error.status || 500); res.end(JSON.stringify({ error: error.message })); }
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/config') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: true, config: getPublicConfig() }));
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/config') {
+      try {
+        req.setEncoding('utf8');
+        let input = '';
+        for await (const chunk of req) input += chunk;
+        const body = JSON.parse(input);
+        const updated = await saveConfig(body);
+        if (updated.maxHeight) capabilities.maxHeight = updated.maxHeight;
+        if (updated.maxFps) capabilities.maxFps = updated.maxFps;
+        if (media && updated.streamingServiceUrl) {
+          try {
+            const u = new URL(updated.streamingServiceUrl);
+            if (u.host && !media.allowed.includes(u.host)) media.allowed.push(u.host);
+          } catch {}
+        }
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ok: true, config: getPublicConfig() }));
+      } catch (err) {
+        res.writeHead(400); res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/room/play') {
+      try {
+        req.setEncoding('utf8');
+        let input = '';
+        for await (const chunk of req) input += chunk;
+        const body = JSON.parse(input);
+        const { url, title, duration } = body;
+        if (!url) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing video url' })); return; }
+        let targetRoom = null;
+        if (body.roomId) {
+          targetRoom = rooms.rooms.get(body.roomId);
+        } else {
+          for (const r of rooms.rooms.values()) { targetRoom = r; break; }
+        }
+        if (!targetRoom) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: 'No active VR room found. Open Movie Night in Quest or create a room first!' }));
+          return;
+        }
+        targetRoom.playback.sourceUrl = url;
+        targetRoom.playback.sourceTitle = title || 'Shared Stream';
+        targetRoom.playback.paused = false;
+        targetRoom.playback.position = 0;
+        targetRoom.playback.duration = duration || 0;
+        targetRoom.playback.updatedAt = Date.now();
+        rooms.state(targetRoom);
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ok: true, room: targetRoom.id, title: targetRoom.playback.sourceTitle }));
+      } catch (err) {
+        res.writeHead(400); res.end(JSON.stringify({ error: err.message }));
+      }
       return;
     }
     if (req.method === 'GET' && req.url === '/source') {
       res.end(JSON.stringify({ name: 'Movie Night', license: 'AGPL-3.0-only', source: process.env.SOURCE_URL || 'https://github.com/oOflyeyesOo/Media-VR' })); return;
     }
     if (req.method === 'GET' && req.url === '/api/system/capabilities') {
+      const cfg = getConfig();
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
         version: '0.2.0',
         transcoder: capabilities,
-        streamingService: Boolean(process.env.STREAMING_SERVICE_URL),
+        streamingService: Boolean(cfg.streamingServiceUrl || process.env.STREAMING_SERVICE_URL),
         providers: {
-          jellyfin: Boolean(process.env.JELLYFIN_URL),
-          remux: Boolean(process.env.REMUX_URL),
-          mediastorm: Boolean(process.env.MEDIASTORM_URL),
-          silo: Boolean(process.env.SILO_URL)
+          jellyfin: Boolean(cfg.jellyfinUrl || process.env.JELLYFIN_URL),
+          remux: Boolean(cfg.remuxUrl || process.env.REMUX_URL),
+          mediastorm: Boolean(cfg.mediastormUrl || process.env.MEDIASTORM_URL),
+          silo: Boolean(cfg.siloUrl || process.env.SILO_URL)
         },
         tunnels: {
           cloudflare: Boolean(process.env.TUNNEL_TOKEN || process.env.TUNNEL_URL),
