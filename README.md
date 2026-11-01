@@ -17,7 +17,7 @@ Hang out in Open Concept Home on Meta Quest, stream your favorite movies and sho
 - **Hardware GPU transcoding & Smart Remux:** auto-detected NVENC, QSV, VAAPI, VideoToolbox, and AMF acceleration. Compatible H.264 streams bypass transcoding via Smart Remux for 0% CPU/GPU overhead.
 - **Cloudflare Tunnels (Free & Named):** zero-configuration TryCloudflare quick tunnels out of the box, with full support for paid/named Cloudflare Zero Trust / Argo tunnels (`TUNNEL_TOKEN`).
 - **Subtitles & audio sync:** automatic SRT to WebVTT conversion, in-memory caching, and on-the-fly timing offset adjustments.
-- **Scrobbling & watch history:** native progress synchronization to Jellyfin sessions and Trakt / Simkl scrobbling.
+- **Watch history & progress sync:** native playback synchronization with Jellyfin/Remux, MediaStorm, Silo, and local resume caching. Scrobbling to Trakt/Simkl is handled cleanly server-side by upstream media server plugins without client duplication.
 - **Make it yours:** place extra movie screens and game tables where you want them.
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
 - **Talk and play:** WebRTC voice with echo cancellation, customizable R6 avatars, and shared tabletop games.
@@ -49,7 +49,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] **Smart Remux:** direct stream passthrough (`-c:v copy`) for H.264 video to eliminate transcoding load.
 - [x] **Cloudflare Zero Trust / Argo Tunnels:** support for persistent named domains via `TUNNEL_TOKEN`, with automatic fallback to free TryCloudflare tunnels.
 - [x] **Subtitles Pipeline:** on-the-fly SRT to WebVTT conversion, timing offset adjustments (`?offset=±seconds`), and multi-viewer caching.
-- [x] **Watch Progress & Scrobbling:** Jellyfin session reporting (`/Sessions/Playing`), Trakt scrobbling (`/scrobble`), and local resume caching.
+- [x] **Watch Progress & Sync:** native backend session reporting (`/Sessions/Playing`, `/api/progress`), server-side scrobbling delegation, and local resume caching.
 - [x] **Webhooks & Room Notifications:** rich Discord embeds, Slack blocks, and Apprise/generic webhook alerts.
 - [x] **Sharing Dashboard:** QR code rendering on the host web page for fast headset and mobile pairing.
 - [x] **Universal Stremio Add-on Protocol:** dynamic manifest installation and stream resolution for Cinemeta, Torrentio, CyberFlix, and anime add-ons.
@@ -77,7 +77,7 @@ flowchart TD
         SI["SiloProvider"]
         ST["StremioAddonProvider"]
         NV["NuvioMellonSync"]
-        WP["WatchProgressSync (Trakt / Jellyfin)"]
+        WP["WatchProgressSync (Jellyfin / MediaStorm / Silo)"]
         Playback["CinemaPlayback"]
 
         Reg --> JF
@@ -202,10 +202,10 @@ Movie Night includes a dedicated subtitle extraction, conversion, and caching en
 
 ---
 
-## Scrobbling & Watch Progress Sync
+## Watch Progress Sync & Server-Side Scrobbling
 
-- **Trakt / Simkl Scrobbling:** Configure `TraktClientId` and `TraktAccessToken` in the client. When playback starts, pauses, or finishes, `WatchProgressSync.cs` sends scrobble events with exact percentage completion.
-- **Jellyfin Playback Reporting:** Updates Jellyfin's server-side session ticker so your media library's *Continue Watching* list remains synchronized between your TV, phone, and VR headset.
+- **Server-Side Scrobbling:** Trakt and Simkl scrobbling is delegated to your upstream media server (e.g. Jellyfin Trakt plugin, Stremio account sync). The VR client reports accurate playback sessions directly to the active media server, preventing duplicate scrobbles or token desync.
+- **Backend Session Reporting:** Continuously updates playback progress ticks to Jellyfin (`/Sessions/Playing/*`), MediaStorm, or Silo (`/api/progress`) so your *Continue Watching* row remains up to date across all devices.
 - **Local Fallback:** Last known resume positions are automatically saved to Quest local storage (`PlayerPrefs`) for serverless Solo playback.
 
 ---
@@ -397,7 +397,7 @@ unity/
 │   │       ├── SiloProvider.cs         # Silo Go backend client
 │   │       ├── StremioAddonProvider.cs # Universal Stremio addon manifest wrapper
 │   │       ├── NuvioMellonSync.cs      # Mellon/Nuvio addon importer
-│   │       └── WatchProgressSync.cs    # Trakt & Jellyfin progress scrobbler
+│   │       └── WatchProgressSync.cs    # Multi-backend watch progress synchronizer
 server/
 ├── index.js                     # HTTP/WebSocket gateway & notification dispatcher
 ├── hwaccel.js                   # GPU encoder detection & Smart Remux pipeline

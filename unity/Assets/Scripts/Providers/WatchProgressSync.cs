@@ -1,21 +1,17 @@
 using System;
-using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace StremioVR.Providers
 {
     /// <summary>
-    /// Tracks and synchronizes playback progress across media backends (Jellyfin/Remux, Trakt, local cache).
+    /// Tracks and synchronizes playback progress across media backends (Jellyfin/Remux, MediaStorm, Silo, local cache).
     /// Ensures Continue Watching queues remain accurate whether watching on Meta Quest, PC, or phone.
+    /// Scrobbling to external services (Trakt, Simkl) is handled server-side by upstream media server plugins.
     /// </summary>
     public class WatchProgressSync : MonoBehaviour
     {
         public static WatchProgressSync Instance { get; private set; }
-
-        public string TraktClientId;
-        public string TraktAccessToken;
 
         private string _activeProviderId;
         private string _activeItemId;
@@ -72,11 +68,6 @@ namespace StremioVR.Providers
             {
                 _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(itemId, positionSeconds, false);
             }
-
-            if (IsTraktConfigured())
-            {
-                ReportTraktScrobble("start", positionSeconds, durationSeconds);
-            }
         }
 
         public void OnPlaybackPositionUpdated(double positionSeconds)
@@ -102,11 +93,6 @@ namespace StremioVR.Providers
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
                 _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
-            }
-
-            if (IsTraktConfigured())
-            {
-                ReportTraktScrobble("pause", positionSeconds, _activeDurationSeconds);
             }
         }
 
@@ -146,11 +132,6 @@ namespace StremioVR.Providers
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
                 _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
-            }
-
-            if (IsTraktConfigured())
-            {
-                ReportTraktScrobble("stop", positionSeconds, _activeDurationSeconds);
             }
 
             _activeItemId = null;
@@ -195,9 +176,6 @@ namespace StremioVR.Providers
             return 0;
         }
 
-        private bool IsTraktConfigured() =>
-            !string.IsNullOrEmpty(TraktClientId) && !string.IsNullOrEmpty(TraktAccessToken);
-
         private async void ReportJellyfinPlayback(string state, double positionSeconds, bool isPaused = false)
         {
             var jellyfin = MediaProviderRegistry.Instance?.Jellyfin;
@@ -222,57 +200,12 @@ namespace StremioVR.Providers
             catch {}
         }
 
-        private async void ReportTraktScrobble(string action, double positionSeconds, double durationSeconds)
-        {
-            if (!IsTraktConfigured() || durationSeconds <= 0) return;
-
-            float progressPercent = Mathf.Clamp((float)(positionSeconds / durationSeconds) * 100f, 0f, 100f);
-            string url = $"https://api.trakt.tv/scrobble/{action}";
-
-            string body = JsonUtility.ToJson(new TraktScrobblePayload
-            {
-                progress = progressPercent,
-                movie = new TraktMovieRef { title = _activeTitle }
-            });
-
-            try
-            {
-                using var req = new UnityWebRequest(url, "POST");
-                req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
-                req.downloadHandler = new DownloadHandlerBuffer();
-                req.SetRequestHeader("Content-Type", "application/json");
-                req.SetRequestHeader("trakt-api-version", "2");
-                req.SetRequestHeader("trakt-api-key", TraktClientId);
-                req.SetRequestHeader("Authorization", $"Bearer {TraktAccessToken}");
-                req.timeout = 10;
-
-                var tcs = new TaskCompletionSource<bool>();
-                var op = req.SendWebRequest();
-                op.completed += _ => tcs.SetResult(true);
-                await tcs.Task;
-            }
-            catch {}
-        }
-
         [Serializable]
         private class JellyfinProgressPayload
         {
             public string ItemId;
             public long PositionTicks;
             public bool IsPaused;
-        }
-
-        [Serializable]
-        private class TraktScrobblePayload
-        {
-            public float progress;
-            public TraktMovieRef movie;
-        }
-
-        [Serializable]
-        private class TraktMovieRef
-        {
-            public string title;
         }
     }
 }
