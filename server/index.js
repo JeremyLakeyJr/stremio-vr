@@ -243,11 +243,22 @@ export async function createServer(options = {}) {
         const updated = await saveConfig(body);
         if (updated.maxHeight) capabilities.maxHeight = updated.maxHeight;
         if (updated.maxFps) capabilities.maxFps = updated.maxFps;
-        if (media && updated.streamingServiceUrl) {
-          try {
-            const u = new URL(updated.streamingServiceUrl);
-            if (u.host && !media.allowed.includes(u.host)) media.allowed.push(u.host);
-          } catch {}
+        if (media) {
+          const hosts = [
+            updated.streamingServiceUrl,
+            updated.jellyfinUrl,
+            updated.remuxUrl,
+            updated.mediastormUrl,
+            updated.siloUrl
+          ];
+          for (const h of hosts) {
+            if (h) {
+              try {
+                const u = new URL(h);
+                if (u.host && !media.allowed.includes(u.host)) media.allowed.push(u.host);
+              } catch {}
+            }
+          }
         }
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ ok: true, config: getPublicConfig() }));

@@ -47,10 +47,22 @@ export const dashboard = `<!doctype html>
     .nav-btn:hover { background: #261c3d; color: #f5f2fd; }
     .nav-btn.active { background: #7c4dff; color: #ffffff; border-color: #9667ff; box-shadow: 0 4px 16px rgba(124,77,255,0.3); }
 
-    .card { background: #181326; border: 1px solid #34264f; padding: 20px; border-radius: 18px; margin-bottom: 20px; }
+    .card { background: #181326; border: 1px solid #34264f; padding: 22px; border-radius: 18px; margin-bottom: 22px; }
+    .card h2 { margin: 0 0 6px; font-size: 19px; color: #f5f2fd; }
+    .card p.card-desc { margin: 0 0 16px; color: #a99ebd; font-size: 13px; line-height: 1.5; }
     .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
     .badge { background: #261c3d; border: 1px solid #533980; padding: 6px 12px; border-radius: 999px; font-size: 12px; color: #d8c9ff; font-weight: 500; }
     .badge.active { background: #133a2a; border-color: #21875c; color: #78e8b4; }
+    .badge.offline { background: #351a24; border-color: #7a2b3d; color: #ff94a4; }
+
+    .guide-box { background: #100b1d; border: 1px solid #2e2445; border-left: 3px solid #7c4dff; padding: 14px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; color: #c8bee0; line-height: 1.6; }
+    .guide-box strong { color: #ffffff; }
+    .guide-box ol, .guide-box ul { margin: 6px 0 0; padding-left: 18px; }
+    .guide-box code { background: #1c1430; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #d8c9ff; }
+
+    .server-status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+    .server-status-pill.online { background: #133a2a; color: #78e8b4; }
+    .server-status-pill.offline { background: #2f1722; color: #ff9bb0; }
 
     .share-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
     @media (min-width: 680px) { .share-row { grid-template-columns: 1fr auto; align-items: start; } }
@@ -137,16 +149,31 @@ export const dashboard = `<!doctype html>
   <div id="tab-settings" style="display:none;">
     <div id="settingsToast" class="toast"></div>
 
-    <!-- STREMIO ACCOUNT SYNC -->
+    <!-- 1. ALL-IN-ONE MEDIA BACKENDS & SERVERS -->
     <section class="card">
-      <h2 style="margin-top:0;">Stremio Account & Addon Sync</h2>
-      <p>Log in with your Stremio account to automatically sync your catalogs, Torrentio, and Debrid configuration to this server.</p>
-      
-      <div id="stremioLoggedOut" style="display:none;">
-        <div style="display:flex; flex-direction:column; gap:12px; align-items:flex-start;">
-          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()">🔗 Quick Link Stremio Account</button>
-          <div id="linkPrompt" style="display:none; background:#0c0a14; border:1px solid #4a366e; border-radius:12px; padding:16px; width:100%; box-sizing:border-box;">
-            <p style="margin:0 0 10px; font-weight:600;">1. Open the link or scan QR code on your phone/browser:</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+        <h2 style="margin:0;">🎬 Media Servers & Backends</h2>
+        <button type="button" class="btn-secondary" onclick="checkProviderStatuses()" style="padding:6px 12px; font-size:12px;">🔄 Check Status</button>
+      </div>
+      <p class="card-desc">Configure your media backends. All video streams are hardware-transcoded into unified VR audio/video channels.</p>
+
+      <div class="guide-box">
+        <strong>Supported Media Servers:</strong>
+        <p style="margin:4px 0 0;">Movie Night connects to your existing home lab servers. Enter the LAN or Tailscale address and credentials below. The companion transcoder automatically proxies and synchronizes video playback to everyone in the room.</p>
+      </div>
+
+      <!-- STREMIO & ADDON SYNC -->
+      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Stremio & Debrid Catalogs</h3>
+          <span id="badge-stremio" class="server-status-pill offline">Checking…</span>
+        </div>
+        <p style="font-size:12px; color:#a99ebd; margin:0 0 12px;">Link your Stremio account to automatically import all your Torrentio, Debrid, and custom catalogs into VR.</p>
+
+        <div id="stremioLoggedOut" style="display:none;">
+          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()" style="font-size:13px; padding:10px 16px;">🔗 Quick Link Stremio Account</button>
+          <div id="linkPrompt" style="display:none; background:#0c0a14; border:1px solid #4a366e; border-radius:12px; padding:16px; margin-top:12px; width:100%; box-sizing:border-box;">
+            <p style="margin:0 0 10px; font-weight:600; font-size:13px;">1. Open the link or scan QR code on your phone/browser:</p>
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
               <a id="linkUrlAnchor" href="#" target="_blank" rel="noopener" class="btn-secondary" style="font-weight:700;">Open Stremio Link</a>
               <span id="linkCodeBadge" class="badge active" style="font-size:16px; padding:8px 16px; font-family:monospace;">CODE</span>
@@ -155,80 +182,153 @@ export const dashboard = `<!doctype html>
             <p style="color:#78e8b4; font-size:12px; margin:12px 0 0;">Waiting for you to click "Authorize" on Stremio…</p>
           </div>
         </div>
-      </div>
 
-      <div id="stremioLoggedIn" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#133a2a; border:1px solid #21875c; padding:14px; border-radius:12px;">
-          <div>
-            <div style="font-weight:700; color:#78e8b4;" id="stremioUserName">Signed in as Stremio User</div>
-            <div style="font-size:12px; color:#a3e0c4;" id="stremioAddonSummary">Addons and catalogs synced automatically.</div>
+        <div id="stremioLoggedIn" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#133a2a; border:1px solid #21875c; padding:12px 16px; border-radius:10px;">
+            <div>
+              <div style="font-weight:700; color:#78e8b4;" id="stremioUserName">Signed in as Stremio User</div>
+              <div style="font-size:12px; color:#a3e0c4;" id="stremioAddonSummary">Addons and catalogs synced automatically.</div>
+            </div>
+            <button type="button" class="btn-danger" onclick="unlinkStremio()">Disconnect</button>
           </div>
-          <button type="button" class="btn-danger" onclick="unlinkStremio()">Disconnect Account</button>
         </div>
+      </div>
+
+      <!-- JELLYFIN & EMBY -->
+      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Jellyfin / Emby Media Server</h3>
+          <span id="badge-jellyfin" class="server-status-pill offline">Not Configured</span>
+        </div>
+        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">Connect your local Jellyfin server to stream personal media collections with live sync.</p>
+        <label for="cfgJellyfinUrl">Jellyfin Server URL</label>
+        <input id="cfgJellyfinUrl" placeholder="e.g. http://192.168.1.100:8096 or http://jellyfin.local:8096">
+        <div class="field-hint">Use your LAN IP or internal hostname. Docker network names work if sharing a bridge.</div>
+      </div>
+
+      <!-- MEDIASTORM -->
+      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">MediaStorm (Debrid & Usenet Engine)</h3>
+          <span id="badge-mediastorm" class="server-status-pill offline">Not Configured</span>
+        </div>
+        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">High-speed Debrid cache, Real-Debrid, AllDebrid, and Premiumize downloader engine.</p>
+        <div class="grid-2">
+          <div>
+            <label for="cfgMediastormUrl">MediaStorm URL</label>
+            <input id="cfgMediastormUrl" placeholder="e.g. http://192.168.1.100:7777">
+          </div>
+          <div>
+            <label for="cfgMediastormKey">MediaStorm API Key</label>
+            <input id="cfgMediastormKey" placeholder="Paste X-MediaStorm-Key API token">
+          </div>
+        </div>
+      </div>
+
+      <!-- SILO & REMUX -->
+      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Silo & Remux Engines</h3>
+          <span id="badge-silo" class="server-status-pill offline">Not Configured</span>
+        </div>
+        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">High-performance Go streaming and direct remux backends for ultra-low latency playback.</p>
+        <div class="grid-2">
+          <div>
+            <label for="cfgSiloUrl">Silo Backend URL</label>
+            <input id="cfgSiloUrl" placeholder="e.g. http://192.168.1.100:8082">
+          </div>
+          <div>
+            <label for="cfgSiloToken">Silo Auth Token</label>
+            <input id="cfgSiloToken" placeholder="Bearer auth token">
+          </div>
+        </div>
+        <label for="cfgRemuxUrl">Remux Service URL</label>
+        <input id="cfgRemuxUrl" placeholder="e.g. http://remux:8096 or direct remux daemon">
       </div>
     </section>
 
-    <!-- NETWORK & TUNNELS -->
+    <!-- 2. TRANSCODER LIMITS ACROSS ALL BACKENDS -->
     <section class="card">
-      <h2 style="margin-top:0;">Remote Access & Network Tunnels</h2>
-      <p>Configure remote access to reach your Movie Night VR server from outside your local home network.</p>
+      <h2>⚡ Hardware Transcoder & Video Quality</h2>
+      <p class="card-desc">Applies universally to Stremio, Jellyfin, MediaStorm, Silo, Remux, and direct stream URLs.</p>
       
-      <label for="cfgTunnelToken">Cloudflare Named Tunnel Token (Zero Trust)</label>
-      <input id="cfgTunnelToken" placeholder="eyJ... Cloudflare Zero Trust Tunnel Token">
-      <div class="field-hint">Paste your Cloudflare Tunnel token here if using an Argo/Zero Trust named tunnel.</div>
-
-      <div class="grid-2">
-        <div>
-          <label for="cfgTunnelUrl">Custom Cloudflare Domain / Public URL</label>
-          <input id="cfgTunnelUrl" placeholder="https://cinema.yourdomain.com">
-          <div class="field-hint">Public domain mapped in Cloudflare Zero Trust.</div>
-        </div>
-        <div>
-          <label for="cfgTailscaleUrl">Tailscale MagicDNS / IP URL</label>
-          <input id="cfgTailscaleUrl" placeholder="http://movie-night.your-tailnet.ts.net:3000">
-          <div class="field-hint">Tailscale address if accessing via private Tailnet mesh.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- MEDIA COMPANION & QUALITY -->
-    <section class="card">
-      <h2 style="margin-top:0;">Streaming Companion & Transcoder</h2>
-      
-      <label for="cfgStreamingUrl">Companion Engine URL</label>
-      <input id="cfgStreamingUrl" placeholder="http://media:11470 or http://stremio:11470">
-      <div class="field-hint">Internal docker companion host (default: http://media:11470).</div>
-
       <div class="grid-2">
         <div>
           <label for="cfgMaxHeight">Maximum Video Resolution</label>
           <select id="cfgMaxHeight">
-            <option value="720">720p (HD — Best for remote connections)</option>
-            <option value="1080" selected>1080p (Full HD — Recommended)</option>
-            <option value="2160">2160p (4K Ultra HD)</option>
+            <option value="720">720p (HD — Best for slower remote connections)</option>
+            <option value="1080" selected>1080p (Full HD — Recommended for Meta Quest 2 / 3 / Pro)</option>
+            <option value="1440">1440p (2K Quad HD)</option>
+            <option value="2160">2160p (4K Ultra HD — High LAN bandwidth required)</option>
           </select>
+          <div class="field-hint">Streams exceeding this resolution are automatically transcoded down to preserve smooth VR frame rates.</div>
         </div>
         <div>
           <label for="cfgMaxFps">Target Framerate</label>
           <select id="cfgMaxFps">
-            <option value="30">30 FPS</option>
-            <option value="60" selected>60 FPS (Smooth)</option>
+            <option value="24">24 FPS (Cinematic standard)</option>
+            <option value="30">30 FPS (TV standard)</option>
+            <option value="60" selected>60 FPS (Super smooth VR playback)</option>
           </select>
+          <div class="field-hint">Matches Meta Quest native display refresh rate for jitter-free viewing.</div>
         </div>
       </div>
+
+      <label for="cfgStreamingUrl">Internal Companion Engine URL</label>
+      <input id="cfgStreamingUrl" placeholder="http://media:11470">
+      <div class="field-hint">Internal docker companion engine (default: <code>http://media:11470</code>).</div>
     </section>
 
-    <!-- EXTERNAL SERVERS -->
+    <!-- 3. REMOTE ACCESS & NETWORK (CLOUDFLARE & TAILSCALE) -->
     <section class="card">
-      <h2 style="margin-top:0;">External Servers & Subtitles (Optional)</h2>
-      <label for="cfgJellyfinUrl">Jellyfin / Emby Server URL</label>
-      <input id="cfgJellyfinUrl" placeholder="e.g. http://192.168.1.100:8096">
+      <h2>🌐 Remote Access: Cloudflare Tunnel & Tailscale Mesh</h2>
+      <p class="card-desc">Access your VR cinema with friends outside your house without opening router ports or exposing your home IP.</p>
 
-      <label for="cfgOpenSubtitlesKey">OpenSubtitles.com API Key</label>
-      <input id="cfgOpenSubtitlesKey" placeholder="Optional OpenSubtitles API key for automatic subtitles">
+      <!-- CLOUDFLARE INSTRUCTIONS & CONFIG -->
+      <div class="guide-box">
+        <strong>☁️ Cloudflare Named Tunnel Setup Guide:</strong>
+        <ol>
+          <li>Open your <strong>Cloudflare Zero Trust Dashboard</strong> (<code>one.dash.cloudflare.com</code>) → <strong>Networks</strong> → <strong>Tunnels</strong>.</li>
+          <li>Click <strong>Create a Tunnel</strong> → choose <strong>Cloudflared</strong> → name it <code>movie-night</code>.</li>
+          <li>Copy the <strong>Tunnel Token</strong> (starts with <code>eyJ...</code>) and paste it below.</li>
+          <li>In Cloudflare Tunnel's <strong>Public Hostname</strong> tab, add your domain (e.g. <code>cinema.yourdomain.com</code>) pointing to <strong>Service:</strong> <code>HTTP://cinema:3000</code>.</li>
+          <li>Enter your custom domain in the <strong>Custom Cloudflare Domain</strong> field below and click Save!</li>
+        </ol>
+      </div>
+
+      <label for="cfgTunnelToken">Cloudflare Named Tunnel Token (Zero Trust)</label>
+      <input id="cfgTunnelToken" placeholder="eyJ... Cloudflare Zero Trust Tunnel Token">
+      <div class="field-hint">Paste your Cloudflare Tunnel token here if using an Argo/Zero Trust named tunnel.</div>
+
+      <label for="cfgTunnelUrl">Custom Cloudflare Domain / Public URL</label>
+      <input id="cfgTunnelUrl" placeholder="https://cinema.yourdomain.com">
+      <div class="field-hint">Your public domain mapped in Cloudflare Zero Trust. Used to generate Quest join QR codes.</div>
+
+      <!-- TAILSCALE INSTRUCTIONS & CONFIG -->
+      <div class="guide-box" style="border-left-color: #00d084; margin-top:20px;">
+        <strong>🔒 Tailscale Private Mesh Setup Guide:</strong>
+        <ol>
+          <li>In <strong>DockTun</strong> (or your host server), connect the host to Tailscale via <code>tailscale up</code> or DockTun's Tailscale integration.</li>
+          <li>Open your <strong>Tailscale Admin Console</strong> (<code>login.tailscale.com/admin/machines</code>) to view your server's <strong>MagicDNS</strong> name (e.g. <code>server.tailnet.ts.net</code>) or <code>100.x.y.z</code> IP.</li>
+          <li>On your <strong>Meta Quest</strong>, install the Tailscale APK (via SideQuest or Quest developer mode) and log into the same Tailnet.</li>
+          <li>Enter your Tailscale URL below (e.g. <code>http://movie-night.tailnet.ts.net:3000</code>). Headsets on your Tailnet can connect securely with zero internet exposure!</li>
+        </ol>
+      </div>
+
+      <label for="cfgTailscaleUrl">Tailscale MagicDNS / IP URL</label>
+      <input id="cfgTailscaleUrl" placeholder="http://movie-night.your-tailnet.ts.net:3000">
+      <div class="field-hint">Tailscale address for private, end-to-end encrypted mesh networking.</div>
     </section>
 
-    <button id="saveSettingsBtn" class="btn-primary" onclick="saveSettings()" style="width:100%; padding:14px; font-size:15px;">💾 Save Server Settings</button>
+    <!-- 4. SUBTITLES & MISC -->
+    <section class="card">
+      <h2>💬 Subtitles & Metadata</h2>
+      <label for="cfgOpenSubtitlesKey">OpenSubtitles.com API Key</label>
+      <input id="cfgOpenSubtitlesKey" placeholder="Optional OpenSubtitles.com REST API Key">
+      <div class="field-hint">Enables searching and downloading subtitles in 80+ languages on the fly during movie playback.</div>
+    </section>
+
+    <button id="saveSettingsBtn" class="btn-primary" onclick="saveSettings()" style="width:100%; padding:16px; font-size:16px;">💾 Save All Server Settings</button>
   </div>
 
   <!-- TAB 3: ROOM REMOTE -->
@@ -285,18 +385,45 @@ export const dashboard = `<!doctype html>
         const data = await res.json();
         serverConfig = data.config || {};
         document.getElementById('cfgStreamingUrl').value = serverConfig.streamingServiceUrl || '';
+        document.getElementById('cfgJellyfinUrl').value = serverConfig.jellyfinUrl || '';
+        document.getElementById('cfgMediastormUrl').value = serverConfig.mediastormUrl || '';
+        document.getElementById('cfgMediastormKey').value = serverConfig.mediastormKey || '';
+        document.getElementById('cfgSiloUrl').value = serverConfig.siloUrl || '';
+        document.getElementById('cfgSiloToken').value = serverConfig.siloToken || '';
+        document.getElementById('cfgRemuxUrl').value = serverConfig.remuxUrl || '';
         document.getElementById('cfgTunnelToken').value = serverConfig.tunnelToken || '';
         document.getElementById('cfgTunnelUrl').value = serverConfig.tunnelUrl || '';
         document.getElementById('cfgTailscaleUrl').value = serverConfig.tailscaleUrl || '';
         document.getElementById('cfgMaxHeight').value = serverConfig.maxHeight || 1080;
         document.getElementById('cfgMaxFps').value = serverConfig.maxFps || 60;
-        document.getElementById('cfgJellyfinUrl').value = serverConfig.jellyfinUrl || '';
         document.getElementById('cfgOpenSubtitlesKey').value = serverConfig.openSubtitlesApiKey || '';
         renderStremioStatus();
+        checkProviderStatuses();
       }
     } catch (err) {
       console.error('Failed to load config:', err);
     }
+  }
+
+  async function checkProviderStatuses() {
+    try {
+      const res = await fetch('/api/providers');
+      if (res.ok) {
+        const data = await res.json();
+        const p = data.providers || {};
+        updatePill('badge-stremio', p.stremio?.online, p.stremio?.configured ? (p.stremio.online ? 'Online' : 'Offline') : 'Standby');
+        updatePill('badge-jellyfin', p.jellyfin?.online, p.jellyfin?.configured ? (p.jellyfin.online ? 'Online' : 'Offline') : 'Not Configured');
+        updatePill('badge-mediastorm', p.mediastorm?.online, p.mediastorm?.configured ? (p.mediastorm.online ? 'Online' : 'Offline') : 'Not Configured');
+        updatePill('badge-silo', p.silo?.online, p.silo?.configured ? (p.silo.online ? 'Online' : 'Offline') : 'Not Configured');
+      }
+    } catch {}
+  }
+
+  function updatePill(id, online, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'server-status-pill ' + (online ? 'online' : 'offline');
   }
 
   function renderStremioStatus() {
@@ -365,12 +492,17 @@ export const dashboard = `<!doctype html>
 
     const payload = {
       streamingServiceUrl: document.getElementById('cfgStreamingUrl').value.trim(),
+      jellyfinUrl: document.getElementById('cfgJellyfinUrl').value.trim(),
+      mediastormUrl: document.getElementById('cfgMediastormUrl').value.trim(),
+      mediastormKey: document.getElementById('cfgMediastormKey').value.trim(),
+      siloUrl: document.getElementById('cfgSiloUrl').value.trim(),
+      siloToken: document.getElementById('cfgSiloToken').value.trim(),
+      remuxUrl: document.getElementById('cfgRemuxUrl').value.trim(),
       tunnelToken: document.getElementById('cfgTunnelToken').value.trim(),
       tunnelUrl: document.getElementById('cfgTunnelUrl').value.trim(),
       tailscaleUrl: document.getElementById('cfgTailscaleUrl').value.trim(),
       maxHeight: parseInt(document.getElementById('cfgMaxHeight').value, 10),
       maxFps: parseInt(document.getElementById('cfgMaxFps').value, 10),
-      jellyfinUrl: document.getElementById('cfgJellyfinUrl').value.trim(),
       openSubtitlesApiKey: document.getElementById('cfgOpenSubtitlesKey').value.trim()
     };
 
