@@ -176,4 +176,4 @@ Integrated the ToxSam registry at revision `0f9a1b2fd99894736563d55b2c9dc9125700
 
 40 Unity EditMode tests passed, including a real CC0 Devil avatar from Polygonal Mind/100Avatars R1, migration from VRM 0.x, export/reimport through the VRM 1.0 loader, malformed/external-resource rejection, and existing rendering/interaction regressions. 58 server tests passed, including profile synchronization, unknown ID rejection and parity between the server/headset catalogs. The real-model fixture lives in ignored `unity/Builds/avatar-fixture.vrm`; download it from the pinned catalog to repeat that integration test. No claim that all 4,274 individual models have been tested.
 
-Final APK build and headset appearance/controls check pending.
+Alpha 8 (0.1.7, Android code 8) built and installed on Quest. The user confirmed that preview, selection, both-eye appearance, mirror and tracked head/arms work. Recent Unity/Android logs showed no matching runtime errors. The Docker image built successfully and loaded all 4,274 catalog IDs. Multi-headset performance across the full avatar catalog remains unmeasured.
