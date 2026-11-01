@@ -7,6 +7,11 @@ const defaultConfig = {
   streamingServiceUrl: process.env.STREAMING_SERVICE_URL || 'http://media:11470',
   mediaAllowedHosts: process.env.MEDIA_ALLOWED_HOSTS || 'media:11470,stremio:11470',
   allowPrivateNetworks: process.env.ALLOW_PRIVATE_NETWORKS !== 'false',
+  stremioAuthKey: '',
+  stremioUser: '',
+  tunnelToken: process.env.TUNNEL_TOKEN || '',
+  tunnelUrl: process.env.TUNNEL_URL || '',
+  tailscaleUrl: process.env.TAILSCALE_URL || '',
   jellyfinUrl: process.env.JELLYFIN_URL || '',
   mediastormUrl: process.env.MEDIASTORM_URL || '',
   mediastormKey: process.env.MEDIASTORM_KEY || '',
@@ -62,6 +67,8 @@ export function getConfig() {
 
 export function getPublicConfig() {
   const cfg = { ...currentConfig };
+  if (cfg.stremioAuthKey) cfg.stremioAuthKey = maskToken(cfg.stremioAuthKey);
+  if (cfg.tunnelToken) cfg.tunnelToken = maskToken(cfg.tunnelToken);
   if (cfg.mediastormKey) cfg.mediastormKey = maskToken(cfg.mediastormKey);
   if (cfg.siloToken) cfg.siloToken = maskToken(cfg.siloToken);
   if (cfg.openSubtitlesApiKey) cfg.openSubtitlesApiKey = maskToken(cfg.openSubtitlesApiKey);

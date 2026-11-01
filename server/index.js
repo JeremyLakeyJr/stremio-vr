@@ -256,6 +256,89 @@ export async function createServer(options = {}) {
       }
       return;
     }
+    if (req.method === 'POST' && req.url === '/api/stremio/link') {
+      try {
+        const linkRes = await fetch('https://link.stremio.com/api/v2/create?type=Create', {
+          headers: { 'User-Agent': 'Mozilla/5.0 (MovieNightVR)' },
+          signal: AbortSignal.timeout(10000)
+        });
+        const linkData = await linkRes.json();
+        if (linkData?.result?.code) {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: true, code: linkData.result.code, link: linkData.result.link, qrcode: linkData.result.qrcode }));
+        } else {
+          res.writeHead(502); res.end(JSON.stringify({ error: 'Stremio link service returned an invalid code' }));
+        }
+      } catch (err) {
+        res.writeHead(502); res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+    if (req.method === 'GET' && (req.url === '/api/stremio/poll' || req.url.startsWith('/api/stremio/poll?'))) {
+      try {
+        const query = new URL(req.url, 'http://localhost').searchParams;
+        const code = query.get('code');
+        if (!code) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing link code' })); return; }
+        const readRes = await fetch('https://link.stremio.com/api/v2/read?type=Read&code=' + encodeURIComponent(code), {
+          headers: { 'User-Agent': 'Mozilla/5.0 (MovieNightVR)' },
+          signal: AbortSignal.timeout(10000)
+        });
+        const readData = await readRes.json();
+        const authKey = readData?.result?.authKey;
+        if (!authKey) {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: true, linked: false }));
+          return;
+        }
+
+        // Fetch user profile and addon collection from Stremio API
+        const [userRes, addonsRes] = await Promise.all([
+          fetch('https://api.strem.io/api/getUser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ authKey }),
+            signal: AbortSignal.timeout(10000)
+          }).then(r => r.json()).catch(() => null),
+          fetch('https://api.strem.io/api/addonCollectionGet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ authKey, update: true }),
+            signal: AbortSignal.timeout(10000)
+          }).then(r => r.json()).catch(() => null)
+        ]);
+
+        const username = userRes?.result?.fullname || userRes?.result?.email || 'Stremio User';
+        const addonsList = [];
+        if (Array.isArray(addonsRes?.result?.addons)) {
+          for (const addon of addonsRes.result.addons) {
+            const transportUrl = addon.transportUrl;
+            if (transportUrl && typeof transportUrl === 'string') {
+              addonsList.push(transportUrl);
+            }
+          }
+        }
+
+        const updates = { stremioAuthKey: authKey, stremioUser: username };
+        if (addonsList.length) updates.addons = addonsList;
+        await saveConfig(updates);
+
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ok: true, linked: true, user: username, addonCount: addonsList.length }));
+      } catch (err) {
+        res.writeHead(502); res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/api/stremio/unlink') {
+      try {
+        await saveConfig({ stremioAuthKey: '', stremioUser: '' });
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
     if (req.method === 'POST' && req.url === '/api/room/play') {
       try {
         req.setEncoding('utf8');

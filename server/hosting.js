@@ -1,26 +1,29 @@
 import { readFile } from 'node:fs/promises';
+import { getConfig } from './config.js';
 
 export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE) {
-  const tsUrl = process.env.TAILSCALE_URL || (process.env.TS_HOSTNAME ? `https://${process.env.TS_HOSTNAME}` : null);
+  const cfg = getConfig();
+  const tsUrl = cfg.tailscaleUrl || process.env.TAILSCALE_URL || (process.env.TS_HOSTNAME ? `https://${process.env.TS_HOSTNAME}` : null);
   if (tsUrl && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(tsUrl)) {
     return { url: tsUrl, online: true, mode: 'tailscale' };
+  }
+
+  const customTunnel = cfg.tunnelUrl || process.env.TUNNEL_URL;
+  if (customTunnel && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(customTunnel)) {
+    return { url: customTunnel, online: true, mode: 'named' };
   }
 
   try {
     const data = JSON.parse(await readFile(file, 'utf8'));
     if (data.url && data.url !== 'https://api.trycloudflare.com' && Number.isFinite(data.updatedAt) && Date.now() - data.updatedAt < 20000 && data.updatedAt <= Date.now() + 5000) {
       const isTryCloudflare = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(data.url);
-      const isNamedTunnel = data.mode === 'named' || Boolean(process.env.TUNNEL_TOKEN || process.env.TUNNEL_URL);
+      const isNamedTunnel = data.mode === 'named' || Boolean(cfg.tunnelToken || process.env.TUNNEL_TOKEN || customTunnel);
       const isSafeHttps = /^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(data.url);
       if (isTryCloudflare || (isNamedTunnel && isSafeHttps)) {
         return { url: data.url, online: true, mode: isNamedTunnel ? 'named' : 'quick' };
       }
     }
   } catch {}
-
-  if (process.env.TUNNEL_URL && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(process.env.TUNNEL_URL)) {
-    return { url: process.env.TUNNEL_URL, online: true, mode: 'named' };
-  }
 
   return { url: null, online: false };
 }
@@ -71,7 +74,6 @@ export const dashboard = `<!doctype html>
     .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
     @media (min-width: 600px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
 
-    .addon-item { display: flex; align-items: center; justify-content: space-between; background: #130e20; border: 1px solid #2e2445; padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; font-family: monospace; word-break: break-all; }
     .toast { display: none; padding: 12px 18px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; font-weight: 600; }
     .toast.success { display: block; background: #133a2a; border: 1px solid #21875c; color: #78e8b4; }
     .toast.error { display: block; background: #4a1c24; border: 1px solid #803943; color: #ff8595; }
@@ -89,9 +91,9 @@ export const dashboard = `<!doctype html>
   </header>
 
   <nav class="nav-tabs">
-    <button class="nav-btn active" onclick="switchTab('hub')">🎬 VR Hub & Invite</button>
-    <button class="nav-btn" onclick="switchTab('settings')">⚙️ Server Settings</button>
-    <button class="nav-btn" onclick="switchTab('remote')">📱 Room Remote</button>
+    <button id="tabBtn-hub" class="nav-btn active" type="button" onclick="switchTab('hub')">🎬 VR Hub & Invite</button>
+    <button id="tabBtn-settings" class="nav-btn" type="button" onclick="switchTab('settings')">⚙️ Server Settings</button>
+    <button id="tabBtn-remote" class="nav-btn" type="button" onclick="switchTab('remote')">📱 Room Remote</button>
   </nav>
 
   <!-- TAB 1: HUB & INVITE -->
@@ -125,7 +127,7 @@ export const dashboard = `<!doctype html>
       <h3>How to Join in VR</h3>
       <ol>
         <li>Put on your <strong>Meta Quest</strong> headset and launch Movie Night.</li>
-        <li>Open <strong>My Room</strong> $\rightarrow$ enter your server URL (or leave default on local network).</li>
+        <li>Open <strong>My Room</strong> → enter your server URL (or leave default on local network).</li>
         <li>Click <strong>Connect</strong> and sit back on the couch with your friends!</li>
       </ol>
     </section>
@@ -135,25 +137,68 @@ export const dashboard = `<!doctype html>
   <div id="tab-settings" style="display:none;">
     <div id="settingsToast" class="toast"></div>
 
+    <!-- STREMIO ACCOUNT SYNC -->
     <section class="card">
-      <h2 style="margin-top:0;">Media Companion & Streaming</h2>
-      <p>Configure your streaming backend without editing Docker Compose files or restarting containers.</p>
+      <h2 style="margin-top:0;">Stremio Account & Addon Sync</h2>
+      <p>Log in with your Stremio account to automatically sync your catalogs, Torrentio, and Debrid configuration to this server.</p>
       
-      <label for="cfgStreamingUrl">Streaming Service URL (Stremio / Media Companion)</label>
-      <input id="cfgStreamingUrl" placeholder="http://media:11470 or http://stremio:11470">
-      <div class="field-hint">Internal docker companion host (default: http://media:11470 or http://stremio:11470)</div>
-
-      <label>Installed Stremio Addons & Catalogs</label>
-      <div id="addonList" style="margin: 8px 0 12px;"></div>
-      <div style="display:flex; gap:8px;">
-        <input id="newAddonUrl" placeholder="https://torrentio.strem.fun/manifest.json" style="margin:0;">
-        <button type="button" class="btn-secondary" onclick="addAddon()" style="white-space:nowrap;">+ Add Catalog</button>
+      <div id="stremioLoggedOut" style="display:none;">
+        <div style="display:flex; flex-direction:column; gap:12px; align-items:flex-start;">
+          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()">🔗 Quick Link Stremio Account</button>
+          <div id="linkPrompt" style="display:none; background:#0c0a14; border:1px solid #4a366e; border-radius:12px; padding:16px; width:100%; box-sizing:border-box;">
+            <p style="margin:0 0 10px; font-weight:600;">1. Open the link or scan QR code on your phone/browser:</p>
+            <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+              <a id="linkUrlAnchor" href="#" target="_blank" rel="noopener" class="btn-secondary" style="font-weight:700;">Open Stremio Link</a>
+              <span id="linkCodeBadge" class="badge active" style="font-size:16px; padding:8px 16px; font-family:monospace;">CODE</span>
+              <img id="linkQrImg" style="width:100px; height:100px; border-radius:8px; background:white; padding:4px;" alt="QR Code">
+            </div>
+            <p style="color:#78e8b4; font-size:12px; margin:12px 0 0;">Waiting for you to click "Authorize" on Stremio…</p>
+          </div>
+        </div>
       </div>
-      <div class="field-hint" style="margin-top:6px;">Add Torrentio, AIOStreams, Comet, MediaFusion, or Cinemeta manifest URLs.</div>
+
+      <div id="stremioLoggedIn" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#133a2a; border:1px solid #21875c; padding:14px; border-radius:12px;">
+          <div>
+            <div style="font-weight:700; color:#78e8b4;" id="stremioUserName">Signed in as Stremio User</div>
+            <div style="font-size:12px; color:#a3e0c4;" id="stremioAddonSummary">Addons and catalogs synced automatically.</div>
+          </div>
+          <button type="button" class="btn-danger" onclick="unlinkStremio()">Disconnect Account</button>
+        </div>
+      </div>
     </section>
 
+    <!-- NETWORK & TUNNELS -->
     <section class="card">
-      <h2 style="margin-top:0;">Transcoder & Video Quality</h2>
+      <h2 style="margin-top:0;">Remote Access & Network Tunnels</h2>
+      <p>Configure remote access to reach your Movie Night VR server from outside your local home network.</p>
+      
+      <label for="cfgTunnelToken">Cloudflare Named Tunnel Token (Zero Trust)</label>
+      <input id="cfgTunnelToken" placeholder="eyJ... Cloudflare Zero Trust Tunnel Token">
+      <div class="field-hint">Paste your Cloudflare Tunnel token here if using an Argo/Zero Trust named tunnel.</div>
+
+      <div class="grid-2">
+        <div>
+          <label for="cfgTunnelUrl">Custom Cloudflare Domain / Public URL</label>
+          <input id="cfgTunnelUrl" placeholder="https://cinema.yourdomain.com">
+          <div class="field-hint">Public domain mapped in Cloudflare Zero Trust.</div>
+        </div>
+        <div>
+          <label for="cfgTailscaleUrl">Tailscale MagicDNS / IP URL</label>
+          <input id="cfgTailscaleUrl" placeholder="http://movie-night.your-tailnet.ts.net:3000">
+          <div class="field-hint">Tailscale address if accessing via private Tailnet mesh.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEDIA COMPANION & QUALITY -->
+    <section class="card">
+      <h2 style="margin-top:0;">Streaming Companion & Transcoder</h2>
+      
+      <label for="cfgStreamingUrl">Companion Engine URL</label>
+      <input id="cfgStreamingUrl" placeholder="http://media:11470 or http://stremio:11470">
+      <div class="field-hint">Internal docker companion host (default: http://media:11470).</div>
+
       <div class="grid-2">
         <div>
           <label for="cfgMaxHeight">Maximum Video Resolution</label>
@@ -173,6 +218,7 @@ export const dashboard = `<!doctype html>
       </div>
     </section>
 
+    <!-- EXTERNAL SERVERS -->
     <section class="card">
       <h2 style="margin-top:0;">External Servers & Subtitles (Optional)</h2>
       <label for="cfgJellyfinUrl">Jellyfin / Emby Server URL</label>
@@ -216,14 +262,17 @@ export const dashboard = `<!doctype html>
 </main>
 
 <script>
-  let serverConfig = { addons: [] };
+  let serverConfig = {};
+  let stremioPollTimer = null;
 
   function switchTab(tabId) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('#tab-hub, #tab-settings, #tab-remote').forEach(d => d.style.display = 'none');
     
-    document.getElementById('tab-' + tabId).style.display = 'block';
-    event.target.classList.add('active');
+    const panel = document.getElementById('tab-' + tabId);
+    if (panel) panel.style.display = 'block';
+    const btn = document.getElementById('tabBtn-' + tabId);
+    if (btn) btn.classList.add('active');
 
     if (tabId === 'settings') loadSettings();
     if (tabId === 'remote') loadRooms();
@@ -236,49 +285,75 @@ export const dashboard = `<!doctype html>
         const data = await res.json();
         serverConfig = data.config || {};
         document.getElementById('cfgStreamingUrl').value = serverConfig.streamingServiceUrl || '';
+        document.getElementById('cfgTunnelToken').value = serverConfig.tunnelToken || '';
+        document.getElementById('cfgTunnelUrl').value = serverConfig.tunnelUrl || '';
+        document.getElementById('cfgTailscaleUrl').value = serverConfig.tailscaleUrl || '';
         document.getElementById('cfgMaxHeight').value = serverConfig.maxHeight || 1080;
         document.getElementById('cfgMaxFps').value = serverConfig.maxFps || 60;
         document.getElementById('cfgJellyfinUrl').value = serverConfig.jellyfinUrl || '';
         document.getElementById('cfgOpenSubtitlesKey').value = serverConfig.openSubtitlesApiKey || '';
-        renderAddonList();
+        renderStremioStatus();
       }
     } catch (err) {
       console.error('Failed to load config:', err);
     }
   }
 
-  function renderAddonList() {
-    const listEl = document.getElementById('addonList');
-    listEl.innerHTML = '';
-    const addons = serverConfig.addons || [];
-    if (!addons.length) {
-      listEl.innerHTML = '<div style="color:#8f83ab; font-size:12px;">No custom catalogs added yet.</div>';
-      return;
-    }
-    addons.forEach((url, idx) => {
-      const row = document.createElement('div');
-      row.className = 'addon-item';
-      row.innerHTML = '<span>' + url + '</span><button type="button" class="btn-danger" onclick="removeAddon(' + idx + ')">Remove</button>';
-      listEl.appendChild(row);
-    });
-  }
-
-  function addAddon() {
-    const inp = document.getElementById('newAddonUrl');
-    const url = inp.value.trim();
-    if (!url) return;
-    if (!serverConfig.addons) serverConfig.addons = [];
-    if (!serverConfig.addons.includes(url)) {
-      serverConfig.addons.push(url);
-      inp.value = '';
-      renderAddonList();
+  function renderStremioStatus() {
+    const loggedIn = Boolean(serverConfig.stremioAuthKey);
+    document.getElementById('stremioLoggedIn').style.display = loggedIn ? 'block' : 'none';
+    document.getElementById('stremioLoggedOut').style.display = loggedIn ? 'none' : 'block';
+    if (loggedIn) {
+      document.getElementById('stremioUserName').textContent = '✓ Connected as: ' + (serverConfig.stremioUser || 'Stremio Account');
+      const count = Array.isArray(serverConfig.addons) ? serverConfig.addons.length : 0;
+      document.getElementById('stremioAddonSummary').textContent = count + ' add-on(s) and catalogs synced and ready for VR.';
     }
   }
 
-  function removeAddon(idx) {
-    if (serverConfig.addons && serverConfig.addons[idx]) {
-      serverConfig.addons.splice(idx, 1);
-      renderAddonList();
+  async function startStremioLink() {
+    const btn = document.getElementById('startLinkBtn');
+    btn.disabled = true;
+    btn.textContent = 'Requesting Link Code…';
+    try {
+      const res = await fetch('/api/stremio/link', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok && data.code) {
+        document.getElementById('linkPrompt').style.display = 'block';
+        document.getElementById('linkCodeBadge').textContent = data.code;
+        document.getElementById('linkUrlAnchor').href = data.link;
+        if (data.qrcode) document.getElementById('linkQrImg').src = data.qrcode;
+        
+        // Start polling for authorization
+        if (stremioPollTimer) clearInterval(stremioPollTimer);
+        stremioPollTimer = setInterval(async () => {
+          try {
+            const pRes = await fetch('/api/stremio/poll?code=' + encodeURIComponent(data.code));
+            const pData = await pRes.json();
+            if (pData.ok && pData.linked) {
+              clearInterval(stremioPollTimer);
+              document.getElementById('linkPrompt').style.display = 'none';
+              loadSettings();
+            }
+          } catch {}
+        }, 3000);
+      } else {
+        alert(data.error || 'Failed to start Stremio link');
+      }
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔗 Quick Link Stremio Account';
+    }
+  }
+
+  async function unlinkStremio() {
+    if (!confirm('Disconnect Stremio account?')) return;
+    try {
+      await fetch('/api/stremio/unlink', { method: 'POST' });
+      loadSettings();
+    } catch (e) {
+      alert('Error disconnecting: ' + e.message);
     }
   }
 
@@ -290,11 +365,13 @@ export const dashboard = `<!doctype html>
 
     const payload = {
       streamingServiceUrl: document.getElementById('cfgStreamingUrl').value.trim(),
+      tunnelToken: document.getElementById('cfgTunnelToken').value.trim(),
+      tunnelUrl: document.getElementById('cfgTunnelUrl').value.trim(),
+      tailscaleUrl: document.getElementById('cfgTailscaleUrl').value.trim(),
       maxHeight: parseInt(document.getElementById('cfgMaxHeight').value, 10),
       maxFps: parseInt(document.getElementById('cfgMaxFps').value, 10),
       jellyfinUrl: document.getElementById('cfgJellyfinUrl').value.trim(),
-      openSubtitlesApiKey: document.getElementById('cfgOpenSubtitlesKey').value.trim(),
-      addons: serverConfig.addons || []
+      openSubtitlesApiKey: document.getElementById('cfgOpenSubtitlesKey').value.trim()
     };
 
     try {
