@@ -6,13 +6,18 @@ services:
     environment:
       BROWSER_SERVICE_URL: http://browser:9000
       STREAMING_SERVICE_URL: http://stremio:11470
-      MEDIA_ALLOWED_HOSTS: stremio:11470
+      # Allow Stremio + any local/private Jellyfin (8096), Remux (8096), Silo, or MediaStorm servers
+      MEDIA_ALLOWED_HOSTS: ${MEDIA_ALLOWED_HOSTS:-stremio:11470}
       TUNNEL_LINK_FILE: /share/link.json
       ICE_SERVERS: ${ICE_SERVERS:-[{"urls":"stun:stun.cloudflare.com:3478"}]}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}
-      MEDIA_MAX_JOBS: "2"
-      MEDIA_MAX_BYTES: "8589934592"
+      MEDIA_MAX_JOBS: ${MEDIA_MAX_JOBS:-2}
+      MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-8589934592}
+      MEDIA_MAX_HEIGHT: ${MEDIA_MAX_HEIGHT:-1080}
+      MEDIA_MAX_FPS: ${MEDIA_MAX_FPS:-60}
+      MEDIA_VIDEO_BITRATE: ${MEDIA_VIDEO_BITRATE:-15M}
+      MEDIA_DISABLE_REMUX: ${MEDIA_DISABLE_REMUX:-false}
     volumes:
       - tunnel-link:/share:ro
     depends_on:
@@ -44,6 +49,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.tunnel
+    environment:
+      # Optional Cloudflare Zero Trust / Argo Named Tunnel Token:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+      TUNNEL_URL: ${TUNNEL_URL:-}
     volumes:
       - tunnel-link:/share
     depends_on:

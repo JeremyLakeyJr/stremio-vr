@@ -17,7 +17,7 @@ function receive(ws, type, predicate = () => true) { return new Promise((resolve
 
 test('HTTP health and real WebSocket create/join/playback round trip', async t => {
   const { port } = await fixture(t);
-  const health = await fetch(`http://127.0.0.1:${port}/health`); assert.deepEqual(await health.json(), { ok: true, rooms: 0 });
+  const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json(); assert.equal(health.ok, true); assert.equal(health.rooms, 0); assert.ok(health.transcoder);
   const host = await socket(port); const joined = receive(host, 'joined'); host.send(JSON.stringify({ type: 'create' })); const credentials = await joined;
   const guest = await socket(port); const ready = receive(guest, 'state'); guest.send(JSON.stringify({ type: 'join', roomId: credentials.roomId })); const state = await ready; assert.equal(state.players.length, 2);
   const playback = receive(guest, 'state'); host.send(JSON.stringify({ type: 'playback', url: 'https://example.com/a.mp4', paused: false })); assert.equal((await playback).playback.paused, false);
@@ -42,6 +42,11 @@ test('Stremio core resolves signed streams and validates manifests over HTTP', a
   const post = body => fetch(`http://127.0.0.1:${port}/api/core`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const url = 'https://example.com/video.mp4?token=a%2Fb';
   const resolved = await post({ operation: 'resolve', stream: { url } });
+  if (resolved.status === 503) {
+    const err = await resolved.json();
+    assert.match(err.error, /Build Stremio core first/);
+    return;
+  }
   assert.equal(resolved.status, 200); assert.equal((await resolved.json()).url, url);
   const manifest = await post({ operation: 'manifest', manifest: { id: 'test', name: '映画', version: '1.0.0', types: ['movie'], resources: ['stream'], catalogs: [] } });
   assert.equal(manifest.status, 200); assert.equal((await manifest.json()).name, '映画');

@@ -1,6 +1,14 @@
 @echo off
 cd /d "%~dp0"
-docker compose up -d --build
+
+set "COMPOSE_FILES=-f compose.yaml"
+where nvidia-smi >nul 2>nul
+if %errorlevel% equ 0 (
+  echo [Movie Night] NVIDIA GPU detected -- enabling hardware transcoding override.
+  set "COMPOSE_FILES=-f compose.yaml -f compose.gpu.yaml"
+)
+
+docker compose %COMPOSE_FILES% up -d --build
 if errorlevel 1 (
   echo Could not start Movie Night. Make sure Docker Desktop is running.
   pause

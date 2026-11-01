@@ -11,6 +11,7 @@ import { once } from 'node:events';
 import { pipeline } from 'node:stream/promises';
 import ipaddr from 'ipaddr.js';
 import { mediaURL } from './rooms.js';
+import { buildTranscodeArgs, sanitizeUpstreamHeaders } from './hwaccel.js';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export async function destination(value, allowed = [], resolve = lookup) {
@@ -20,12 +21,13 @@ export async function destination(value, allowed = [], resolve = lookup) {
   if (!addresses.length || (!allowed.includes(url.host) && addresses.some(({ address }) => ipaddr.process(address).range() !== 'unicast'))) throw new Error('Private media source blocked; configure MEDIA_ALLOWED_HOSTS for your trusted streaming service');
   return { url, address: addresses[0] };
 }
-async function upstream(value, allowed, range, signal, redirects = 0) {
+async function upstream(value, allowed, range, signal, redirects = 0, upstreamHeaders = {}) {
   if (redirects > 5) throw new Error('Too many media redirects');
   const { url, address } = await destination(value, allowed);
+  const sanitized = sanitizeUpstreamHeaders(upstreamHeaders);
   const response = await new Promise((resolve, reject) => {
     const req = (url.protocol === 'https:' ? https : http).get(url, {
-      agent: false, signal, headers: { 'Accept-Encoding': 'identity', ...(range ? { Range: range } : {}) },
+      agent: false, signal, headers: { 'Accept-Encoding': 'identity', ...(range ? { Range: range } : {}), ...sanitized },
       lookup: (_host, options, cb) => options.all ? cb(null, [address]) : cb(null, address.address, address.family),
     }, resolve);
     req.setTimeout(30000, () => req.destroy(new Error('Media source timed out'))); req.on('error', reject);
@@ -33,7 +35,7 @@ async function upstream(value, allowed, range, signal, redirects = 0) {
   if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
     const location = response.headers.location; response.destroy();
     if (!location) throw new Error('Invalid media redirect');
-    return upstream(new URL(location, url).href, allowed, range, signal, redirects + 1);
+    return upstream(new URL(location, url).href, allowed, range, signal, redirects + 1, upstreamHeaders);
   }
   if (![200, 206].includes(response.statusCode)) { response.destroy(); throw new Error('Media source unavailable'); }
   return { response, url };
@@ -52,9 +54,10 @@ export function rewritePlaylist(text, base, register) {
 // validates each redirect and each nested HLS URI before opening a connection.
 export class MediaServer {
   constructor(options = {}) {
+    this.capabilities = options.capabilities || { hwAccel: false, backend: null, maxHeight: 720, maxFps: 30, videoBitrate: '3500k', maxBytes: 8589934592, maxJobs: 2 };
     this.allowed = options.allowedHosts ?? (process.env.MEDIA_ALLOWED_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean);
-    this.maxJobs = options.maxJobs ?? Number(process.env.MEDIA_MAX_JOBS || 2);
-    this.maxBytes = options.maxBytes ?? Number(process.env.MEDIA_MAX_BYTES || 8 * 1024 ** 3);
+    this.maxJobs = options.maxJobs ?? Number(process.env.MEDIA_MAX_JOBS || this.capabilities.maxJobs || 2);
+    this.maxBytes = options.maxBytes ?? Number(process.env.MEDIA_MAX_BYTES || this.capabilities.maxBytes || 8 * 1024 ** 3);
     this.binary = options.binary || process.env.FFMPEG_BINARY || 'ffmpeg';
     this.jobs = new Map(); this.closed = false;
     this.gateway = http.createServer((req, res) => this.ingest(req, res).catch(() => { if (!res.headersSent) res.writeHead(502); res.end(); }));
@@ -74,7 +77,7 @@ export class MediaServer {
     const cancel = new AbortController(); job.requests.add(cancel);
     res.on('close', () => cancel.abort());
     try {
-      const { response, url } = await upstream(source, this.allowed, req.headers.range, cancel.signal);
+      const { response, url } = await upstream(source, this.allowed, req.headers.range, cancel.signal, 0, job.upstreamHeaders);
       const iterator = response[Symbol.asyncIterator](); const first = await iterator.next();
       const chunk = first.value || Buffer.alloc(0);
       const playlist = /mpegurl/i.test(response.headers['content-type'] || '') || /\.m3u8$/i.test(url.pathname) || chunk.toString('utf8', 0, 256).trimStart().startsWith('#EXTM3U');
@@ -95,10 +98,12 @@ export class MediaServer {
       }
     } finally { cancel.abort(); job.requests.delete(cancel); }
   }
-  async start(source, offset = 0, created = () => {}) {
+  async start(source, offset = 0, created = () => {}, transcodeOptions = {}) {
     if (this.closed || this.jobs.size >= this.maxJobs) throw new Error('Streaming server is busy; try again');
     const id = randomBytes(24).toString('hex');
-    const job = { id, source: mediaURL(source), offset, sources: [], requests: new Set(), inputBytes: 0, stopped: false, failed: null, finished: false };
+    const { sourceCodec = null, upstreamHeaders = {} } = transcodeOptions;
+    const sanitizedHeaders = sanitizeUpstreamHeaders(upstreamHeaders);
+    const job = { id, source: mediaURL(source), offset, sources: [], requests: new Set(), inputBytes: 0, stopped: false, failed: null, finished: false, upstreamHeaders: sanitizedHeaders, sourceCodec };
     this.jobs.set(id, job); created(job);
     try {
       await this.ready;
@@ -107,9 +112,15 @@ export class MediaServer {
       job.dir = await mkdtemp(join(tmpdir(), 'movie-night-media-'));
       if (job.stopped || this.closed) throw new Error('Stream cancelled');
       const input = this.register(job, source);
-      const args = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-threads', '2', '-protocol_whitelist', 'http,tcp', '-format_whitelist', 'mov,matroska,webm,hls,mpegts,aac,mp3', '-ss', String(offset), '-i', input,
-        '-map', '0:v:0', '-map', '0:a:0?', '-sn', '-dn', '-vf', "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2", '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '2', '-pix_fmt', 'yuv420p', '-crf', '21', '-maxrate', '5M', '-bufsize', '10M', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0', '-c:a', 'aac', '-ac', '2', '-ar', '48000', '-b:a', '192k',
-        '-f', 'hls', '-hls_time', '2', '-hls_list_size', '0', '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file', '-hls_segment_filename', join(job.dir, 'segment%06d.ts'), join(job.dir, 'index.m3u8')];
+      const args = buildTranscodeArgs({
+        input,
+        startTimeSeconds: offset,
+        capabilities: this.capabilities,
+        sourceCodec,
+        upstreamHeaders: sanitizedHeaders,
+        outputDir: job.dir,
+        threads: 2
+      });
       job.child = spawn(this.binary, args, { stdio: ['ignore', 'ignore', 'pipe'] });
       job.child.stderr.resume(); // FFmpeg errors can contain signed upstream URLs. Never publish them.
       job.child.on('error', () => { job.failed = 'FFmpeg unavailable; install ffmpeg on the server'; });

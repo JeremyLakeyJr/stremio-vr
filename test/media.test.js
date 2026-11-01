@@ -30,8 +30,13 @@ async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'movie-night-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'source.mkv');
-  await exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '6', '-c:v', 'libx264', '-threads', '1', '-c:a', 'ac3', file]);
-  await exec('ffmpeg', ['-v', 'error', '-i', file, '-c', 'copy', '-f', 'hls', '-hls_time', '2', join(dir, 'source.m3u8')]);
+  try {
+    await exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '6', '-c:v', 'libx264', '-threads', '1', '-c:a', 'ac3', file]);
+    await exec('ffmpeg', ['-v', 'error', '-i', file, '-c', 'copy', '-f', 'hls', '-hls_time', '2', join(dir, 'source.m3u8')]);
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
   const data = await readFile(file);
   const source = http.createServer(async (req, res) => {
     if (/^\/source(?:\.m3u8|\d+\.ts)$/.test(req.url)) {
@@ -47,7 +52,7 @@ async function fixture(t) {
   return { url: `http://${host}/source.mkv`, allowedHosts: [host] };
 }
 test('FFmpeg converts AC3 to shared H264/AAC HLS, supports offset and cleans jobs', { timeout: 60000 }, async t => {
-  const input = await fixture(t); const media = new MediaServer({ allowedHosts: input.allowedHosts }); t.after(() => media.close());
+  const input = await fixture(t); if (!input) return; const media = new MediaServer({ allowedHosts: input.allowedHosts }); t.after(() => media.close());
   const job = await media.start(input.url, 2);
   while (!job.finished) await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(job.failed, null); assert.equal(job.offset, 2);
@@ -64,7 +69,7 @@ function receive(ws, type, predicate = () => true) { return new Promise((resolve
   function listener(raw) { const message = JSON.parse(raw); if (message.type === type && predicate(message)) { clearTimeout(timer); ws.off('message', listener); resolve(message); } } ws.on('message', listener);
 }); }
 test('real peers receive one server stream; guests cannot start jobs; seek replaces stream', { timeout: 120000 }, async t => {
-  const input = await fixture(t), app = await createServer({ mediaOptions: { allowedHosts: input.allowedHosts } });
+  const input = await fixture(t); if (!input) return; const app = await createServer({ mediaOptions: { allowedHosts: input.allowedHosts } });
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); t.after(() => app.close());
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const host = new WebSocket(base.replace('http:', 'ws:') + '/ws'); await once(host, 'open');

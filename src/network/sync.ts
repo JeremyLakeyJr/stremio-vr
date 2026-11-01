@@ -33,6 +33,16 @@ export interface RoomSession {
 export interface TableGameState { players: (string | null)[]; revision: number; board: string[]; turn: number; outcome: string; fen?: string; check?: boolean; last?: string; legal?: { from: string; to: string; promotion?: string }[] }
 export interface TrackedPose { position: [number, number, number]; rotation: [number, number, number] }
 export type Pose = { head: TrackedPose; left?: TrackedPose; right?: TrackedPose };
+
+export interface HostLoadMediaMessage {
+  type: 'host:load_media';
+  url: string;
+  title?: string;
+  startTimeSeconds?: number;
+  sourceCodec?: string; // e.g. 'h264' or 'hevc'
+  upstreamHeaders?: Record<string, string>; // Upstream auth (X-Emby-Token, etc.) - never broadcast to room peers
+}
+
 export type ClientMessage =
   | { type: 'create'; profile?: Partial<AvatarProfile> }
   | { type: 'join'; roomId: string; token?: string; profile?: Partial<AvatarProfile> }
@@ -42,11 +52,13 @@ export type ClientMessage =
   | { type: 'leave' }
   | { type: 'ping'; sentAt: number }
   | { type: 'profile'; profile: Partial<AvatarProfile> }
-  | { type: 'playback'; url?: string; title?: string; paused?: boolean; position?: number }
+  | { type: 'playback'; url?: string; title?: string; paused?: boolean; position?: number; seek?: boolean; sourceCodec?: string; upstreamHeaders?: Record<string, string> }
+  | HostLoadMediaMessage
   | { type: 'pose'; pose: Pose }
   | { type: 'voice'; enabled: boolean }
   | { type: 'audio'; pcm: string }
   | { type: 'signal'; target: string; data: unknown };
+
 export type ServerMessage = RoomSession
   | { type: 'joined'; roomId: string; playerId: string; token: string }
   | { type: 'left' }
