@@ -109,11 +109,64 @@ test('api: /api/config allows reading and updating server settings at runtime', 
   const postRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maxHeight: 720, maxFps: 30 })
+    body: JSON.stringify({
+      maxHeight: 720,
+      maxFps: 30,
+      jellyfinUrl: 'http://192.168.1.100:8096',
+      mediastormUrl: 'http://192.168.1.100:7777',
+      mediastormKey: 'secret_ms_token_123',
+      siloUrl: 'http://192.168.1.100:8082',
+      siloToken: 'secret_silo_token_abc'
+    })
   });
   assert.equal(postRes.status, 200);
   const postData = await postRes.json();
   assert.equal(postData.ok, true);
   assert.equal(postData.config.maxHeight, 720);
   assert.equal(postData.config.maxFps, 30);
+  assert.equal(postData.config.jellyfinUrl, 'http://192.168.1.100:8096');
+  assert.equal(postData.config.mediastormUrl, 'http://192.168.1.100:7777');
+  // Token masking
+  assert.match(postData.config.mediastormKey, /••••/);
+  assert.match(postData.config.siloToken, /••••/);
+});
+
+test('api: /api/room/play triggers playback directly in an active room', async t => {
+  const { port, rooms } = await fixture(t);
+  // No active room -> 404
+  const noRoom = await fetch(`http://127.0.0.1:${port}/api/room/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: 'https://example.com/test.mp4' })
+  });
+  assert.equal(noRoom.status, 404);
+
+  // Connect a room
+  const ws = await socket(port);
+  const joined = receive(ws, 'joined');
+  ws.send(JSON.stringify({ type: 'create' }));
+  const session = await joined;
+
+  const playRes = await fetch(`http://127.0.0.1:${port}/api/room/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId: session.roomId, url: 'https://example.com/movie.mp4', title: 'Test Movie' })
+  });
+  assert.equal(playRes.status, 200);
+  const playData = await playRes.json();
+  assert.equal(playData.ok, true);
+  assert.equal(playData.title, 'Test Movie');
+
+  const r = rooms.rooms.get(session.roomId);
+  assert.equal(r.playback.sourceUrl, 'https://example.com/movie.mp4');
+  assert.equal(r.playback.sourceTitle, 'Test Movie');
+  assert.equal(r.playback.paused, false);
+});
+
+test('api: /api/stremio/unlink resets credentials', async t => {
+  const { port } = await fixture(t);
+  const res = await fetch(`http://127.0.0.1:${port}/api/stremio/unlink`, { method: 'POST' });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
 });
