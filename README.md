@@ -381,6 +381,7 @@ unity/
 │   ├── Scripts/
 │   │   ├── CinemaApp.cs         # In-world menu, VR interactions, UI state
 │   │   ├── CinemaPlayback.cs    # VideoPlayer sync, multi-provider Load() overload
+│   │   ├── CinemaSubtitles.cs   # In-VR screen subtitle overlay & WebVTT cue parser
 │   │   ├── MediaLibrary.cs      # Stremio addon client and stream resolver
 │   │   ├── RoomClient.cs        # WebSocket room client and state sync
 │   │   ├── WebCinema.cs         # Shared server browser WebRTC renderer

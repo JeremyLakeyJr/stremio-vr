@@ -145,7 +145,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Web screen controls",BrowserControls);
         streamInput = Field("Direct video URL", "", null);
         ActionButton("Load video", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
-        ActionButton("Movie audio / track",AudioSettings);
+        ActionButton("Audio & subtitles",AudioSettings);
         ActionButton("Play / pause", () => playback.Toggle());
         ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
         Heading("Multiplayer — connect only when inviting friends");
@@ -186,10 +186,35 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Less curved −15°",()=>placement.Configure(id,width,curve-15));ActionButton("More curved +15°",()=>placement.Configure(id,width,curve+15));ActionButton("Flat screen",()=>placement.Configure(id,width,0));
     }
     void AudioSettings() {
-        Clear();pageTitle.text="Movie audio";Heading(playback.AudioInfo);
-        ActionButton("Next audio track",()=>{playback.NextAudioTrack();ShowStatus("Preparing selected audio track…");});
-        SpeedControl("Movie volume",playback.Volume,0,1,0.1f,value=>playback.SetVolume(value),"",AudioSettings);
-        ActionButton("Refresh audio information",AudioSettings);
+        Clear(); pageTitle.text = "Movie audio & subtitles";
+        Heading(playback.AudioInfo);
+        ActionButton("Next audio track", () => { playback.NextAudioTrack(); ShowStatus("Preparing selected audio track…"); });
+        if (room.IsHost) {
+            Heading("Server Transcode Audio Stream (Host)");
+            for (int i = 0; i < 4; i++) {
+                int trackIdx = i;
+                string mark = playback.ServerAudioTrackIndex == trackIdx ? "● " : "○ ";
+                ActionButton(mark + "Stream " + (trackIdx + 1) + (trackIdx == 0 ? " (Default)" : ""), () => {
+                    playback.SelectServerAudioTrack(trackIdx);
+                    AudioSettings();
+                });
+            }
+        }
+        SpeedControl("Movie volume", playback.Volume, 0, 1, 0.1f, value => playback.SetVolume(value), "", AudioSettings);
+        Heading("In-VR Subtitles");
+        bool subEnabled = playback.Subtitles != null && playback.Subtitles.Enabled;
+        double subOffset = playback.Subtitles != null ? playback.Subtitles.OffsetSeconds : 0;
+        ActionButton("Subtitles: " + (subEnabled ? "ON" : "OFF"), () => {
+            playback.Subtitles?.Toggle();
+            AudioSettings();
+        });
+        if (playback.Subtitles != null) {
+            Heading("Subtitle sync offset: " + subOffset.ToString("+0.00;-0.00;0.00") + "s (Cues: " + playback.Subtitles.CueCount + ")");
+            ActionButton("Sync offset -0.5s", () => { playback.Subtitles.AdjustOffset(-0.5); AudioSettings(); });
+            ActionButton("Sync offset +0.5s", () => { playback.Subtitles.AdjustOffset(0.5); AudioSettings(); });
+            ActionButton("Reset subtitle offset", () => { playback.Subtitles.ResetOffset(); AudioSettings(); });
+        }
+        ActionButton("Refresh audio & subtitle information", AudioSettings);
         Heading("If a source uses unsupported AC-3/DTS audio, choose an AAC source or configure a compatible transcoding service. Voice volume is separate.");
     }
     void BrowserControls() {

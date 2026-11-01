@@ -13,6 +13,8 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public string SourceUrl { get; private set; }
     public float Volume { get; private set; } = 1;
     public ushort AudioTrack { get; private set; }
+    public CinemaSubtitles Subtitles { get; private set; }
+    public int ServerAudioTrackIndex { get; private set; } = 0;
     public string AudioInfo => Video.audioTrackCount > 0 ? "Track " + (AudioTrack + 1) + " of " + Video.audioTrackCount : "No alternate audio tracks";
     public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
@@ -26,9 +28,11 @@ public sealed class CinemaPlayback : MonoBehaviour {
         Video.prepareCompleted += source => {
             if(soloSeek){Video.time=Math.Min(soloPosition,Video.length>0?Video.length:soloPosition);soloSeek=false;}
             preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]); };
+        Subtitles = gameObject.AddComponent<CinemaSubtitles>();
+        Subtitles.Initialize(this, screen);
         SetScreen(screen);
     }
-    public void SetScreen(GameObject screen) { screenRenderer = screen ? screen.GetComponent<Renderer>() : null; screenSize = screen ? screen.transform.localScale : Vector3.one; ApplyScreen(); }
+    public void SetScreen(GameObject screen) { screenRenderer = screen ? screen.GetComponent<Renderer>() : null; screenSize = screen ? screen.transform.localScale : Vector3.one; Subtitles?.SetScreen(screen); ApplyScreen(); }
     void ApplyScreen() { if (screenRenderer) { Video.targetRenderer = screenRenderer; Video.targetMaterialProperty = "_MainTex"; } }
     void OnMessage(JObject message) {
         if ((string)message["type"] == "disconnected") { playback = null; Video.Stop(); preparing = false; return; }
@@ -39,7 +43,14 @@ public sealed class CinemaPlayback : MonoBehaviour {
         playback = next;
         if (changed && !string.IsNullOrEmpty((string)next["url"])) {
             Video.Stop(); AudioTrack=0; ConfigureAudio(); Video.url = PlaybackUrl((string)next["url"],Room.ApiEndpoint); preparing = true; Status?.Invoke("Preparing video."); Video.Prepare();
-        } else if (string.IsNullOrEmpty((string)next["url"])) Video.Stop(); else Apply();
+            if (next["subtitles"] != null && !string.IsNullOrEmpty((string)next["subtitles"])) {
+                Subtitles?.LoadSubtitles((string)next["subtitles"], Room.ApiEndpoint);
+            } else {
+                Subtitles?.Clear();
+            }
+        } else if (string.IsNullOrEmpty((string)next["url"])) {
+            Video.Stop(); Subtitles?.Clear();
+        } else Apply();
     }
     public static string PlaybackUrl(string value,string endpoint){
         if(value.StartsWith("/media/"))return endpoint.TrimEnd('/')+value;
@@ -89,6 +100,31 @@ public sealed class CinemaPlayback : MonoBehaviour {
         ushort count=(ushort)Math.Min(Video.audioTrackCount,VideoPlayer.controlledAudioTrackMaxCount);
         if(Room.IsSolo){soloPosition=Video.time;soloSeek=true;}
         AudioTrack=(ushort)((AudioTrack+1)%count); Video.Stop(); ConfigureAudio(); preparing=true;Video.Prepare();
+    }
+    public void SelectAudioTrack(ushort trackIndex) {
+        if (!Video.isPrepared) return;
+        ushort count = (ushort)Math.Min(Video.audioTrackCount, VideoPlayer.controlledAudioTrackMaxCount);
+        if (trackIndex < count) {
+            AudioTrack = trackIndex;
+            ConfigureAudio();
+            ApplyAudio();
+            Status?.Invoke("Selected local audio track " + (AudioTrack + 1));
+        }
+    }
+    public void SelectServerAudioTrack(int trackIndex) {
+        if (!Room.IsHost || playback == null) return;
+        ServerAudioTrackIndex = trackIndex;
+        string url = SourceUrl ?? (string)playback["url"];
+        string title = (string)playback["title"] ?? "Stream";
+        double pos = Position;
+        Room.Send(new JObject {
+            ["type"] = "playback",
+            ["url"] = url,
+            ["title"] = title,
+            ["position"] = pos,
+            ["audioTrackIndex"] = trackIndex
+        });
+        Status?.Invoke("Requested server audio track " + (trackIndex + 1));
     }
     public void Load(string url, string title, double position=0) {
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
