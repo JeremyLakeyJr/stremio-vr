@@ -212,6 +212,25 @@ export async function createServer(options = {}) {
     if (req.method === 'GET' && req.url === '/source') {
       res.end(JSON.stringify({ name: 'Movie Night', license: 'AGPL-3.0-only', source: process.env.SOURCE_URL || 'https://github.com/oOflyeyesOo/Media-VR' })); return;
     }
+    if (req.method === 'GET' && req.url === '/api/system/capabilities') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        version: '0.2.0',
+        transcoder: capabilities,
+        streamingService: Boolean(process.env.STREAMING_SERVICE_URL),
+        providers: {
+          jellyfin: Boolean(process.env.JELLYFIN_URL),
+          remux: Boolean(process.env.REMUX_URL),
+          mediastorm: Boolean(process.env.MEDIASTORM_URL),
+          silo: Boolean(process.env.SILO_URL)
+        },
+        tunnels: {
+          cloudflare: Boolean(process.env.TUNNEL_TOKEN || process.env.TUNNEL_URL),
+          tailscale: Boolean(process.env.TAILSCALE_URL || process.env.TS_HOSTNAME)
+        }
+      }));
+      return;
+    }
     if (req.method === 'GET' && req.url === '/health') {
       res.end(JSON.stringify({
         ok: true,

@@ -21,7 +21,7 @@ let passed = true;
 
 // 1. Compose and Dockerfile presence
 process.stdout.write(`${c.bold}[1/5] Checking Docker Compose files:${c.reset}\n`);
-const requiredFiles = ['compose.yaml', 'compose.gpu.yaml', 'Dockerfile', 'Dockerfile.tunnel', 'Dockerfile.browser'];
+const requiredFiles = ['compose.yaml', 'compose.gpu.yaml', 'compose.tailscale.yaml', 'Dockerfile', 'Dockerfile.tunnel', 'Dockerfile.browser'];
 for (const file of requiredFiles) {
   if (existsSync(file)) {
     console.log(`  ${c.green}✔${c.reset} ${file} is present`);

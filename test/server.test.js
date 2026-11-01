@@ -86,3 +86,14 @@ test('friendly sharing page and apartment photos are served without exposing arb
  assert.equal((await fetch(base+'/screenshots/apartment-lounge.png')).headers.get('content-type'),'image/png');
  assert.equal((await fetch(base+'/screenshots/not-an-image.png')).status,404);
 });
+
+test('api: /api/system/capabilities returns system status and capabilities', async t => {
+  const { port } = await fixture(t);
+  const res = await fetch(`http://127.0.0.1:${port}/api/system/capabilities`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.version, '0.2.0');
+  assert.ok(data.transcoder);
+  assert.equal(typeof data.streamingService, 'boolean');
+  assert.ok(data.providers);
+});
