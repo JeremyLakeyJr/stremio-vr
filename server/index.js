@@ -12,9 +12,15 @@ import { detectMediaCapabilities } from './hwaccel.js';
 import { fetchSubtitles, searchOpenSubtitles } from './subtitles.js';
 import { sendNotification } from './notifications.js';
 import { loadConfig, getConfig, saveConfig, getPublicConfig } from './config.js';
+import { TunnelManager } from './tunnel.js';
 
 export async function createServer(options = {}) {
   const serverConfig = await loadConfig();
+  const tunnelManager = options.tunnelManager ?? new TunnelManager({
+    target: `http://127.0.0.1:${options.port || process.env.PORT || 3000}`,
+    linkFile: options.tunnelLinkFile || process.env.TUNNEL_LINK_FILE || '/share/link.json'
+  });
+  tunnelManager.sync(serverConfig).catch(err => console.error('[Tunnel] Initial sync error:', err));
   const capabilities = options.capabilities ?? await detectMediaCapabilities(options.ffmpegBinary || process.env.FFMPEG_BINARY || 'ffmpeg');
   if (serverConfig.maxHeight && !options.capabilities) capabilities.maxHeight = serverConfig.maxHeight;
   if (serverConfig.maxFps && !options.capabilities) capabilities.maxFps = serverConfig.maxFps;
@@ -78,7 +84,7 @@ export async function createServer(options = {}) {
             paused: message.paused ?? true
           }, job);
 
-          hostingInfo().then(info => {
+          hostingInfo(process.env.TUNNEL_LINK_FILE, tunnelManager).then(info => {
             sendNotification({
               event: 'playback',
               title: message.title ?? room.playback.title ?? 'Movie',
@@ -96,7 +102,7 @@ export async function createServer(options = {}) {
     }
     rooms.handle(ws, message);
     if (message?.type === 'create' && ws.roomId) {
-      hostingInfo().then(info => {
+      hostingInfo(process.env.TUNNEL_LINK_FILE, tunnelManager).then(info => {
         sendNotification({
           event: 'room_created',
           roomId: ws.roomId,
@@ -107,7 +113,7 @@ export async function createServer(options = {}) {
     }
     if (message?.type === 'join' && ws.roomId) {
       const room = rooms.rooms.get(ws.roomId);
-      hostingInfo().then(info => {
+      hostingInfo(process.env.TUNNEL_LINK_FILE, tunnelManager).then(info => {
         sendNotification({
           event: 'participant_joined',
           roomId: ws.roomId,
@@ -118,7 +124,7 @@ export async function createServer(options = {}) {
     }
     if (message?.type === 'playback' && message.url === '' && ws.roomId) {
       const room = rooms.rooms.get(ws.roomId);
-      hostingInfo().then(info => {
+      hostingInfo(process.env.TUNNEL_LINK_FILE, tunnelManager).then(info => {
         sendNotification({
           event: 'playback_stop',
           roomId: ws.roomId,
@@ -137,7 +143,7 @@ export async function createServer(options = {}) {
     res.setHeader('Content-Type', 'application/json');
     if (media && await media.serve(req, res)) return;
     if (req.method === 'GET' && req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(dashboard); return; }
-    if (req.method === 'GET' && req.url === '/api/hosting') { res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(await hostingInfo())); return; }
+    if (req.method === 'GET' && req.url === '/api/hosting') { res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(await hostingInfo(process.env.TUNNEL_LINK_FILE, tunnelManager))); return; }
 
     if (req.method === 'GET' && req.url === '/api/providers') {
       res.setHeader('Cache-Control', 'no-store');
@@ -241,6 +247,7 @@ export async function createServer(options = {}) {
         }
         const body = JSON.parse(input);
         const updated = await saveConfig(body);
+        await tunnelManager.sync(updated);
         if (updated.maxHeight) capabilities.maxHeight = updated.maxHeight;
         if (updated.maxFps) capabilities.maxFps = updated.maxFps;
         if (media) {
@@ -478,6 +485,7 @@ export async function createServer(options = {}) {
     server,
     rooms,
     capabilities,
+    tunnelManager,
     close: async () => {
       clearInterval(timer);
       for (const ws of wss.clients) ws.terminate();
@@ -485,6 +493,7 @@ export async function createServer(options = {}) {
       await browser.close();
       rooms.close();
       if (media) await media.close();
+      await tunnelManager.stop();
       await new Promise(resolve => server.close(resolve));
     }
   };

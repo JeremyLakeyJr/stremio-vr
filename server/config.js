@@ -1,7 +1,8 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-const CONFIG_PATH = process.env.CONFIG_PATH || (process.env.NODE_ENV === 'test' ? './test/data_config.json' : '/share/config.json');
+const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => typeof arg === 'string' && (arg.includes('test') || arg.endsWith('.js') && arg.includes('test')));
+const CONFIG_PATH = process.env.CONFIG_PATH || (isTest ? './test/data_config.json' : '/share/config.json');
 
 const defaultConfig = {
   streamingServiceUrl: process.env.STREAMING_SERVICE_URL || 'http://media:11470',
@@ -62,7 +63,18 @@ export async function saveConfig(updates = {}) {
 }
 
 export function getConfig() {
-  return currentConfig;
+  return {
+    ...currentConfig,
+    mediastormUrl: process.env.MEDIASTORM_URL || currentConfig.mediastormUrl || '',
+    mediastormKey: process.env.MEDIASTORM_KEY || currentConfig.mediastormKey || '',
+    siloUrl: process.env.SILO_URL || currentConfig.siloUrl || '',
+    siloToken: process.env.SILO_TOKEN || currentConfig.siloToken || '',
+    jellyfinUrl: process.env.JELLYFIN_URL || currentConfig.jellyfinUrl || '',
+    remuxUrl: process.env.REMUX_URL || currentConfig.remuxUrl || '',
+    tunnelToken: process.env.TUNNEL_TOKEN || currentConfig.tunnelToken || '',
+    tunnelUrl: process.env.TUNNEL_URL || currentConfig.tunnelUrl || '',
+    tailscaleUrl: process.env.TAILSCALE_URL || currentConfig.tailscaleUrl || ''
+  };
 }
 
 export function getPublicConfig() {

@@ -1,29 +1,59 @@
 import { readFile } from 'node:fs/promises';
 import { getConfig } from './config.js';
 
-export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE) {
+export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE, tunnelMgr = null) {
   const cfg = getConfig();
   const tsUrl = cfg.tailscaleUrl || process.env.TAILSCALE_URL || (process.env.TS_HOSTNAME ? `https://${process.env.TS_HOSTNAME}` : null);
   if (tsUrl && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(tsUrl)) {
     return { url: tsUrl, online: true, mode: 'tailscale' };
   }
 
-  const customTunnel = cfg.tunnelUrl || process.env.TUNNEL_URL;
-  if (customTunnel && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(customTunnel)) {
-    return { url: customTunnel, online: true, mode: 'named' };
+  if (tunnelMgr) {
+    const tStatus = tunnelMgr.getStatus();
+    if (tStatus.hasToken) {
+      const activeUrl = cfg.tunnelUrl || tStatus.url || '';
+      if (tStatus.error) {
+        return { url: activeUrl, online: false, mode: 'named', error: tStatus.error };
+      }
+      if (tStatus.connected) {
+        return { url: activeUrl, online: true, mode: 'named', connected: true };
+      }
+      if (tStatus.running) {
+        return { url: activeUrl, online: false, starting: true, mode: 'named', message: 'Connecting to Cloudflare edge...' };
+      }
+      return { url: activeUrl, online: false, mode: 'named', message: 'Tunnel process idle' };
+    }
   }
 
   try {
     const data = JSON.parse(await readFile(file, 'utf8'));
-    if (data.url && data.url !== 'https://api.trycloudflare.com' && Number.isFinite(data.updatedAt) && Date.now() - data.updatedAt < 20000 && data.updatedAt <= Date.now() + 5000) {
+    if (data.url && data.url !== 'https://api.trycloudflare.com') {
+      const isFresh = Number.isFinite(data.updatedAt) && Date.now() - data.updatedAt < 20000 && data.updatedAt <= Date.now() + 5000;
       const isTryCloudflare = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(data.url);
-      const isNamedTunnel = data.mode === 'named' || Boolean(cfg.tunnelToken || process.env.TUNNEL_TOKEN || customTunnel);
       const isSafeHttps = /^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(data.url);
-      if (isTryCloudflare || (isNamedTunnel && isSafeHttps)) {
-        return { url: data.url, online: true, mode: isNamedTunnel ? 'named' : 'quick' };
+      const isNamedTunnel = data.mode === 'named' || Boolean(cfg.tunnelToken || process.env.TUNNEL_TOKEN);
+
+      if (data.connected || isFresh) {
+        if (isTryCloudflare || (isNamedTunnel && isSafeHttps)) {
+          const isOnline = data.running !== false && (Boolean(data.connected) || isFresh);
+          return {
+            url: cfg.tunnelUrl || data.url,
+            online: isOnline,
+            mode: isNamedTunnel ? 'named' : 'quick',
+            connected: Boolean(data.connected),
+            error: data.error || null
+          };
+        }
       }
     }
   } catch {}
+
+  const customTunnel = cfg.tunnelUrl || process.env.TUNNEL_URL;
+  if (customTunnel && /^https?:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(customTunnel)) {
+    if (!cfg.tunnelToken && !process.env.TUNNEL_TOKEN) {
+      return { url: customTunnel, online: true, mode: 'named' };
+    }
+  }
 
   return { url: null, online: false };
 }
@@ -290,10 +320,13 @@ export const dashboard = `<!doctype html>
         <ol>
           <li>Open your <strong>Cloudflare Zero Trust Dashboard</strong> (<code>one.dash.cloudflare.com</code>) → <strong>Networks</strong> → <strong>Tunnels</strong>.</li>
           <li>Click <strong>Create a Tunnel</strong> → choose <strong>Cloudflared</strong> → name it <code>movie-night</code>.</li>
-          <li>Copy the <strong>Tunnel Token</strong> (starts with <code>eyJ...</code>) and paste it below.</li>
-          <li>In Cloudflare Tunnel's <strong>Public Hostname</strong> tab, add your domain (e.g. <code>cinema.yourdomain.com</code>) pointing to <strong>Service:</strong> <code>HTTP://cinema:3000</code>.</li>
-          <li>Enter your custom domain in the <strong>Custom Cloudflare Domain</strong> field below and click Save!</li>
+          <li>Copy the <strong>Tunnel Token</strong> (starts with <code>eyJh...</code>) and paste it into the <strong>Cloudflare Named Tunnel Token</strong> field below.</li>
+          <li>In Cloudflare Tunnel's <strong>Public Hostname</strong> tab, add your domain (e.g. <code>vr.mightysprite.dev</code>) pointing to <strong>Service:</strong> <code>HTTP://localhost:3000</code> (or <code>HTTP://movie-night:3000</code>).</li>
+          <li>Enter your custom domain in the <strong>Custom Cloudflare Domain</strong> field below and click <strong>Save Server Settings</strong>. Movie Night will immediately start the connector and activate the tunnel!</li>
         </ol>
+        <div class="field-hint" style="margin-top: 8px; color: #a3b8cc;">
+          💡 <em>Note:</em> Movie Night runs the <code>cloudflared</code> connector right inside the container. Both <code>HTTP://localhost:3000</code> and <code>HTTP://movie-night:3000</code> route directly to Movie Night without port forwarding.
+        </div>
       </div>
 
       <label for="cfgTunnelToken">Cloudflare Named Tunnel Token (Zero Trust)</label>
@@ -611,19 +644,31 @@ export const dashboard = `<!doctype html>
         if (data.mode === 'tailscale') {
           tunnelBadge.textContent = '🔒 Tailscale MagicDNS / Tailnet';
         } else if (data.mode === 'named') {
-          tunnelBadge.textContent = '🛡️ Named Cloudflare Tunnel';
+          tunnelBadge.textContent = '🛡️ Named Cloudflare Tunnel (Active)';
         } else {
           tunnelBadge.textContent = '☁️ TryCloudflare Quick Tunnel';
         }
         tunnelBadge.className = 'badge active';
         qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(data.url);
         qrWrapper.style.display = 'flex';
+      } else if (data.starting) {
+        copyBtn.disabled = true;
+        qrWrapper.style.display = 'none';
+        tunnelBadge.textContent = '⏳ Connecting to Cloudflare…';
+        tunnelBadge.className = 'badge';
+        statusEl.textContent = 'Connecting cloudflared to Cloudflare edge… Check Cloudflare Zero Trust dashboard.';
+      } else if (data.error) {
+        copyBtn.disabled = true;
+        qrWrapper.style.display = 'none';
+        tunnelBadge.textContent = '⚠️ Tunnel Error';
+        tunnelBadge.className = 'badge';
+        statusEl.textContent = 'Tunnel error: ' + data.error;
       } else {
         copyBtn.disabled = true;
         qrWrapper.style.display = 'none';
-        tunnelBadge.textContent = 'Tunnel Starting…';
+        tunnelBadge.textContent = 'Tunnel Inactive';
         tunnelBadge.className = 'badge';
-        statusEl.textContent = 'Starting tunnel… If using Docker, keep containers running.';
+        statusEl.textContent = 'Enter your Cloudflare Tunnel token or Tailscale URL in Server Settings.';
       }
     } catch {
       statusEl.textContent = 'Waiting for server…';

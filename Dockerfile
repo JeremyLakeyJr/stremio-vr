@@ -4,6 +4,8 @@ COPY core/Cargo.toml core/Cargo.lock ./
 COPY core/src ./src
 RUN cargo build --locked --release
 
+FROM cloudflare/cloudflared:latest AS cloudflared
+
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 CORE_BINARY=/app/bin/stremio-vr-core
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
@@ -11,6 +13,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=core /build/target/release/stremio-vr-core /app/bin/stremio-vr-core
+COPY --from=cloudflared /usr/local/bin/cloudflared /usr/local/bin/cloudflared
 COPY server ./server
 COPY docs/screenshots ./docs/screenshots
 RUN mkdir /share && chown node:node /share

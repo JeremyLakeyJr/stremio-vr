@@ -24,3 +24,5 @@ unity/.utmp/
 # Original import/reference archives; converted runtime assets are tracked.
 /roblox-r6-rigged.zip
 /ingame menu example.webp
+
+test/data_config.json
