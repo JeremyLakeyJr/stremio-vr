@@ -40,7 +40,13 @@ export async function loadConfig() {
 
 export async function saveConfig(updates = {}) {
   await loadConfig();
-  currentConfig = { ...currentConfig, ...updates };
+  for (const [key, val] of Object.entries(updates)) {
+    // If incoming value is masked (e.g. from UI placeholder/masked response), keep the existing stored value
+    if (typeof val === 'string' && val.includes('••••')) {
+      continue;
+    }
+    currentConfig[key] = val;
+  }
   try {
     await mkdir(dirname(CONFIG_PATH), { recursive: true });
     await writeFile(CONFIG_PATH, JSON.stringify(currentConfig, null, 2), 'utf8');

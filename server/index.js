@@ -131,6 +131,9 @@ export async function createServer(options = {}) {
 
   const handler = async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader('Content-Type', 'application/json');
     if (media && await media.serve(req, res)) return;
     if (req.method === 'GET' && req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(dashboard); return; }
@@ -138,6 +141,7 @@ export async function createServer(options = {}) {
 
     if (req.method === 'GET' && req.url === '/api/providers') {
       res.setHeader('Cache-Control', 'no-store');
+      const cfg = getConfig();
       const check = async (u, headers = {}) => {
         if (!u) return { configured: false, online: false };
         try {
@@ -148,14 +152,14 @@ export async function createServer(options = {}) {
           return { configured: true, online: false };
         }
       };
-      const msHeaders = process.env.MEDIASTORM_KEY ? { 'X-MediaStorm-Key': process.env.MEDIASTORM_KEY } : {};
-      const siloHeaders = process.env.SILO_TOKEN ? { 'Authorization': `Bearer ${process.env.SILO_TOKEN}` } : {};
+      const msHeaders = (cfg.mediastormKey || process.env.MEDIASTORM_KEY) ? { 'X-MediaStorm-Key': cfg.mediastormKey || process.env.MEDIASTORM_KEY } : {};
+      const siloHeaders = (cfg.siloToken || process.env.SILO_TOKEN) ? { 'Authorization': `Bearer ${cfg.siloToken || process.env.SILO_TOKEN}` } : {};
       const [stremio, jellyfin, mediastorm, silo, remux] = await Promise.all([
-        check(process.env.STREAMING_SERVICE_URL || 'http://stremio:11470'),
-        check(process.env.JELLYFIN_URL),
-        check(process.env.MEDIASTORM_URL, msHeaders),
-        check(process.env.SILO_URL, siloHeaders),
-        check(process.env.REMUX_URL)
+        check(cfg.streamingServiceUrl || process.env.STREAMING_SERVICE_URL || 'http://media:11470'),
+        check(cfg.jellyfinUrl || process.env.JELLYFIN_URL),
+        check(cfg.mediastormUrl || process.env.MEDIASTORM_URL, msHeaders),
+        check(cfg.siloUrl || process.env.SILO_URL, siloHeaders),
+        check(cfg.remuxUrl || process.env.REMUX_URL)
       ]);
       res.end(JSON.stringify({
         ok: true,
@@ -225,7 +229,16 @@ export async function createServer(options = {}) {
       try {
         req.setEncoding('utf8');
         let input = '';
-        for await (const chunk of req) input += chunk;
+        let bytes = 0;
+        for await (const chunk of req) {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > 65536) {
+            res.writeHead(413);
+            res.end(JSON.stringify({ error: 'Payload too large' }));
+            return;
+          }
+          input += chunk;
+        }
         const body = JSON.parse(input);
         const updated = await saveConfig(body);
         if (updated.maxHeight) capabilities.maxHeight = updated.maxHeight;
@@ -247,7 +260,16 @@ export async function createServer(options = {}) {
       try {
         req.setEncoding('utf8');
         let input = '';
-        for await (const chunk of req) input += chunk;
+        let bytes = 0;
+        for await (const chunk of req) {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > 65536) {
+            res.writeHead(413);
+            res.end(JSON.stringify({ error: 'Payload too large' }));
+            return;
+          }
+          input += chunk;
+        }
         const body = JSON.parse(input);
         const { url, title, duration } = body;
         if (!url) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing video url' })); return; }
