@@ -4,6 +4,7 @@ import http from 'node:http';
 import { srtToVtt, adjustVttOffset, fetchSubtitles, clearSubtitleCache, searchOpenSubtitles } from '../server/subtitles.js';
 import { sendNotification, formatNotificationPayload } from '../server/notifications.js';
 import { createServer } from '../server/index.js';
+import { saveConfig } from '../server/config.js';
 import { once } from 'node:events';
 import WebSocket from 'ws';
 
@@ -302,4 +303,69 @@ test('api: /api/providers sends Authorization Bearer header when SILO_TOKEN is s
     delete process.env.SILO_URL;
     delete process.env.SILO_TOKEN;
   }
+});
+
+test('api: /api/providers accurately reports Remux status independently from Silo', async (t) => {
+  await saveConfig({ siloUrl: '', siloToken: '', remuxUrl: '' });
+  delete process.env.SILO_URL;
+  delete process.env.SILO_TOKEN;
+
+  const mockRemux = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ remux: 'ok' }));
+  });
+  mockRemux.listen(0, '127.0.0.1');
+  await once(mockRemux, 'listening');
+  t.after(() => mockRemux.close());
+
+  const remuxPort = mockRemux.address().port;
+  process.env.REMUX_URL = `http://127.0.0.1:${remuxPort}`;
+
+  try {
+    const app = await createServer({ media: false });
+    app.server.listen(0, '127.0.0.1');
+    await once(app.server, 'listening');
+    t.after(() => app.close());
+
+    const port = app.server.address().port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+    const data = await res.json();
+    assert.equal(data.providers.remux.online, true);
+    assert.equal(data.providers.remux.configured, true);
+    assert.equal(data.providers.silo.configured, false);
+  } finally {
+    delete process.env.REMUX_URL;
+  }
+});
+
+test('api: /api/room/play accepts subtitlesUrl and includes it in room playback state', async (t) => {
+  const app = await createServer({ media: false });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+
+  const port = app.server.address().port;
+
+  // Create active room
+  const fakeWs = { readyState: 1, send() {} };
+  app.rooms.handle(fakeWs, { type: 'create' });
+  const room = app.rooms.rooms.get(fakeWs.roomId);
+  assert.ok(room && room.id);
+
+  const res = await fetch(`http://127.0.0.1:${port}/api/room/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      roomId: room.id,
+      url: 'https://example.com/test-stream.mp4',
+      title: 'Test Movie',
+      subtitlesUrl: 'https://example.com/subtitles.vtt'
+    })
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.equal(room.playback.sourceUrl, 'https://example.com/test-stream.mp4');
+  assert.equal(room.playback.subtitlesUrl, 'https://example.com/subtitles.vtt');
 });

@@ -293,14 +293,14 @@ export const dashboard = `<!doctype html>
         </div>
       </div>
 
-      <!-- SILO & REMUX -->
+      <!-- SILO -->
       <div class="server-card">
         <div class="server-header">
           <div class="server-title-group">
-            <span class="server-icon-badge" style="background:#133329; border:1px solid #206b52;">📦</span>
+            <span class="server-icon-badge" style="background:#133329; border:1px solid #206b52;">🟢</span>
             <div>
-              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Silo & Remux Backends</h3>
-              <div style="font-size:11px; color:#a99ebd;">Ultra-low latency streaming engines</div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Silo Streaming Backend</h3>
+              <div style="font-size:11px; color:#a99ebd;">High-performance Go debrid & torrent streaming server</div>
             </div>
           </div>
           <span id="badge-silo" class="server-status-pill unconfigured">Not Configured</span>
@@ -312,18 +312,35 @@ export const dashboard = `<!doctype html>
               <input id="cfgSiloUrl" placeholder="e.g. http://192.168.1.100:8082">
               <button type="button" class="btn-test" onclick="testProvider('silo', 'cfgSiloUrl', 'cfgSiloToken')">Ping</button>
             </div>
+            <div class="field-hint">Internal or LAN address running Silo debrid bridge.</div>
           </div>
           <div>
             <label for="cfgSiloToken">Silo Auth Token (Optional)</label>
             <input id="cfgSiloToken" placeholder="Bearer auth token">
+            <div class="field-hint">Bearer token if your Silo server requires authentication.</div>
           </div>
         </div>
-        <div style="margin-top:6px;">
+      </div>
+
+      <!-- REMUX -->
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-title-group">
+            <span class="server-icon-badge" style="background:#3b1e11; border:1px solid #733c20;">🟠</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Remux Service</h3>
+              <div style="font-size:11px; color:#a99ebd;">Lossless direct video remuxing daemon (lostb1t/remux)</div>
+            </div>
+          </div>
+          <span id="badge-remux" class="server-status-pill unconfigured">Not Configured</span>
+        </div>
+        <div style="margin-top:10px;">
           <label for="cfgRemuxUrl">Remux Service URL</label>
           <div class="input-with-action">
-            <input id="cfgRemuxUrl" placeholder="e.g. http://remux:8096">
+            <input id="cfgRemuxUrl" placeholder="e.g. http://remux:8096 or http://192.168.1.100:8096">
             <button type="button" class="btn-test" onclick="testProvider('remux', 'cfgRemuxUrl')">Ping</button>
           </div>
+          <div class="field-hint">Zero-transcoding remux gateway for high-fidelity instant streaming.</div>
         </div>
       </div>
     </section>
@@ -516,6 +533,7 @@ export const dashboard = `<!doctype html>
         updatePill('badge-jellyfin', p.jellyfin?.online, p.jellyfin?.configured ? (p.jellyfin.online ? 'Online' : 'Offline') : 'Not Configured');
         updatePill('badge-mediastorm', p.mediastorm?.online, p.mediastorm?.configured ? (p.mediastorm.online ? 'Online' : 'Offline') : 'Not Configured');
         updatePill('badge-silo', p.silo?.online, p.silo?.configured ? (p.silo.online ? 'Online' : 'Offline') : 'Not Configured');
+        updatePill('badge-remux', p.remux?.online, p.remux?.configured ? (p.remux.online ? 'Online' : 'Offline') : 'Not Configured');
       }
     } catch {}
   }
