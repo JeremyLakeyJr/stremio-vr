@@ -57,7 +57,7 @@ public static class QuestBuild {
         if (quest == null || touch == null) throw new BuildFailedException("Open Android OpenXR settings to initialize Meta Quest and Touch features, then rerun Configure");
         quest.enabled = true; touch.enabled = true;
         var questSettings = new SerializedObject(quest);
-        questSettings.FindProperty("optimizeBufferDiscards").boolValue = false;
+        var discardsProp = questSettings.FindProperty("optimizeBufferDiscards"); if (discardsProp != null) { discardsProp.boolValue = false; }
         questSettings.ApplyModifiedPropertiesWithoutUndo();
         xr.optimizeBufferDiscards = false;
         EditorUtility.SetDirty(general); EditorUtility.SetDirty(general.Manager); EditorUtility.SetDirty(xr); EditorUtility.SetDirty(quest); EditorUtility.SetDirty(touch);
@@ -87,3 +87,4 @@ public static class QuestBuild {
     }
 }
 }
+

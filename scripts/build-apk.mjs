@@ -42,22 +42,23 @@ if (fs.existsSync(homeUlkanPath)) {
 }
 
 // 3. Locate Unity Editor executable
-console.log('\n[3/4] Searching for Unity 6 Editor (6000.0.66f2)...');
+console.log('\n[3/4] Searching for Unity 6 Editor...');
 const candidatePaths = [
   process.env.UNITY_PATH,
+  'C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.7f1\\Editor\\Unity.exe',
   'C:\\Program Files\\Unity\\Hub\\Editor\\6000.0.66f2\\Editor\\Unity.exe',
   'D:\\Program Files\\Unity\\Hub\\Editor\\6000.0.66f2\\Editor\\Unity.exe',
   'E:\\Program Files\\Unity\\Hub\\Editor\\6000.0.66f2\\Editor\\Unity.exe',
   'C:\\Program Files\\Unity\\Editor\\Unity.exe',
 ].filter(Boolean);
 
-// Also search wildcard 6000.0.*
+// Also search wildcard 6000.*
 const hubEditorDir = 'C:\\Program Files\\Unity\\Hub\\Editor';
 if (fs.existsSync(hubEditorDir)) {
   try {
     const entries = fs.readdirSync(hubEditorDir);
     for (const entry of entries) {
-      if (entry.startsWith('6000.0')) {
+      if (entry.startsWith('6000.')) {
         candidatePaths.push(path.join(hubEditorDir, entry, 'Editor', 'Unity.exe'));
       }
     }
@@ -81,7 +82,12 @@ if (unityExe) {
     '-logFile', path.join(rootDir, 'unity-build.log')
   ];
 
-  const result = spawnSync(unityExe, buildArgs, { stdio: 'inherit' });
+  const env = {
+    ...process.env,
+    JAVA_TOOL_OPTIONS: '-Djava.net.preferIPv4Stack=true',
+    GRADLE_OPTS: '-Djava.net.preferIPv4Stack=true'
+  };
+  const result = spawnSync(unityExe, buildArgs, { stdio: 'inherit', env });
   if (result.status === 0) {
     console.log('\n✔ APK Build succeeded! Output: unity/Builds/movie-night.apk');
   } else {

@@ -20,7 +20,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
     public bool Suspended { get; set; }
     Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek; double soloPosition;
-    public void Initialize(RoomClient room, GameObject screen) {
+    public void Initialize(RoomClient room, Renderer screen) {
         Room = room; Room.Message += OnMessage;
         Video = gameObject.AddComponent<VideoPlayer>(); Video.playOnAwake = false; Video.isLooping = false;
         Video.skipOnDrop = true; Video.renderMode = VideoRenderMode.MaterialOverride;
@@ -29,11 +29,11 @@ public sealed class CinemaPlayback : MonoBehaviour {
             if(soloSeek){Video.time=Math.Min(soloPosition,Video.length>0?Video.length:soloPosition);soloSeek=false;}
             preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]); };
         Subtitles = gameObject.AddComponent<CinemaSubtitles>();
-        Subtitles.Initialize(this, screen);
+        Subtitles.Initialize(this, screen ? screen.gameObject : null);
         SetScreen(screen);
     }
-    public void SetScreen(GameObject screen) { screenRenderer = screen ? screen.GetComponent<Renderer>() : null; screenSize = screen ? screen.transform.localScale : Vector3.one; Subtitles?.SetScreen(screen); ApplyScreen(); }
-    void ApplyScreen() { if (screenRenderer) { Video.targetRenderer = screenRenderer; Video.targetMaterialProperty = "_MainTex"; } }
+    public void SetScreen(Renderer screen) { screenRenderer = screen; screenSize = screen ? screen.transform.localScale : Vector3.one; Subtitles?.SetScreen(screen ? screen.gameObject : null); ApplyScreen(); }
+    void ApplyScreen() { if (screenRenderer) { Video.targetMaterialRenderer = screenRenderer; Video.targetMaterialProperty = "_MainTex"; } }
     void OnMessage(JObject message) {
         if ((string)message["type"] == "disconnected") { playback = null; Video.Stop(); preparing = false; return; }
         if (message["type"]?.ToString() != "state") return;
