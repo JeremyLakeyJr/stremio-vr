@@ -707,7 +707,7 @@ public sealed class CinemaApp : MonoBehaviour {
         Clear(); pageTitle.text = "Servers & Streaming";
         Heading("Media Servers, Debrid & Streaming Services");
 
-        Heading("One-Click Web Streamers (720p HD VR Browser)");
+        Heading("One-Click Web Streamers (1080p FHD VR Browser)");
         Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
         Button("🌌 Nuvio Web", content, 10, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
         Button("🎬 Stremio Web", content, 235, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });

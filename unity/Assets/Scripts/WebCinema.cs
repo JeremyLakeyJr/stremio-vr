@@ -10,7 +10,7 @@ public sealed class WebCinema : MonoBehaviour {
  public RoomClient Room; public CinemaPlayback Playback; public WorldManager World; public VideoAmbient Ambient;
  public event Action<string> Status;
  public bool Active { get; private set; }
- const int WebWidth = 1280, WebHeight = 720; byte[] pixels = new byte[WebWidth * WebHeight * 4]; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame;
+ const int WebWidth = 1920, WebHeight = 1080; byte[] pixels = new byte[WebWidth * WebHeight * 4]; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame;
  AndroidJavaObject rtc; Texture2D yPlane,uPlane,vPlane; RenderTexture videoTexture; Material converter; JArray remoteTabs=new JArray(); string ice="[]"; bool remoteMode,watching; float nextPointer,nextScroll,lastVolume=-1;
  public void Initialize(){Room.Message+=OnMessage;}
  string ProfileKey(){
@@ -66,7 +66,7 @@ public sealed class WebCinema : MonoBehaviour {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
   if(remoteMode){try{ReceiveFrame();}catch(Exception e){Status?.Invoke("Browser frame failed: "+e.GetType().Name);Release();}return;}
   if(Time.unscaledTime<nextFrame)return; nextFrame=Time.unscaledTime+1f/30;
-  try { var bytes=web?.Call<sbyte[]>("takeFrame"); if(bytes!=null && bytes.Length==WebWidth*WebHeight*4) {Buffer.BlockCopy(bytes,0,pixels,0,bytes.Length);texture.LoadRawTextureData(pixels);texture.Apply(false); if(!receivedFrame){receivedFrame=true;Debug.Log("[WebScreen] Hardware frame received: 1024x576 RGBA");}} } catch(Exception e) { Status?.Invoke("Web screen stopped: "+e.GetType().Name);Close(); }
+  try { var bytes=web?.Call<sbyte[]>("takeFrame"); if(bytes!=null && bytes.Length==WebWidth*WebHeight*4) {Buffer.BlockCopy(bytes,0,pixels,0,bytes.Length);texture.LoadRawTextureData(pixels);texture.Apply(false); if(!receivedFrame){receivedFrame=true;Debug.Log("[WebScreen] Hardware frame received: 1920x1080 RGBA");}} } catch(Exception e) { Status?.Invoke("Web screen stopped: "+e.GetType().Name);Close(); }
  }
  public bool Point(Ray ray,bool held,float scroll,out Vector3 point) {
   point=Vector3.zero; if(!Active||!screen||!Room.IsHost)return false;
