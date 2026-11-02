@@ -296,6 +296,8 @@ export async function createServer(options = {}) {
       try {
         const query = new URL(req.url, 'http://localhost').searchParams;
         const code = query.get('code');
+        const ephemeral = query.get('ephemeral') === 'true';
+        const roomId = query.get('roomId');
         if (!code) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing link code' })); return; }
         const readRes = await fetch('https://link.stremio.com/api/v2/read?type=Read&code=' + encodeURIComponent(code), {
           headers: { 'User-Agent': 'Mozilla/5.0 (MovieNightVR)' },
@@ -336,12 +338,32 @@ export async function createServer(options = {}) {
           }
         }
 
+        // Ephemeral Room Session: attach strictly to memory state of active room; never write to disk!
+        if (ephemeral) {
+          let targetRoom = roomId ? rooms.rooms.get(roomId) : null;
+          if (!targetRoom && rooms.rooms.size > 0) {
+            for (const r of rooms.rooms.values()) { targetRoom = r; break; }
+          }
+          if (targetRoom) {
+            targetRoom.stremioSession = {
+              authKey,
+              user: username,
+              addons: addonsList,
+              ephemeral: true
+            };
+            rooms.state(targetRoom);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: true, linked: true, ephemeral: true, roomId: targetRoom.id, user: username, addonCount: addonsList.length }));
+            return;
+          }
+        }
+
         const updates = { stremioAuthKey: authKey, stremioUser: username };
         if (addonsList.length) updates.addons = addonsList;
         await saveConfig(updates);
 
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ ok: true, linked: true, user: username, addonCount: addonsList.length }));
+        res.end(JSON.stringify({ ok: true, linked: true, ephemeral: false, user: username, addonCount: addonsList.length }));
       } catch (err) {
         res.writeHead(502); res.end(JSON.stringify({ error: err.message }));
       }
@@ -349,12 +371,36 @@ export async function createServer(options = {}) {
     }
     if (req.method === 'POST' && req.url === '/api/stremio/unlink') {
       try {
-        await saveConfig({ stremioAuthKey: '', stremioUser: '' });
+        req.setEncoding('utf8');
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        let parsed = {};
+        try { parsed = JSON.parse(body); } catch {}
+        if (parsed.roomId && rooms.rooms.has(parsed.roomId)) {
+          const room = rooms.rooms.get(parsed.roomId);
+          room.stremioSession = null;
+          rooms.state(room);
+        } else {
+          for (const room of rooms.rooms.values()) {
+            if (room.stremioSession?.ephemeral) room.stremioSession = null;
+          }
+          await saveConfig({ stremioAuthKey: '', stremioUser: '' });
+        }
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
         res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
       }
+      return;
+    }
+    if (req.method === 'GET' && (req.url === '/api/room/addons' || req.url.startsWith('/api/room/addons?'))) {
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const roomId = query.get('roomId');
+      const room = roomId ? rooms.rooms.get(roomId) : (rooms.rooms.values().next().value || null);
+      const addons = room?.stremioSession?.addons || getConfig().addons || [];
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(JSON.stringify({ ok: true, addons, ephemeral: Boolean(room?.stremioSession?.ephemeral), user: room?.stremioSession?.user || null }));
       return;
     }
     if (req.method === 'POST' && req.url === '/api/room/play') {

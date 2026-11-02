@@ -219,7 +219,13 @@ export const dashboard = `<!doctype html>
         </div>
 
         <div id="stremioLoggedOut" style="display:none; margin-top:12px;">
-          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()" style="font-size:13px; padding:10px 18px;">🔗 Quick Link Stremio Account</button>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+            <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()" style="font-size:13px; padding:10px 18px;">🔗 Quick Link Stremio Account</button>
+            <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#dcd2ee; cursor:pointer;">
+              <input type="checkbox" id="stremioEphemeralCheckbox" checked style="accent-color:#7958ff; width:16px; height:16px;">
+              <span><strong>Ephemeral Session</strong> (zero server disk storage; automatically purged when host leaves)</span>
+            </label>
+          </div>
           <div id="linkPrompt" style="display:none; background:#0c0a14; border:1px solid #4a366e; border-radius:12px; padding:16px; margin-top:12px; width:100%; box-sizing:border-box;">
             <p style="margin:0 0 10px; font-weight:600; font-size:13px;">1. Open the link or scan QR code on your phone/browser:</p>
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
@@ -236,8 +242,9 @@ export const dashboard = `<!doctype html>
             <div>
               <div style="font-weight:700; color:#78e8b4;" id="stremioUserName">Signed in as Stremio User</div>
               <div style="font-size:12px; color:#a3e0c4;" id="stremioAddonSummary">Addons and catalogs synced automatically.</div>
+              <div id="stremioSessionTypeBadge" style="font-size:11px; margin-top:4px; color:#ffd166;"></div>
             </div>
-            <button type="button" class="btn-danger" onclick="unlinkStremio()">Disconnect</button>
+            <button type="button" class="btn-danger" onclick="unlinkStremio()">Disconnect / Forget</button>
           </div>
         </div>
       </div>
@@ -515,6 +522,13 @@ export const dashboard = `<!doctype html>
         document.getElementById('cfgMaxHeight').value = serverConfig.maxHeight || 1080;
         document.getElementById('cfgMaxFps').value = serverConfig.maxFps || 60;
         document.getElementById('cfgOpenSubtitlesKey').value = serverConfig.openSubtitlesApiKey || '';
+        try {
+          const rRes = await fetch('/api/room/addons');
+          if (rRes.ok) {
+            const rData = await rRes.json();
+            if (rData.ephemeral) activeEphemeralSession = rData;
+          }
+        } catch {}
         renderStremioStatus();
         checkProviderStatuses();
       }
@@ -587,19 +601,32 @@ export const dashboard = `<!doctype html>
     }
   }
 
+  let activeEphemeralSession = null;
   function renderStremioStatus() {
-    const loggedIn = Boolean(serverConfig.stremioAuthKey);
+    const loggedIn = Boolean(serverConfig.stremioAuthKey) || Boolean(activeEphemeralSession?.ephemeral);
     document.getElementById('stremioLoggedIn').style.display = loggedIn ? 'block' : 'none';
     document.getElementById('stremioLoggedOut').style.display = loggedIn ? 'none' : 'block';
     if (loggedIn) {
-      document.getElementById('stremioUserName').textContent = '✓ Connected as: ' + (serverConfig.stremioUser || 'Stremio Account');
-      const count = Array.isArray(serverConfig.addons) ? serverConfig.addons.length : 0;
+      const user = activeEphemeralSession?.user || serverConfig.stremioUser || 'Stremio Account';
+      const count = activeEphemeralSession?.addons?.length ?? (Array.isArray(serverConfig.addons) ? serverConfig.addons.length : 0);
+      document.getElementById('stremioUserName').textContent = '✓ Connected as: ' + user;
       document.getElementById('stremioAddonSummary').textContent = count + ' add-on(s) and catalogs synced and ready for VR.';
+      const badge = document.getElementById('stremioSessionTypeBadge');
+      if (badge) {
+        if (activeEphemeralSession?.ephemeral) {
+          badge.textContent = '🛡️ Ephemeral Room Session (RAM only — server forgets immediately when room finishes)';
+          badge.style.color = '#78e8b4';
+        } else {
+          badge.textContent = '💾 Saved permanently to server configuration';
+          badge.style.color = '#a99ebd';
+        }
+      }
     }
   }
 
   async function startStremioLink() {
     const btn = document.getElementById('startLinkBtn');
+    const isEphemeral = document.getElementById('stremioEphemeralCheckbox')?.checked ?? true;
     btn.disabled = true;
     btn.textContent = 'Requesting Link Code…';
     try {
@@ -613,13 +640,17 @@ export const dashboard = `<!doctype html>
         
         // Start polling for authorization
         if (stremioPollTimer) clearInterval(stremioPollTimer);
+        const pollUrl = '/api/stremio/poll?code=' + encodeURIComponent(data.code) + (isEphemeral ? '&ephemeral=true' : '');
         stremioPollTimer = setInterval(async () => {
           try {
-            const pRes = await fetch('/api/stremio/poll?code=' + encodeURIComponent(data.code));
+            const pRes = await fetch(pollUrl);
             const pData = await pRes.json();
             if (pData.ok && pData.linked) {
               clearInterval(stremioPollTimer);
               document.getElementById('linkPrompt').style.display = 'none';
+              if (pData.ephemeral) {
+                activeEphemeralSession = { ephemeral: true, user: pData.user, addons: new Array(pData.addonCount || 0) };
+              }
               loadSettings();
             }
           } catch {}
@@ -636,9 +667,10 @@ export const dashboard = `<!doctype html>
   }
 
   async function unlinkStremio() {
-    if (!confirm('Disconnect Stremio account?')) return;
+    if (!confirm('Disconnect Stremio account and forget session?')) return;
     try {
-      await fetch('/api/stremio/unlink', { method: 'POST' });
+      activeEphemeralSession = null;
+      await fetch('/api/stremio/unlink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       loadSettings();
     } catch (e) {
       alert('Error disconnecting: ' + e.message);

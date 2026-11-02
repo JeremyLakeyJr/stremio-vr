@@ -369,3 +369,87 @@ test('api: /api/room/play accepts subtitlesUrl and includes it in room playback 
   assert.equal(room.playback.sourceUrl, 'https://example.com/test-stream.mp4');
   assert.equal(room.playback.subtitlesUrl, 'https://example.com/subtitles.vtt');
 });
+
+test('stremio: ephemeral room session stores in RAM, never leaks authKey to snapshot, and purges on host leave', async () => {
+  const { Rooms } = await import('../server/rooms.js');
+  const rooms = new Rooms();
+  const host = { readyState: 1, messages: [], send(d) { this.messages.push(JSON.parse(d)); } };
+  const guest = { readyState: 1, messages: [], send(d) { this.messages.push(JSON.parse(d)); } };
+
+  // 1. Host creates room
+  rooms.handle(host, { type: 'create' });
+  const roomId = host.roomId;
+  const room = rooms.rooms.get(roomId);
+
+  // 2. Guest joins room
+  rooms.handle(guest, { type: 'join', roomId });
+
+  // 3. Guest attempting to set stremio session is rejected
+  assert.throws(() => {
+    rooms.handle(guest, { type: 'stremio:session', authKey: 'secret-123', user: 'Hacker' });
+  }, /Only the host/);
+
+  // 4. Host sets ephemeral Stremio session
+  rooms.handle(host, {
+    type: 'stremio:session',
+    authKey: 'super-secret-key-999',
+    user: 'LegitimateDog',
+    addons: ['https://example.com/cinemeta/manifest.json'],
+    ephemeral: true
+  });
+
+  // Verify room internal state
+  assert.equal(room.stremioSession.user, 'LegitimateDog');
+  assert.equal(room.stremioSession.authKey, 'super-secret-key-999');
+  assert.equal(room.stremioSession.ephemeral, true);
+
+  // Verify broadcast snapshot NEVER exposes raw authKey
+  const snap = rooms.snapshot(room);
+  assert.equal(snap.stremio.active, true);
+  assert.equal(snap.stremio.user, 'LegitimateDog');
+  assert.equal(snap.stremio.addonCount, 1);
+  assert.equal(snap.stremio.ephemeral, true);
+  assert.equal(snap.stremio.authKey, undefined);
+  assert.equal(JSON.stringify(snap).includes('super-secret-key-999'), false);
+
+  // 5. Host disconnects / leaves -> ephemeral session is completely purged from RAM
+  rooms.leave(host, true);
+  assert.equal(room.stremioSession, null);
+  const snapAfter = rooms.snapshot(room);
+  assert.equal(snapAfter.stremio, null);
+});
+
+test('api: /api/room/addons provides ephemeral addons when active without altering server config', async (t) => {
+  const app = await createServer({ media: false });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+
+  const port = app.server.address().port;
+
+  // Create room
+  const fakeWs = { readyState: 1, send() {} };
+  app.rooms.handle(fakeWs, { type: 'create' });
+  const room = app.rooms.rooms.get(fakeWs.roomId);
+
+  // Attach ephemeral session
+  room.stremioSession = {
+    authKey: 'ephemeral-key',
+    user: 'EphemeralUser',
+    addons: ['https://ephemeral-addon.com/manifest.json'],
+    ephemeral: true
+  };
+
+  const res = await fetch(`http://127.0.0.1:${port}/api/room/addons?roomId=${room.id}`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.equal(data.ephemeral, true);
+  assert.equal(data.user, 'EphemeralUser');
+  assert.deepEqual(data.addons, ['https://ephemeral-addon.com/manifest.json']);
+
+  // Verify server config on disk was NOT touched
+  const cfgRes = await fetch(`http://127.0.0.1:${port}/api/config`);
+  const cfgData = await cfgRes.json();
+  assert.notEqual(cfgData.config.stremioAuthKey, 'ephemeral-key');
+});
