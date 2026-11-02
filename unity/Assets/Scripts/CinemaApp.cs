@@ -493,7 +493,10 @@ public sealed class CinemaApp : MonoBehaviour {
         RecordHistory();
         var controller = InputDevices.GetDeviceAtXRNode(XRNode.RightHand); var leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
         leftController.TryGetFeatureValue(CommonUsages.menuButton, out bool menu);
-        if ((menu && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menu;
+        leftController.TryGetFeatureValue(CommonUsages.secondaryButton, out bool leftY);
+        leftController.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool leftStickClick);
+        bool menuPressed = menu || leftY || leftStickClick;
+        if ((menuPressed && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menuPressed;
 
         pointer.enabled = true;
         Vector3 origin = controller.isValid ? right.position : head.position; Vector3 direction = controller.isValid ? RigMotion.RayDirection(right.rotation, motion.RayPitch) : head.forward;

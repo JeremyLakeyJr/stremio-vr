@@ -62,11 +62,11 @@ public sealed class RigMotion : MonoBehaviour {
  void Update() {
   var left=InputDevices.GetDeviceAtXRNode(XRNode.LeftHand); var right=InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
   right.TryGetFeatureValue(CommonUsages.secondaryButton,out bool stand); if(stand && !standDown) Stand(); standDown=stand;
-  if(MenuVisible?.Invoke()==true) return;
+  left.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 stick); if(stick.magnitude<0.2f) stick=Vector2.zero; stick=Vector2.ClampMagnitude(stick,1);
+  if(Seated && stick.magnitude>0.4f) Stand();
   right.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 turn);
   if(Mathf.Abs(turn.x)>0.2f) Rig.RotateAround(Head.position,Vector3.up,turn.x*TurnSpeed*Time.deltaTime);
-  if(Seated) return;
-  left.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 stick); if(stick.magnitude<0.2f) stick=Vector2.zero; stick=Vector2.ClampMagnitude(stick,1);
+  if(MenuVisible?.Invoke()==true || Seated) return;
   var forward=FlatDirection(Head.forward); var rightward=Vector3.Cross(Vector3.up,forward);
   var localHead=Rig.InverseTransformPoint(Head.position); float height=Mathf.Clamp(localHead.y,0.8f,2.2f);
   controller.height=height; controller.center=new Vector3(localHead.x,height*0.5f,localHead.z);
