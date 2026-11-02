@@ -118,6 +118,10 @@ public final class CinemaWebView {
             WebSettings settings=web.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setMediaPlaybackRequiresUserGesture(false); settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
             CookieManager.getInstance().setAcceptCookie(true);
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            settings.setDatabaseEnabled(true); settings.setUseWideViewPort(true); settings.setLoadWithOverviewMode(true);
+            String defaultUa = settings.getUserAgentString();
+            if (defaultUa != null) { settings.setUserAgentString(defaultUa.replace("Mobile", "X11").replace("Android", "CrOS")); }
             web.setWebViewClient(new WebViewClient() {
                 @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) { String scheme=request.getUrl().getScheme(); return !("https".equals(scheme)||"http".equals(scheme)); }
                 @Override public void onPageFinished(WebView view,String url) { if(view==web)restore(); publishTabs(); }
