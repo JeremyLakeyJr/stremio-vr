@@ -4,11 +4,11 @@ namespace StremioVR {
 [DefaultExecutionOrder(20)]
 public sealed class LocalBody : MonoBehaviour {
  public Transform Head,Left,Right; public RoomClient Room;
- R6Avatar model; GameObject nubs;
+ AvatarModel model; GameObject nubs;
  public void Apply(JObject profile) {
   if(model) { model.gameObject.SetActive(false); Destroy(model.gameObject); }
-  model=R6Avatar.Create(transform,profile);
-  // The mirror and peers retain the full R6 avatar; only the local camera sees nubs.
+  model=AvatarModel.Create(transform,profile);
+  // The mirror and peers retain the full selected avatar; only the local camera sees nubs.
   foreach(var part in model.GetComponentsInChildren<Transform>(true)) part.gameObject.layer=29;
   if(nubs) {foreach(var renderer in nubs.GetComponentsInChildren<Renderer>())Destroy(renderer.sharedMaterial); Destroy(nubs);}
   nubs=new GameObject("First-person hand nubs"); nubs.transform.SetParent(transform,false);

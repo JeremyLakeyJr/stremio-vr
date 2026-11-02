@@ -168,3 +168,12 @@ The user reported that the halo looked like a solid rectangular frame. The revis
 Alpha 7 follow-up: the user rejected the softened overlay because it still looked like a frame. The overlay renderer and its runtime geometry are now removed. Ambient color remains on actual world surfaces and emissive light bars, with a smooth radial falloff from each screen center instead of a rectangle-distance plateau. 37 Unity EditMode tests passed, including a regression confirming runtime monitors create no overlay renderer. On-headset visual acceptance is pending.
 
 Headset feedback confirmed the floating frame is gone, but surface lighting was too faint. Increased indirect spill behind screens, diffuse gain and dark-material response; expanded the saved Ambient strength control to 200%. The revised APK was installed on Quest and the user confirmed: “Lighting looks good now.” All 37 Unity EditMode tests pass.
+
+
+## Alpha 8: Open Source Avatars
+
+Integrated the ToxSam registry at revision `0f9a1b2fd99894736563d55b2c9dc9125700d081`: 4,274 public VRM entries from CC0/CC-BY collections. Avatar studio includes search, paged results, live 3D preview/rotation, selection, original R6 controls and creator/source/license credits. The shared avatar model supports preview, remote presence and the local mirror; first-person nubs remain. Headset/controller posing and sitting use the humanoid rig, with R6 fallback on failure. Models download from their original hosts and use a bounded local cache; only catalog IDs are accepted by the room server.
+
+40 Unity EditMode tests passed, including a real CC0 Devil avatar from Polygonal Mind/100Avatars R1, migration from VRM 0.x, export/reimport through the VRM 1.0 loader, malformed/external-resource rejection, and existing rendering/interaction regressions. 58 server tests passed, including profile synchronization, unknown ID rejection and parity between the server/headset catalogs. The real-model fixture lives in ignored `unity/Builds/avatar-fixture.vrm`; download it from the pinned catalog to repeat that integration test. No claim that all 4,274 individual models have been tested.
+
+Alpha 8 (0.1.7, Android code 8) built and installed on Quest. The user confirmed that preview, selection, both-eye appearance, mirror and tracked head/arms work. Recent Unity/Android logs showed no matching runtime errors. The Docker image built successfully and loaded all 4,274 catalog IDs. Multi-headset performance across the full avatar catalog remains unmeasured.

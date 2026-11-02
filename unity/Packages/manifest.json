@@ -15,6 +15,8 @@
     "com.unity.modules.xr": "1.0.0",
     "com.unity.test-framework": "1.4.6",
     "com.unity.modules.unitywebrequesttexture": "1.0.0",
-    "com.unity.postprocessing": "3.5.4"
+    "com.unity.postprocessing": "3.5.4",
+    "com.vrmc.gltf": "https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4",
+    "com.vrmc.vrm": "https://github.com/vrm-c/UniVRM.git?path=/Packages/VRM10#v0.131.4"
   }
 }

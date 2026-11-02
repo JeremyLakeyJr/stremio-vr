@@ -93,12 +93,12 @@ public sealed class AvatarPresence : MonoBehaviour {
     }
     void OnDestroy() { if (Room != null) Room.Message -= OnMessage; foreach (var avatar in avatars.Values) avatar.Dispose(); }
     sealed class Avatar {
-        public string Appearance; readonly GameObject root; readonly Transform head, left, right; readonly R6Avatar model;
+        public string Appearance; readonly GameObject root; readonly Transform head, left, right; readonly AvatarModel model;
         public Transform HeadTransform => head;
         readonly Dictionary<Transform, Vector3> positions = new Dictionary<Transform, Vector3>(); readonly Dictionary<Transform, Quaternion> rotations = new Dictionary<Transform, Quaternion>();
         public Avatar(Transform parent, JObject profile, Vector3 seat) {
             Appearance = profile.ToString(); root = new GameObject((string)profile["name"]); root.transform.SetParent(parent);
-            model = R6Avatar.Create(root.transform, profile);
+            model = AvatarModel.Create(root.transform, profile);
             head = new GameObject("Tracked head").transform; head.SetParent(root.transform); head.position = seat + Vector3.up * 1.65f;
             left = new GameObject("Tracked left hand").transform; left.SetParent(root.transform); left.position = seat + new Vector3(-0.45f, 1.15f, 0.25f);
             right = new GameObject("Tracked right hand").transform; right.SetParent(root.transform); right.position = seat + new Vector3(0.45f, 1.15f, 0.25f);

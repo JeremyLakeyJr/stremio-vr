@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+const avatarIds = new Set(JSON.parse(readFileSync(new URL('./avatar-catalog.json', import.meta.url))));
 import { randomUUID, randomBytes, createHmac } from 'node:crypto';
 import { TableGames } from './games.js';
 import { RoomLayout } from './layout.js';
@@ -8,6 +10,7 @@ export function profile(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
   const result = { name: String(input.name || 'Guest').trim().slice(0, 32) || 'Guest', skin: /^#[\da-f]{6}$/i.test(input.skin) ? input.skin : '#b98059', color: /^#[\da-f]{6}$/i.test(input.color) ? input.color : '#7958ff' };
   for (const [key, values] of Object.entries(presets)) result[key] = values.includes(input[key]) ? input[key] : values[0];
+  if (typeof input.avatarId === 'string' && avatarIds.has(input.avatarId)) result.avatarId = input.avatarId;
   return result;
 }
 export function mediaURL(value) {
