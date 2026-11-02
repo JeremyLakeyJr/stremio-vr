@@ -246,11 +246,12 @@ export const dashboard = `<!doctype html>
         <div class="grid-2">
           <div>
             <label for="cfgMediastormUrl">MediaStorm URL</label>
-            <input id="cfgMediastormUrl" placeholder="e.g. http://192.168.1.100:7777">
+            <input id="cfgMediastormUrl" placeholder="e.g. http://host.docker.internal:7777">
+            <div class="field-hint" style="font-size:11px; margin-top:4px;">Use <code>http://host.docker.internal:7777</code> to connect across Docker containers on this machine.</div>
           </div>
           <div>
-            <label for="cfgMediastormKey">MediaStorm API Key</label>
-            <input id="cfgMediastormKey" placeholder="Paste X-MediaStorm-Key API token">
+            <label for="cfgMediastormKey">MediaStorm API Key (Optional)</label>
+            <input id="cfgMediastormKey" placeholder="Leave blank if unauthenticated">
           </div>
         </div>
       </div>
