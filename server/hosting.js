@@ -90,9 +90,22 @@ export const dashboard = `<!doctype html>
     .guide-box ol, .guide-box ul { margin: 6px 0 0; padding-left: 18px; }
     .guide-box code { background: #1c1430; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #d8c9ff; }
 
-    .server-status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
-    .server-status-pill.online { background: #133a2a; color: #78e8b4; }
-    .server-status-pill.offline { background: #2f1722; color: #ff9bb0; }
+    .server-status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .server-status-pill.online { background: #0f3624; color: #4ade80; border: 1px solid #166534; }
+    .server-status-pill.offline { background: #3b1219; color: #f87171; border: 1px solid #991b1b; }
+    .server-status-pill.unconfigured { background: #1a1727; color: #9488b0; border: 1px solid #342a4d; }
+    .server-status-pill.checking { background: #2d2212; color: #facc15; border: 1px solid #854d0e; }
+
+    .server-card { background: linear-gradient(180deg, #181329 0%, #120e20 100%); border: 1px solid #34264f; border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+    .server-card:hover { border-color: #553e80; }
+    .server-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .server-title-group { display: flex; align-items: center; gap: 10px; }
+    .server-icon-badge { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+    .input-with-action { display: flex; gap: 8px; align-items: center; margin-top: 6px; margin-bottom: 14px; }
+    .input-with-action input { margin: 0; flex: 1; }
+    .btn-test { background: #251c3d; border: 1px solid #4d3678; color: #d8c9ff; border-radius: 10px; padding: 12px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+    .btn-test:hover { background: #39285c; border-color: #7c4dff; color: #ffffff; }
 
     .share-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
     @media (min-width: 680px) { .share-row { grid-template-columns: 1fr auto; align-items: start; } }
@@ -193,15 +206,20 @@ export const dashboard = `<!doctype html>
       </div>
 
       <!-- STREMIO & ADDON SYNC -->
-      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Stremio & Debrid Catalogs</h3>
-          <span id="badge-stremio" class="server-status-pill offline">Checking…</span>
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-title-group">
+            <span class="server-icon-badge" style="background:#2e1b4d; border:1px solid #5a3699;">🟣</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Stremio & Debrid Catalogs</h3>
+              <div style="font-size:11px; color:#a99ebd;">Torrentio, Real-Debrid, Cinemeta, and custom add-on sync</div>
+            </div>
+          </div>
+          <span id="badge-stremio" class="server-status-pill unconfigured">Checking…</span>
         </div>
-        <p style="font-size:12px; color:#a99ebd; margin:0 0 12px;">Link your Stremio account to automatically import all your Torrentio, Debrid, and custom catalogs into VR.</p>
 
-        <div id="stremioLoggedOut" style="display:none;">
-          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()" style="font-size:13px; padding:10px 16px;">🔗 Quick Link Stremio Account</button>
+        <div id="stremioLoggedOut" style="display:none; margin-top:12px;">
+          <button type="button" id="startLinkBtn" class="btn-primary" onclick="startStremioLink()" style="font-size:13px; padding:10px 18px;">🔗 Quick Link Stremio Account</button>
           <div id="linkPrompt" style="display:none; background:#0c0a14; border:1px solid #4a366e; border-radius:12px; padding:16px; margin-top:12px; width:100%; box-sizing:border-box;">
             <p style="margin:0 0 10px; font-weight:600; font-size:13px;">1. Open the link or scan QR code on your phone/browser:</p>
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
@@ -213,7 +231,7 @@ export const dashboard = `<!doctype html>
           </div>
         </div>
 
-        <div id="stremioLoggedIn" style="display:none;">
+        <div id="stremioLoggedIn" style="display:none; margin-top:12px;">
           <div style="display:flex; justify-content:space-between; align-items:center; background:#133a2a; border:1px solid #21875c; padding:12px 16px; border-radius:10px;">
             <div>
               <div style="font-weight:700; color:#78e8b4;" id="stremioUserName">Signed in as Stremio User</div>
@@ -224,57 +242,89 @@ export const dashboard = `<!doctype html>
         </div>
       </div>
 
-      <!-- JELLYFIN & EMBY -->
-      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Jellyfin / Emby Media Server</h3>
-          <span id="badge-jellyfin" class="server-status-pill offline">Not Configured</span>
-        </div>
-        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">Connect your local Jellyfin server to stream personal media collections with live sync.</p>
-        <label for="cfgJellyfinUrl">Jellyfin Server URL</label>
-        <input id="cfgJellyfinUrl" placeholder="e.g. http://192.168.1.100:8096 or http://jellyfin.local:8096">
-        <div class="field-hint">Use your LAN IP or internal hostname. Docker network names work if sharing a bridge.</div>
-      </div>
-
       <!-- MEDIASTORM -->
-      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">MediaStorm (Debrid & Usenet Engine)</h3>
-          <span id="badge-mediastorm" class="server-status-pill offline">Not Configured</span>
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-title-group">
+            <span class="server-icon-badge" style="background:#3b2a12; border:1px solid #855b1a;">⚡</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">MediaStorm</h3>
+              <div style="font-size:11px; color:#a99ebd;">Debrid & Usenet streaming backend (godver3/mediastorm)</div>
+            </div>
+          </div>
+          <span id="badge-mediastorm" class="server-status-pill unconfigured">Not Configured</span>
         </div>
-        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">High-speed Debrid cache, Real-Debrid, AllDebrid, and Premiumize downloader engine.</p>
-        <div class="grid-2">
+        <div class="grid-2" style="margin-top:10px;">
           <div>
             <label for="cfgMediastormUrl">MediaStorm URL</label>
-            <input id="cfgMediastormUrl" placeholder="e.g. http://host.docker.internal:7777">
-            <div class="field-hint" style="font-size:11px; margin-top:4px;">Use <code>http://host.docker.internal:7777</code> to connect across Docker containers on this machine.</div>
+            <div class="input-with-action">
+              <input id="cfgMediastormUrl" placeholder="e.g. https://media.mightysprite.dev">
+              <button type="button" class="btn-test" onclick="testProvider('mediastorm', 'cfgMediastormUrl', 'cfgMediastormKey')">Ping</button>
+            </div>
+            <div class="field-hint">Public domain, Tailscale address, or <code>http://host.docker.internal:7777</code>.</div>
           </div>
           <div>
             <label for="cfgMediastormKey">MediaStorm API Key (Optional)</label>
             <input id="cfgMediastormKey" placeholder="Leave blank if unauthenticated">
+            <div class="field-hint">Only required if your MediaStorm instance sits behind an authenticated proxy.</div>
           </div>
         </div>
       </div>
 
-      <!-- SILO & REMUX -->
-      <div style="background:#100b1d; border:1px solid #2e2445; border-radius:12px; padding:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="margin:0; font-size:16px; color:#d8c9ff;">Silo & Remux Engines</h3>
-          <span id="badge-silo" class="server-status-pill offline">Not Configured</span>
+      <!-- JELLYFIN / EMBY -->
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-title-group">
+            <span class="server-icon-badge" style="background:#152b47; border:1px solid #23548f;">🔵</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Jellyfin / Emby Media Server</h3>
+              <div style="font-size:11px; color:#a99ebd;">Personal self-hosted home media library</div>
+            </div>
+          </div>
+          <span id="badge-jellyfin" class="server-status-pill unconfigured">Not Configured</span>
         </div>
-        <p style="font-size:12px; color:#a99ebd; margin:0 0 10px;">High-performance Go streaming and direct remux backends for ultra-low latency playback.</p>
-        <div class="grid-2">
+        <div style="margin-top:10px;">
+          <label for="cfgJellyfinUrl">Jellyfin Server URL</label>
+          <div class="input-with-action">
+            <input id="cfgJellyfinUrl" placeholder="e.g. http://192.168.1.100:8096 or https://jellyfin.yourdomain.com">
+            <button type="button" class="btn-test" onclick="testProvider('jellyfin', 'cfgJellyfinUrl')">Ping</button>
+          </div>
+          <div class="field-hint">LAN IP, Tailscale domain, or public URL. Streams and metadata resolve natively.</div>
+        </div>
+      </div>
+
+      <!-- SILO & REMUX -->
+      <div class="server-card">
+        <div class="server-header">
+          <div class="server-title-group">
+            <span class="server-icon-badge" style="background:#133329; border:1px solid #206b52;">📦</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; color:#f0ebfa;">Silo & Remux Backends</h3>
+              <div style="font-size:11px; color:#a99ebd;">Ultra-low latency streaming engines</div>
+            </div>
+          </div>
+          <span id="badge-silo" class="server-status-pill unconfigured">Not Configured</span>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
           <div>
             <label for="cfgSiloUrl">Silo Backend URL</label>
-            <input id="cfgSiloUrl" placeholder="e.g. http://192.168.1.100:8082">
+            <div class="input-with-action">
+              <input id="cfgSiloUrl" placeholder="e.g. http://192.168.1.100:8082">
+              <button type="button" class="btn-test" onclick="testProvider('silo', 'cfgSiloUrl', 'cfgSiloToken')">Ping</button>
+            </div>
           </div>
           <div>
-            <label for="cfgSiloToken">Silo Auth Token</label>
+            <label for="cfgSiloToken">Silo Auth Token (Optional)</label>
             <input id="cfgSiloToken" placeholder="Bearer auth token">
           </div>
         </div>
-        <label for="cfgRemuxUrl">Remux Service URL</label>
-        <input id="cfgRemuxUrl" placeholder="e.g. http://remux:8096 or direct remux daemon">
+        <div style="margin-top:6px;">
+          <label for="cfgRemuxUrl">Remux Service URL</label>
+          <div class="input-with-action">
+            <input id="cfgRemuxUrl" placeholder="e.g. http://remux:8096">
+            <button type="button" class="btn-test" onclick="testProvider('remux', 'cfgRemuxUrl')">Ping</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -356,10 +406,16 @@ export const dashboard = `<!doctype html>
 
     <!-- 4. SUBTITLES & MISC -->
     <section class="card">
-      <h2>💬 Subtitles & Metadata</h2>
-      <label for="cfgOpenSubtitlesKey">OpenSubtitles.com API Key</label>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h2 style="margin:0;">💬 Direct Video Subtitles (Optional Fallback)</h2>
+        <span class="badge" style="font-size:11px;">Optional Fallback</span>
+      </div>
+      <p class="card-desc" style="margin-bottom:12px;">
+        <strong>Note:</strong> Media backends like Stremio, Jellyfin, and MediaStorm automatically provide their own built-in subtitle streams. An OpenSubtitles.com API key is <em>only required as a fallback</em> when playing raw video files or direct links pasted into the Room Remote.
+      </p>
+      <label for="cfgOpenSubtitlesKey">OpenSubtitles.com REST API Key</label>
       <input id="cfgOpenSubtitlesKey" placeholder="Optional OpenSubtitles.com REST API Key">
-      <div class="field-hint">Enables searching and downloading subtitles in 80+ languages on the fly during movie playback.</div>
+      <div class="field-hint">Free accounts at <code>opensubtitles.com/consumers</code> provide 20 subtitle downloads/day for direct video URLs.</div>
     </section>
 
     <button id="saveSettingsBtn" class="btn-primary" onclick="saveSettings()" style="width:100%; padding:16px; font-size:16px;">💾 Save All Server Settings</button>
@@ -370,16 +426,27 @@ export const dashboard = `<!doctype html>
     <div id="remoteToast" class="toast"></div>
 
     <section class="card">
-      <h2 style="margin-top:0;">Send Video to VR Screen</h2>
-      <p>Play any direct stream, web video, or movie link directly in the headset room from your phone or browser.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h2 style="margin:0;">🎬 Send Direct Video to VR Screen</h2>
+        <span class="badge active" style="font-size:11px;">Quick Play</span>
+      </div>
+      <p class="card-desc">Play any direct stream, web video, or movie link directly in the headset room from your phone or browser.</p>
 
-      <label for="remoteVideoUrl">Video Stream URL</label>
+      <label for="remoteVideoUrl">Video Stream URL (MP4, MKV, HLS .m3u8)</label>
       <input id="remoteVideoUrl" placeholder="https://example.com/movie.mp4 or HLS m3u8 stream">
       
-      <label for="remoteVideoTitle">Title (optional)</label>
-      <input id="remoteVideoTitle" placeholder="e.g. Inception (1080p)">
+      <div class="grid-2">
+        <div>
+          <label for="remoteVideoTitle">Title (Optional)</label>
+          <input id="remoteVideoTitle" placeholder="e.g. Inception (1080p)">
+        </div>
+        <div>
+          <label for="remoteSubtitlesUrl">Subtitle Track URL (Optional, .vtt / .srt)</label>
+          <input id="remoteSubtitlesUrl" placeholder="https://example.com/subtitles.vtt">
+        </div>
+      </div>
 
-      <button type="button" class="btn-primary" onclick="playInVR()" style="width:100%;">▶️ Play on VR Screen</button>
+      <button type="button" class="btn-primary" onclick="playInVR()" style="width:100%; padding:14px; font-size:15px; margin-top:8px;">▶️ Play on VR Screen</button>
     </section>
 
     <section class="card">
@@ -457,7 +524,49 @@ export const dashboard = `<!doctype html>
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = text;
-    el.className = 'server-status-pill ' + (online ? 'online' : 'offline');
+    if (text === 'Not Configured' || text === 'Standby') {
+      el.className = 'server-status-pill unconfigured';
+    } else {
+      el.className = 'server-status-pill ' + (online ? 'online' : 'offline');
+    }
+  }
+
+  async function testProvider(type, urlId, keyId) {
+    const url = document.getElementById(urlId)?.value.trim();
+    const key = keyId ? document.getElementById(keyId)?.value.trim() : '';
+    const badge = document.getElementById('badge-' + type);
+    if (!url) {
+      if (badge) {
+        badge.textContent = 'Not Configured';
+        badge.className = 'server-status-pill unconfigured';
+      }
+      showToast('settingsToast', 'Please enter a URL first', 'error');
+      return;
+    }
+    if (badge) {
+      badge.textContent = 'Pinging…';
+      badge.className = 'server-status-pill checking';
+    }
+    const updates = {};
+    if (type === 'mediastorm') { updates.mediastormUrl = url; if (key) updates.mediastormKey = key; }
+    if (type === 'jellyfin') updates.jellyfinUrl = url;
+    if (type === 'silo') { updates.siloUrl = url; if (key) updates.siloToken = key; }
+    if (type === 'remux') updates.remuxUrl = url;
+    try {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      await checkProviderStatuses();
+      showToast('settingsToast', 'Tested ' + type + ' server connection', 'success');
+    } catch (e) {
+      if (badge) {
+        badge.textContent = 'Error';
+        badge.className = 'server-status-pill offline';
+      }
+      showToast('settingsToast', 'Ping failed: ' + e.message, 'error');
+    }
   }
 
   function renderStremioStatus() {
@@ -566,19 +675,21 @@ export const dashboard = `<!doctype html>
     const toast = document.getElementById('remoteToast');
     const url = document.getElementById('remoteVideoUrl').value.trim();
     const title = document.getElementById('remoteVideoTitle').value.trim();
+    const subtitlesUrl = document.getElementById('remoteSubtitlesUrl')?.value.trim();
     if (!url) { alert('Please enter a video URL'); return; }
 
     try {
       const res = await fetch('/api/room/play', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, title })
+        body: JSON.stringify({ url, title, subtitlesUrl })
       });
       const data = await res.json();
       if (res.ok) {
         toast.className = 'toast success';
         toast.textContent = '▶️ Now playing "' + (data.title || 'video') + '" in room ' + (data.room || '') + '!';
         document.getElementById('remoteVideoUrl').value = '';
+        if (document.getElementById('remoteSubtitlesUrl')) document.getElementById('remoteSubtitlesUrl').value = '';
         setTimeout(() => toast.style.display = 'none', 4000);
       } else {
         toast.className = 'toast error';

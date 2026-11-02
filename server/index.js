@@ -372,7 +372,7 @@ export async function createServer(options = {}) {
           input += chunk;
         }
         const body = JSON.parse(input);
-        const { url, title, duration } = body;
+        const { url, title, duration, subtitlesUrl } = body;
         if (!url) { res.writeHead(400); res.end(JSON.stringify({ error: 'Missing video url' })); return; }
         let targetRoom = null;
         if (body.roomId) {
@@ -391,6 +391,9 @@ export async function createServer(options = {}) {
         targetRoom.playback.position = 0;
         targetRoom.playback.duration = duration || 0;
         targetRoom.playback.updatedAt = Date.now();
+        if (subtitlesUrl) {
+          targetRoom.playback.subtitlesUrl = subtitlesUrl;
+        }
         rooms.state(targetRoom);
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ ok: true, room: targetRoom.id, title: targetRoom.playback.sourceTitle }));
