@@ -12,7 +12,7 @@ using UnityEngine.XR;
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
     int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
-    Transform rig, head, left, right, panel; Camera cameraView; Canvas canvas; Text status, members;
+    Transform rig, head, left, right, panel; Canvas navigationCanvas; MenuFeedback menuFeedback; Camera cameraView; Canvas canvas; Text status, members;
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
     bool triggerWasDown; string shownRoom; GameObject hovered; LineRenderer pointer;
@@ -115,55 +115,70 @@ public sealed class CinemaApp : MonoBehaviour {
         var go = new GameObject("Cinema controls", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)); panel = go.transform;
         canvas = go.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace; canvas.worldCamera = cameraView;
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(1280, 1000); panel.localScale = Vector3.one * 0.0012f; panelMotion=go.AddComponent<PanelMotion>();
+        menuFeedback=new GameObject("Spatial menu feedback").AddComponent<MenuFeedback>(); menuFeedback.Sounds=(bool?)settings["menuSounds"]??true; menuFeedback.Haptics=(bool?)settings["menuHaptics"]??true; menuFeedback.ReducedMotion=(bool?)settings["menuReducedMotion"]??false;
         Recenter();
-        var background = go.AddComponent<Image>(); background.color = new Color(0.047f, 0.043f, 0.067f, 0.98f);
-        Plate(panel, 0, 0, 1280, 80, new Color(0.06f,0.05f,0.1f));
-        Plate(panel, 0, 80, 245, 920, new Color(0.075f,0.065f,0.13f));
-        Label("Movie Night", panel, 25, 18, 235, 44, 26);
+        var background = go.AddComponent<Image>(); background.color = Color.clear;
+        Plate(panel,260,0,1020,1000,new Color(0.035f,0.042f,0.065f,0.98f));
+        var navObject=new GameObject("Angled navigation",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));navObject.transform.SetParent(panel,false);
+        var navRect=navObject.GetComponent<RectTransform>();Place(navRect,245,80,245,920);navRect.pivot=new Vector2(1,1);navRect.localRotation=Quaternion.Euler(0,-15,0);
+        navigationCanvas=navObject.GetComponent<Canvas>();navigationCanvas.renderMode=RenderMode.WorldSpace;navigationCanvas.worldCamera=cameraView;
+        Transform navigation=navObject.transform;
+        Plate(panel, 260, 0, 1020, 80, new Color(0.06f,0.05f,0.1f));
+        Plate(navigation, 0, 0, 245, 920, new Color(0.075f,0.065f,0.13f));
+        Label("Movie Night", navigation, 16, 18, 225, 44, 30);
         pageTitle = Label("My room", panel, 280, 18, 750, 44, 30);
         Button("Hide", panel, 1150, 14, 105, () => panelMotion.Show(false));
         members = Label("Not connected", panel, 280, 95, 955, 65, 19);
         status = Label("Solo starts automatically. Connect a room only when you want company.", panel, 280, 825, 955, 65, 20);
         status.color = new Color(0.25f, 0.9f, 0.72f);
-        Label("BROWSE & WATCH", panel, 20, 105, 215, 40, 17);
-        Button("My room", panel, 15, 175, 215, Home);
-        Button("Discover", panel, 15, 245, 215, Library);
-        Button("Watch history",panel,15,315,215,HistoryPage);
-        Button("Avatar", panel, 15, 385, 215, Customize);
-        Button("Settings / worlds", panel, 15, 455, 215, Comfort);
-
-        Button("Toggle mic", panel, 15, 525, 215, () => voice.Toggle());
-        Button("Toggle audio", panel, 15, 595, 215, () => voice.ToggleDeafen());
-        Button("Stremio account", panel, 15, 665, 215, AccountPage);
-        Button("Recenter", panel, 15, 755, 215, Recenter);
-        Label("Hide menu to walk/turn\nLeft stick: move\nRight stick: turn / scroll", panel, 20, 835, 215, 120, 17);
+        Label("EXPLORE", navigation, 16, 70, 220, 40, 24);
+        Button("My room", navigation, 12, 130, 221, Home);
+        Button("Discover", navigation, 12, 208, 221, Library);
+        Button("History", navigation, 12, 286, 221, HistoryPage);
+        Button("Avatar", navigation, 12, 364, 221, Customize);
+        Button("Comfort", navigation, 12, 442, 221, Comfort);
+        Button("Account", navigation, 12, 520, 221, AccountPage);
+        Button("Recenter", navigation, 12, 598, 221, Recenter);
+        Label("Trigger: select\nStick: scroll\nMenu: close", navigation, 16, 700, 215, 150, 26);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
-        Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Games", panel, 745, 920, 220, GamesPage); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
+        Button("Games", panel, 275, 920, 220, GamesPage); Button("Browser", panel, 510, 920, 220, BrowserControls); Button("Mic", panel, 745, 920, 220, () => voice.Toggle()); Button("Audio", panel, 980, 920, 260, () => voice.ToggleDeafen());
         var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)); scrollGo.transform.SetParent(panel, false);
         Place(scrollGo.GetComponent<RectTransform>(), 280, 185, 950, 620); scrollGo.GetComponent<Image>().color = new Color(0, 0, 0, 0.05f); scrollGo.GetComponent<Mask>().showMaskGraphic = false;
         content = new GameObject("Content", typeof(RectTransform), typeof(PageFade)).GetComponent<RectTransform>(); content.SetParent(scrollGo.transform, false); Place(content, 0, 0, 930, 620);
         var scroll = scrollGo.GetComponent<ScrollRect>(); scroll.viewport = scrollGo.GetComponent<RectTransform>(); scroll.content = content; scroll.horizontal = false;
         pointer = new GameObject("Controller ray").AddComponent<LineRenderer>(); pointer.positionCount = 2; pointer.startWidth = 0.003f; pointer.endWidth = 0.001f; pointer.material = new Material(Shader.Find("Unlit/Color")); pointer.material.color = new Color(0.1f, 0.9f, 0.65f);
     }
-    public void Recenter() { panel.position = head.position + head.forward * 1.8f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
+    public void Recenter() { panel.position = head.position + head.forward * 1.6f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
     void Clear() { scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
     void Home() {
-        Clear(); pageTitle.text = "My room"; Heading(room.IsSolo?"Solo mode — no server needed":"Room & playback");
-        ActionButton("Solo mode / return to my apartment",()=>{if(browser.Active)browser.Close();room.StartSolo(profile);Home();});
-        Heading("Solo: browse, watch direct videos, arrange your apartment, and play locally. Connect below for multiplayer.");
-        ActionButton("Web browser / native player",()=>{browser.Toggle(); if(browser.Active)panelMotion.Show(false);});
-        ActionButton("Web screen controls",BrowserControls);
-        streamInput = Field("Direct video URL", "", null);
-        ActionButton("Load video", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
+        Clear(); pageTitle.text="My room";
+        Heading(room.IsSolo?"Your apartment · Solo":"Your apartment · Watch together");
+        ActionButton("Open web browser",()=>{if(!browser.Active)browser.Toggle();panelMotion.Show(false);});
+        ActionButton("Discover movies & shows",Library);
+        ActionButton("Playback controls",PlaybackControls);
+        ActionButton("Arrange screens & games",LayoutPage);
+        ActionButton("Invite friends / join a room",RoomConnection);
+        if(!room.IsSolo)ActionButton("Leave room / return to Solo",()=>{room.Leave();Home();});
+        Heading("Point and press trigger to select. Use the right stick to scroll. Close the menu to move around.");
+    }
+    void PlaybackControls() {
+        Clear();pageTitle.text="Playback";
+        ActionButton("Play / pause",()=>playback.Toggle());
+        ActionButton("Seek −10 seconds",()=>playback.Seek(-10));
+        ActionButton("Seek +10 seconds",()=>playback.Seek(10));
         ActionButton("Movie audio / track",AudioSettings);
-        ActionButton("Play / pause", () => playback.Toggle());
-        ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
-        Heading("Multiplayer — connect only when inviting friends");
-        serverInput = Field("Server WebSocket URL", (string)settings["server"] ?? "ws://192.168.1.100:3000/ws", value => { settings["server"] = value; Save(); });
-        roomInput = Field("Room code (empty creates a room)", "", null);
-        ActionButton("Connect / create room", () => { room.Connect(serverInput.text.Trim(), roomInput.text.Trim(), profile); });
-        ActionButton("Leave room / return to solo", () => room.Leave());
-        ActionButton("Hide / show panel: left controller menu button", () => panelMotion.Show(false));
+        ActionButton("Browser tabs & controls",BrowserControls);
+        Heading("Play a direct video");
+        streamInput=Field("Direct video URL","",null);
+        ActionButton("Load video",()=>playback.Load(streamInput.text.Trim(),"Direct stream"));
+    }
+    void RoomConnection() {
+        Clear();pageTitle.text="Watch together";
+        Heading("Share your server address and room code with friends. Solo needs no server.");
+        serverInput=Field("Server address",(string)settings["server"]??"",value=>{settings["server"]=value;Save();});
+        roomInput=Field("Room code · leave empty to create a room","",null);
+        ActionButton("Connect / create room",()=>room.Connect(serverInput.text.Trim(),roomInput.text.Trim(),profile));
+        ActionButton("Return to Solo",()=>{if(browser.Active)browser.Close();room.StartSolo(profile);Home();});
     }
     void GamesPage() {
         Clear();pageTitle.text="Tabletop games";
@@ -275,14 +290,14 @@ public sealed class CinemaApp : MonoBehaviour {
         foreach(var token in items) {
             var item=(JObject)token; string title=(string)item["name"]??"Untitled";
             if(title.IndexOf(query,StringComparison.OrdinalIgnoreCase)<0) continue;
-            float x=(count%4)*232, y=start+(count/4)*370;
-            var card=new GameObject("Title: "+title,typeof(RectTransform),typeof(Image),typeof(Button)); card.transform.SetParent(content,false); Place(card.GetComponent<RectTransform>(),x,y,216,350);
+            float x=(count%4)*232, y=start+(count/4)*400;
+            var card=new GameObject("Title: "+title,typeof(RectTransform),typeof(Image),typeof(Button)); card.transform.SetParent(content,false); Place(card.GetComponent<RectTransform>(),x,y,216,380);
             card.GetComponent<Button>().transition=Selectable.Transition.None; card.GetComponent<Image>().color=new Color(0.11f,0.09f,0.18f); card.AddComponent<UiMotion>().Card=true;
             var poster=new GameObject("Poster",typeof(RectTransform),typeof(RawImage),typeof(PosterImage)); poster.transform.SetParent(card.transform,false); Place(poster.GetComponent<RectTransform>(),6,6,204,288); poster.GetComponent<RawImage>().color=new Color(0.2f,0.17f,0.28f); poster.GetComponent<RawImage>().raycastTarget=false; poster.GetComponent<PosterImage>().Load((string)item["poster"]);
-            Label(title,card.transform,10,300,196,44,18); card.GetComponent<Button>().onClick.AddListener(()=>Details(addon,type,item));
+            Label(title,card.transform,10,300,196,74,26); card.GetComponent<Button>().onClick.AddListener(()=>Details(addon,type,item));
             if(++count>=60) break;
         }
-        row=start+Mathf.Ceil(count/4f)*370; Resize(); ShowStatus(count==0?"No matching titles":"Select a poster for details and sources.");
+        row=start+Mathf.Ceil(count/4f)*400; Resize(); ShowStatus(count==0?"No matching titles":"Select a poster for details and sources.");
     }
     void Details(JObject addon,string type,JObject item) {
         Clear(); pageTitle.text="Title details"; string title=(string)item["name"], id=(string)item["id"];
@@ -370,6 +385,10 @@ public sealed class CinemaApp : MonoBehaviour {
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
+        Heading("Menu feedback");
+        ActionButton("Menu sounds: "+(menuFeedback.Sounds?"On":"Off"),()=>{menuFeedback.Sounds=!menuFeedback.Sounds;settings["menuSounds"]=menuFeedback.Sounds;Save();Comfort();});
+        ActionButton("Menu haptics: "+(menuFeedback.Haptics?"On":"Off"),()=>{menuFeedback.Haptics=!menuFeedback.Haptics;settings["menuHaptics"]=menuFeedback.Haptics;Save();Comfort();});
+        ActionButton("Reduced menu motion: "+(menuFeedback.ReducedMotion?"On":"Off"),()=>{menuFeedback.ReducedMotion=!menuFeedback.ReducedMotion;settings["menuReducedMotion"]=menuFeedback.ReducedMotion;Save();Comfort();});
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});
@@ -438,27 +457,27 @@ public sealed class CinemaApp : MonoBehaviour {
     void UpdateProfile() { localBody.Apply(profile); Save(); if (room.Connected && room.State != null) room.Send(new JObject { ["type"] = "profile", ["profile"] = profile }); }
     void SaveAddons() { var urls = new JArray(); foreach (var addon in library.Addons) urls.Add(MediaLibrary.ResourceUrl((string)addon["endpoint"],"manifest.json")); settings["addons"] = urls; Save(); }
     void Save() { settings["profile"] = profile; try { File.WriteAllText(SettingsPath, settings.ToString()); } catch (Exception error) { ShowStatus("Could not save settings: " + error.Message); } }
-    void ShowStatus(string message) { if (status != null) status.text = message; if (Debug.isDebugBuild) Debug.Log("[Cinema] " + message); }
-    void Heading(string text) { Label(text, content, 0, row, 920, 45, 24); row += 55; Resize(); }
-    void ActionButton(string text, Action click) { Button(text, content, 0, row, actionWidth, click); row += 65; Resize(); }
+    void ShowStatus(string message) { if (status != null) status.text = message; if(menuFeedback && panelMotion.Visible && (message.IndexOf("failed",StringComparison.OrdinalIgnoreCase)>=0 || message.StartsWith("Could not") || message.StartsWith("Error")))menuFeedback.Play(panel.position,false,true); if (Debug.isDebugBuild) Debug.Log("[Cinema] " + message); }
+    void Heading(string text) { float height=Mathf.Max(56,(text.Length/58+text.Split('\n').Length)*34); Label(text, content, 0, row, 920, height, 28); row += height+14; Resize(); }
+    void ActionButton(string text, Action click) { row += Button(text, content, 0, row, actionWidth, click,true)+14; Resize(); }
     InputField Field(string label, string value, Action<string> changed) {
-        Label(label, content, 0, row, 920, 28, 18); row += 30;
+        Label(label, content, 0, row, 920, 38, 26); row += 42;
         var go = new GameObject(label, typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 920, 48); go.GetComponent<Image>().color = new Color(0.13f, 0.15f, 0.22f);
         var text = Label("", go.transform, 12, 4, 890, 40, 21); text.supportRichText = false;
         var field = go.GetComponent<InputField>(); field.textComponent = text; field.text = value; field.characterLimit = 4096;
-        field.onEndEdit.AddListener(result => changed?.Invoke(result)); row += 65; Resize(); return field;
+        go.AddComponent<UiMotion>(); field.onEndEdit.AddListener(result => changed?.Invoke(result)); row += 65; Resize(); return field;
     }
     void Resize() { content.sizeDelta = new Vector2(930, Mathf.Max(690, row)); }
     Text Label(string text, Transform parent, float x, float y, float width, float height, int size) {
         var go = new GameObject("Text", typeof(RectTransform), typeof(Text)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height);
-        var label = go.GetComponent<Text>(); label.font = font; label.fontSize = size; label.text = text; label.color = Color.white; label.supportRichText = false; label.raycastTarget = false; label.alignment = TextAnchor.MiddleLeft; return label;
+        var label = go.GetComponent<Text>(); label.font = font; label.fontSize = Mathf.Max(26,size); label.text = text; label.color = new Color(.91f,.94f,1); label.supportRichText = false; label.raycastTarget = false; label.alignment = TextAnchor.MiddleLeft; return label;
     }
-    void Button(string text, Transform parent, float x, float y, float width, Action click) {
-        var go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, 52);
-        go.GetComponent<Image>().color = new Color(0.13f,0.105f,0.21f); go.GetComponent<Button>().transition=Selectable.Transition.None; go.GetComponent<Button>().onClick.AddListener(() => click()); go.AddComponent<UiMotion>(); Label(text, go.transform, 12, 3, width - 24, 46, 20);
+    float Button(string text, Transform parent, float x, float y, float width, Action click,bool fit=false) {
+        var go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, 64);
+        MenuSurface.Style(go.GetComponent<Image>());go.GetComponent<Image>().color = new Color(0.13f,0.105f,0.21f); go.GetComponent<Button>().transition=Selectable.Transition.None; go.GetComponent<Button>().onClick.AddListener(() => click()); go.AddComponent<UiMotion>(); var caption=Label(text, go.transform, 12, 2, width - 24, 60, 28); float height=fit?Mathf.Max(64,caption.preferredHeight+12):64;go.GetComponent<RectTransform>().sizeDelta=new Vector2(width,height);caption.rectTransform.sizeDelta=new Vector2(width-24,height-4);return height;
     }
     static void Plate(Transform parent, float x, float y, float width, float height, Color color) {
-        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height); go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
+        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height); MenuSurface.Style(go.GetComponent<Image>());go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
     }
     static void Place(RectTransform rect, float x, float y, float w, float h) { rect.anchorMin = rect.anchorMax = new Vector2(0, 1); rect.pivot = new Vector2(0, 1); rect.anchoredPosition = new Vector2(x, -y); rect.sizeDelta = new Vector2(w, h); }
     bool menuWasDown;
@@ -482,14 +501,20 @@ public sealed class CinemaApp : MonoBehaviour {
         }
         leftController.TryGetFeatureValue(CommonUsages.gripButton,out bool leftGrip);controller.TryGetFeatureValue(CommonUsages.gripButton,out bool rightGrip);
         if(games.Grip(left,right,leftGrip,rightGrip,!panelMotion.Visible)){pointer.enabled=false;controller.TryGetFeatureValue(CommonUsages.triggerButton,out triggerWasDown);return;}
-        var plane = new Plane(panel.forward, panel.position);
-        float distance=0; bool intersects = panelMotion.Visible && plane.Raycast(ray, out distance) && distance < 10;
-        var point = intersects ? ray.GetPoint(distance) : ray.GetPoint(3);
-        pointer.SetPosition(0, origin); pointer.SetPosition(1, point);
-        var data = new PointerEventData(EventSystem.current) { position = cameraView.WorldToScreenPoint(point) };
-        if (!XRSettings.isDeviceActive) data.position = Input.mousePosition;
-        hits.Clear(); if (panelMotion.Visible && (intersects || !XRSettings.isDeviceActive)) canvas.GetComponent<GraphicRaycaster>().Raycast(data, hits);
-        var target = hits.Count > 0 ? hits[0].gameObject : null;
+        var data = new PointerEventData(EventSystem.current);
+        GameObject target=null; float nearest=float.MaxValue;Vector3 point=ray.GetPoint(3);
+        if(panelMotion.Visible)foreach(var surface in new[]{canvas,navigationCanvas}) {
+            if(surface==navigationCanvas && editing)continue;
+            bool intersects=SpatialMenuGeometry.Intersect(surface.transform,ray,out float distance);
+            if(XRSettings.isDeviceActive&&!intersects)continue;
+            data.position=XRSettings.isDeviceActive?(Vector2)cameraView.WorldToScreenPoint(ray.GetPoint(distance)):(Vector2)Input.mousePosition;
+            hits.Clear();surface.GetComponent<GraphicRaycaster>().Raycast(data,hits);
+            if(hits.Count==0)continue;
+            float depth=XRSettings.isDeviceActive?distance:hits[0].distance;
+            if(depth<nearest){nearest=depth;target=hits[0].gameObject;point=XRSettings.isDeviceActive?ray.GetPoint(distance):hits[0].worldPosition;}
+        }
+        data.position=XRSettings.isDeviceActive?(Vector2)cameraView.WorldToScreenPoint(point):(Vector2)Input.mousePosition;
+        pointer.SetPosition(0,origin);pointer.SetPosition(1,point);
         controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool webTrigger); controller.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 webStick);
         controller.TryGetFeatureValue(CommonUsages.gripButton,out bool webScrollGrip);
         bool webHit=browser.Point(ray,target==null && (webTrigger||Input.GetMouseButton(0)),target==null&&webScrollGrip?webStick.y:0,out var webPoint);
@@ -515,7 +540,7 @@ public sealed class CinemaApp : MonoBehaviour {
     bool editing;
     IEnumerator Edit(InputField field) {
         if (editing) yield break;
-        editing = true;
+        editing = true; navigationCanvas.gameObject.SetActive(false);
         var keyboard = new GameObject("Keyboard", typeof(RectTransform), typeof(Image)); keyboard.transform.SetParent(panel, false);
         Place(keyboard.GetComponent<RectTransform>(), 0, 0, 1280, 1000); keyboard.GetComponent<Image>().color = new Color(0.04f, 0.05f, 0.09f);
         string original = field.text; bool upper = false;
@@ -531,8 +556,8 @@ public sealed class CinemaApp : MonoBehaviour {
         Button("Space", keyboard.transform, 260, 600, 220, () => { field.text += " "; preview.text = field.text; });
         Button("Backspace", keyboard.transform, 495, 600, 220, () => { if (field.text.Length > 0) field.text = field.text.Substring(0, field.text.Length - 1); preview.text = field.text; });
         Button("Clear", keyboard.transform, 730, 600, 220, () => { field.text = ""; preview.text = ""; });
-        Button("Done", keyboard.transform, 25, 700, 450, () => { field.onEndEdit.Invoke(field.text); editing = false; Destroy(keyboard); });
-        Button("Cancel", keyboard.transform, 500, 700, 450, () => { field.text = original; editing = false; Destroy(keyboard); });
+        Button("Done", keyboard.transform, 25, 700, 450, () => { field.onEndEdit.Invoke(field.text); editing = false; navigationCanvas.gameObject.SetActive(true); Destroy(keyboard); });
+        Button("Cancel", keyboard.transform, 500, 700, 450, () => { field.text = original; editing = false; navigationCanvas.gameObject.SetActive(true); Destroy(keyboard); });
         yield return null;
     }
 }

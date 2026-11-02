@@ -61,7 +61,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 
 ## Play solo — no server setup
 
-Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.7-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Solo mode** also leaves multiplayer and restores your saved solo apartment.
+Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.7-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Invite friends / join a room → Return to Solo** also leaves multiplayer and restores your saved solo apartment.
 
 Discover, Stremio account/add-on import, watch history, and the web browser connect directly to their online services. Direct HTTP(S) videos play on the headset without a room server. Websites and streamed movies still need internet access. Unsupported codecs, torrent delivery, and sources requiring proxy headers still need an appropriate streaming/transcoding service; solo does not secretly start or connect to Docker. DRM support is unchanged.
 
@@ -108,7 +108,7 @@ docker compose up -d internet
 docker compose logs -f internet
 ```
 
-Open **http://localhost:3000** and click **Copy invite** (the address is also printed in the logs). Enter that exact address in the app's **My room → Server WebSocket URL** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
+Open **http://localhost:3000** and click **Copy invite** (the address is also printed in the logs). Enter that exact address in the app's **My room → Invite friends / join a room → Server address** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
 
 This address is temporary and can change when the tunnel restarts. Keep all containers and the computer running. The tunnel exposes the room server, not your project files. For permanent hosting, see [internet multiplayer](docs/INTERNET-MULTIPLAYER.md).
 
@@ -119,7 +119,7 @@ adb devices
 adb reverse tcp:3000 tcp:3000
 ```
 
-Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room**. Repeat `adb reverse` after an ADB/device restart. The room server port now carries both room messages and transcoded video; the server needs access to the source.
+Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room → Invite friends / join a room**. Repeat `adb reverse` after an ADB/device restart. The room server port now carries both room messages and transcoded video; the server needs access to the source.
 
 **Same Wi-Fi / LAN without a tunnel:** the supplied Compose file binds port 3000 to the computer's loopback address, so other devices cannot reach it directly. Change its `ports` entry in `compose.yaml` from `"127.0.0.1:3000:3000"` to `"3000:3000"`, then run:
 
@@ -144,7 +144,7 @@ Open **Movie Night** from the Quest's **Unknown Sources** app list. `-r` updates
 
 ### 4. Create a room and invite friends
 
-1. Open **My room**, enter the server address chosen above, and leave **Room code** empty.
+1. Open **My room → Invite friends / join a room**, enter the server address chosen above, and leave **Room code** empty.
 2. Select **Connect / create room**. The room code appears at the top of the menu; you are its host.
 3. Friends enter the same server address and your room code, then select **Connect / create room**.
 4. The host chooses media and controls playback/world changes. A one-person room works for solo viewing.
@@ -249,7 +249,7 @@ Open Concept Home is the only world; the theater has been removed. Select a sofa
 1. Open **Stremio account** and start sign-in. Approve the displayed device-link code on your phone/computer or in the Quest browser, then return to Movie Night.
 2. Your account add-ons import automatically. Use the account's sync control to refresh them or **Sign out** to remove the native session.
 3. Open **Discover**, select a catalog/poster, and choose a playable source. For a series, choose an episode first. The host selects what the room watches.
-4. Open **My room** for play/pause and ±10-second seek controls. You can also paste an HTTP(S) video URL into **Direct video URL** and select **Load video (host)**.
+4. Open **My room → Playback controls** for play/pause and ±10-second seek controls. You can also paste an HTTP(S) video URL into **Direct video URL** and select **Load video**.
 5. Open **Watch history** for imported Stremio history or **This headset** recent selections. Use **Continue Watching** and select an entry to find a source and resume. Account history is read-only; local progress is not written back to Stremio.
 
 To install an add-on manually, use **Discover → Manage add-ons / Stremio account**, enter its manifest URL, and select **Install add-on**. Cinemeta provides metadata/catalogs, not playable sources.
@@ -276,7 +276,7 @@ Rebuild both app and server for this protocol change. For Node development, inst
 
 ### Use the browser on the cinema screen
 
-1. In Solo mode, or as the room host, select **My room → Web browser / native player**.
+1. In Solo mode, or as the room host, select **My room → Open web browser**.
 2. Point at the screen and pull the trigger. Walking and smooth turning work while browsing. **Hold right grip and move the right stick up/down** to scroll the page. The beam disappears when it has no interactive target.
 3. Press the **left controller menu button** to manage up to six tabs, enter an address, go back/forward, reload, or type into the selected web input.
 4. In a room, everyone automatically sees and hears the active server tab on all placed screens. Only the host controls it. Closing the browser returns to native playback.
@@ -299,7 +299,7 @@ Two physical tables are placed near the spawn point. Select **Games** in the bot
 
 ### Movie audio and protected sources
 
-**My room → Movie audio / track** shows the selected track, reported language/channel count, volume, and a Next audio track control. Audio goes directly to Android, with an explicitly enabled track and playback held at normal speed. Track selection is local to your headset. If the source still has no sound, try another track or an AAC source; the current player does not add missing AC-3/DTS decoders or automatically transcode audio.
+**My room → Playback controls → Movie audio / track** shows the selected track, reported language/channel count, volume, and a Next audio track control. Audio goes directly to Android, with an explicitly enabled track and playback held at normal speed. Track selection is local to your headset. If the source still has no sound, try another track or an AAC source; the current player does not add missing AC-3/DTS decoders or automatically transcode audio.
 
 Stremio add-ons can return direct streams, torrents, or external provider pages; Stremio is not itself a universal DRM license provider. Compatible Stremio streams already use room synchronization. **Protected DRM playback is not supported by this Unity texture player.** It requires a provider-authorized player, license acquisition for each viewer, and a protected output surface; the screen-mirroring/readback WebView cannot provide that path. No DRM keys, account sessions, or decrypted protected video are shared with peers.
 
@@ -365,7 +365,7 @@ Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9c
 
 Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your selected full avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
 
-**My room → Web browser** uses local Android WebView in Solo mode and server Chromium in a room. See [browser controls and streaming quality](#use-the-browser-on-the-cinema-screen) above.
+**My room → Open web browser** uses local Android WebView in Solo mode and server Chromium in a room. See [browser controls and streaming quality](#use-the-browser-on-the-cinema-screen) above.
 
 The menu uses smooth panel fades, page transitions, hover/press animation, poster cards, and eased scrolling. **Watch history** switches between imported Stremio history and this headset's recent selections, with Continue Watching and resume. **Settings** exposes walk speed, smooth-turn speed, pointer angle, reclined view, and video lighting.
 
@@ -462,3 +462,15 @@ node scripts/package-desktop-runtime.cjs linux unity/Builds/Linux/DesktopRuntime
 ```
 
 The Unity menu also offers **Movie Night → Build Windows PC VR / Build Linux PC VR**. Each build selects its own XR loader. Run `node scripts/check-desktop-runtime.mjs` for the desktop integration test (requires FFmpeg and a graphical desktop). It uses synthetic audio, not your microphone. Set `MOVIE_NIGHT_TEST_SOFTWARE=0` to test the default GPU configuration; the test defaults to software rendering for reproducibility. The runtime's authenticated IPC socket binds only to loopback and does not create a multiplayer room server.
+
+### Comfortable spatial menus
+
+![Spatial menu layout](docs/screenshots/spatial-menu.png)
+
+*Rendered from the runtime menu layout; headset comfort testing is pending.*
+
+Open the menu with the left controller menu button (PC also supports A/X or keyboard Tab). It appears 1.6 metres ahead and stays in place until you reopen it or choose **Recenter**. The angled navigation wing and main panel use world-space UI, including when viewing while reclined.
+
+Point with the controller and press trigger to select; use the right stick to scroll. Hovering highlights and gently lifts controls; selection gives a quiet spatial click and a short controller pulse. **Comfort → Menu feedback** lets you disable sounds/haptics or enable reduced menu motion. No gaze dwell selection is used.
+
+**My room** provides quick access to browsing, Discover, playback, room arrangement and inviting friends. Playback and server connection settings have separate pages.

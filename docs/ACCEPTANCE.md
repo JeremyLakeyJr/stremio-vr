@@ -186,3 +186,12 @@ Windows x64 builds with OpenXR/Direct3D 11; Linux x86_64 builds with Valve OpenV
 Both native builds and the Android regression build succeeded. 40 Unity EditMode tests and 60 Node/server/Solo tests passed; JavaScript syntax and bundled Solo parity checks passed. The desktop integration test passed Solo placement, 1920×1080 BGRA frame delivery, pointer input, tabs, real WebRTC video/audio, MP4 decoding and synthetic microphone voice negotiation. The packaged Linux player started Solo and displayed a 1920×1080 browser frame. This machine has no configured SteamVR runtime; the app reported that condition and continued to its desktop view.
 
 Physical Windows/Linux headset rendering, controller mappings, audio routing and sustained VR performance remain unverified. Windows execution has not been tested on this Linux build machine. These downloads are PC previews; the previously accepted Quest Alpha 8 remains available.
+
+
+## Spatial menu redesign
+
+Menus remain world anchored and now open at 1.6 m with a 15° angled navigation wing, matte rounded surfaces, 26–30-unit text and larger controls. At the default scale/distance, 26-unit text subtends approximately 1.1° in height. Long action labels expand their controls. The room page is split into focused playback and multiplayer pages. Hover/select feedback combines color, a small depth lift, spatial audio and controller haptics, with persisted sound/haptic/reduced-motion settings. The existing controller ray handles each canvas plane separately; this project does not use XR Interaction Toolkit.
+
+43 Unity EditMode tests passed with graphics enabled, including angled/off-axis controller-ray intersection and out-of-range rejection. The actual runtime Home layout was rendered and inspected for spacing and clipping. Final in-headset readability, sounds and haptic strength require user acceptance; no new headset acceptance is claimed.
+
+Quest, Windows and Linux builds succeeded. The connected Quest still has Alpha 8 (0.1.7/code 8). Android rejected the update with INSTALL_FAILED_UPDATE_INCOMPATIBLE because its installed signing certificate differs from the local debug key. No uninstall or data clearing was performed. The new APK and the archived Alpha 8 APK both match the current local debug key; installing over this headset needs its original signing key or an explicitly approved reinstall.
