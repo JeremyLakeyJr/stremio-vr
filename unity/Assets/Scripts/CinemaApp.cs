@@ -18,7 +18,11 @@ public sealed class CinemaApp : MonoBehaviour {
     bool triggerWasDown; string shownRoom; GameObject hovered; LineRenderer pointer;
     string SettingsPath => Path.Combine(Application.persistentDataPath, "profile.json");
     void Awake() {
-        Application.targetFrameRate = 72; font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Application.targetFrameRate = 72;
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
+        Application.targetFrameRate=-1;QualitySettings.vSyncCount=0;
+#endif
+        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         try { settings = JObject.Parse(File.ReadAllText(SettingsPath)); } catch { settings = new JObject(); }
         profile = settings["profile"] as JObject ?? new JObject { ["name"] = "Guest", ["skin"] = "#b98059", ["color"] = "#7958ff", ["head"] = "round", ["body"] = "regular", ["hair"] = "none", ["outfit"] = "casual", ["accessory"] = "none" };
         room = gameObject.AddComponent<RoomClient>(); library = gameObject.AddComponent<MediaLibrary>();
@@ -41,7 +45,7 @@ public sealed class CinemaApp : MonoBehaviour {
         account.HistoryLoaded+=()=>{if(pageTitle!=null && pageTitle.text=="Watch history") HistoryPage();};
         account.Changed+=()=> { if(pageTitle!=null && pageTitle.text=="Stremio account") AccountPage(); };
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
-        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
+        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Playback=playback; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
         browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus; browser.Initialize();
         games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
@@ -68,6 +72,12 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void Start() {
         room.StartSolo(profile);account.Resume();
+#if (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+        StartCoroutine(CheckPcVr());
+#if DEVELOPMENT_BUILD
+        foreach(string argument in Environment.GetCommandLineArgs())if(argument.StartsWith("--movie-night-browser=",StringComparison.Ordinal))StartCoroutine(DevelopmentDesktopBrowser(argument.Substring("--movie-night-browser=".Length)));
+#endif
+#endif
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
         // Explicit development-only launch options make USB smoke tests repeatable.
         using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -86,6 +96,8 @@ public sealed class CinemaApp : MonoBehaviour {
         }
 #endif
     }
+    IEnumerator DevelopmentDesktopBrowser(string url){float deadline=Time.realtimeSinceStartup+30;while(!room.IsHost&&Time.realtimeSinceStartup<deadline)yield return null;if(room.IsHost){browser.Open(url);panelMotion.Show(false);}}
+    IEnumerator CheckPcVr(){yield return new WaitForSecondsRealtime(5);if(!UnityEngine.XR.XRSettings.isDeviceActive){Application.targetFrameRate=60;ShowStatus(Application.platform==RuntimePlatform.LinuxPlayer?"No VR headset detected. Start SteamVR, connect the headset, then restart Movie Night. Tab opens the desktop menu.":"No VR headset detected. Start your OpenXR runtime and connect the headset, then restart Movie Night. Tab opens the desktop menu.");}}
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
     IEnumerator DevelopmentWebScreen() {
         float deadline=Time.realtimeSinceStartup+20; while(!room.IsHost && Time.realtimeSinceStartup<deadline) yield return null;
@@ -341,7 +353,7 @@ public sealed class CinemaApp : MonoBehaviour {
         if(count==0) Heading("No watched titles in this view yet.");
     }
     void RecordHistory() {
-        if(watching==null || playback.SourceUrl!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
+        if(watching==null || playback.SourceUrl!=watchingUrl || !playback.IsPlaying || Time.unscaledTime<nextHistory) return;
         nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
         var recent=settings["recent"] as JArray??new JArray(); for(int i=recent.Count-1;i>=0;i--) if((string)recent[i]["_id"]==(string)watching["_id"]) recent.RemoveAt(i); recent.Insert(0,watching.DeepClone()); while(recent.Count>100) recent.RemoveAt(recent.Count-1); settings["recent"]=recent; Save();
     }
@@ -452,8 +464,11 @@ public sealed class CinemaApp : MonoBehaviour {
     bool menuWasDown;
     void Update() {
         RecordHistory();
-        var controller = InputDevices.GetDeviceAtXRNode(XRNode.RightHand); var leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        var controller = VrInput.DeviceAt(XRNode.RightHand); var leftController = VrInput.DeviceAt(XRNode.LeftHand);
         leftController.TryGetFeatureValue(CommonUsages.menuButton, out bool menu);
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
+        leftController.TryGetFeatureValue(CommonUsages.primaryButton,out bool faceMenu);menu|=faceMenu;
+#endif
         if ((menu && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menu;
 
         pointer.enabled = true;

@@ -30,7 +30,7 @@ public sealed class AvatarPresence : MonoBehaviour {
         foreach (var subsystem in subsystems) if (!subsystem.TrySetTrackingOriginMode(TrackingOriginModeFlags.Floor)) originHeight = 1.65f;
     }
     void Track(XRNode node, Transform target, Vector3 fallback) {
-        var device = InputDevices.GetDeviceAtXRNode(node);
+        var device = VrInput.DeviceAt(node);
         target.localPosition = device.TryGetFeatureValue(CommonUsages.devicePosition, out var position) ? position + Vector3.up * originHeight : fallback;
         target.localRotation = device.TryGetFeatureValue(CommonUsages.deviceRotation, out var rotation) ? rotation : Quaternion.identity;
     }

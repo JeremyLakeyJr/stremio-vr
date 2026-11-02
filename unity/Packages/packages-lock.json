@@ -113,6 +113,17 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.valvesoftware.unity.openvr": {
+      "version": "https://github.com/ValveSoftware/unity-xr-plugin.git?path=/com.valve.openvr#a30a0100daacef8c3f0290ce5b179c8a1148abb0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.xr.management": "3.2.13",
+        "com.unity.ugui": "1.0.0",
+        "com.unity.xr.legacyinputhelpers": "2.1.4"
+      },
+      "hash": "a30a0100daacef8c3f0290ce5b179c8a1148abb0"
+    },
     "com.vrmc.gltf": {
       "version": "https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4",
       "depth": 0,

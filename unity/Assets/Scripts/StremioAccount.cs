@@ -17,9 +17,13 @@ public sealed class StremioAccount : MonoBehaviour {
  public string DisplayName { get; private set; }
  string authKey; int generation; bool syncing;
  public void Resume() {
+#if (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+  StartCoroutine(ResumeDesktop(generation));return;
+#endif
   try { authKey=Vault("load"); } catch { Status?.Invoke("Saved sign-in could not be read. Please sign in again."); }
   if(SignedIn) StartCoroutine(LoadAccount(generation));
  }
+ IEnumerator ResumeDesktop(int run){var desktop=DesktopBridge.Get();float deadline=Time.realtimeSinceStartup+30;while(!desktop.VaultReady&&!desktop.Failed&&Time.realtimeSinceStartup<deadline)yield return null;if(run!=generation||SignedIn)yield break;authKey=desktop.LoadSecret("stremio");if(SignedIn)yield return LoadAccount(generation);}
  public void BeginLink() { CancelLink(); StartCoroutine(Link(generation)); }
  public void CancelLink() { generation++; LinkCode=null; LinkUrl=null; Changed?.Invoke(); }
  IEnumerator Link(int run) {
@@ -91,6 +95,8 @@ public sealed class StremioAccount : MonoBehaviour {
    if(operation=="load") return vault.CallStatic<string>(operation,activity);
    if(operation=="save") vault.CallStatic(operation,activity,value); else vault.CallStatic(operation,activity); return null;
   }
+#elif (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+  var desktop=DesktopBridge.Get();if(operation=="load")return desktop.LoadSecret("stremio");if(operation=="save")desktop.SaveSecret("stremio",value);else desktop.RemoveSecret("stremio");return null;
 #else
   return null; // Editor sessions deliberately keep credentials in memory only.
 #endif

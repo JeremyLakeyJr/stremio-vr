@@ -17,6 +17,7 @@
     "com.unity.modules.unitywebrequesttexture": "1.0.0",
     "com.unity.postprocessing": "3.5.4",
     "com.vrmc.gltf": "https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4",
-    "com.vrmc.vrm": "https://github.com/vrm-c/UniVRM.git?path=/Packages/VRM10#v0.131.4"
+    "com.vrmc.vrm": "https://github.com/vrm-c/UniVRM.git?path=/Packages/VRM10#v0.131.4",
+    "com.valvesoftware.unity.openvr": "https://github.com/ValveSoftware/unity-xr-plugin.git?path=/com.valve.openvr#a30a0100daacef8c3f0290ce5b179c8a1148abb0"
   }
 }

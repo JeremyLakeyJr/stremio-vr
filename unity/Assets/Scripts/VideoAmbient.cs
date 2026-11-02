@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Video;
 namespace StremioVR {
 public sealed class VideoAmbient : MonoBehaviour {
- public WorldManager World; public Texture Source; public VideoPlayer Video; public Transform Screen;
+ public CinemaPlayback Playback; public WorldManager World; public Texture Source; public VideoPlayer Video; public Transform Screen;
  public bool Enabled=true; public float Strength=0.65f;
  public const int SegmentsPerEdge=8,SampleCount=32;
  public const int MaxScreens=7;
@@ -33,7 +33,7 @@ public sealed class VideoAmbient : MonoBehaviour {
   for(int i=0;i<SampleCount;i++) if(counts[i]>0) result[i]/=counts[i]; return result;
  }
  void Update() {
-  Texture source=Source?Source:(Video && Video.isPrepared?Video.texture:null); bool available=Enabled && source && Screen;
+  Texture source=Source?Source:(Playback&&Playback.DesktopTexture?Playback.DesktopTexture:(Video && Video.isPrepared?Video.texture:null)); bool available=Enabled && source && Screen;
   float blend=1-Mathf.Exp(-8*Mathf.Min(Time.unscaledDeltaTime,0.1f));
   var display=Screen?Screen.GetComponent<Renderer>():null;var scale=display?display.sharedMaterial.mainTextureScale:Vector2.one;var offset=display?display.sharedMaterial.mainTextureOffset:Vector2.zero;
   filter.SetVector("_SourceScaleOffset",new Vector4(scale.x,scale.y,offset.x,offset.y));

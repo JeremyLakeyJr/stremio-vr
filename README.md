@@ -2,7 +2,7 @@
 
 **Your own VR apartment. A movie. Your friends.**
 
-Hang out in Open Concept Home on Meta Quest, choose something to watch with Stremio, and enjoy the same movie together. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
+Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), choose something to watch with Stremio, and enjoy the same movie together. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
 
 ![Open Concept Home lounge in Movie Night](docs/screenshots/apartment-lounge.png)
 
@@ -17,7 +17,7 @@ Hang out in Open Concept Home on Meta Quest, choose something to watch with Stre
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
 - **Talk and play:** WebRTC voice, customizable avatars, and shared tabletop games.
 
-[Download the Quest alpha](https://github.com/JeremyLakeyJr/stremio-vr/releases) · [What still needs testing](docs/ACCEPTANCE.md)
+[Download Movie Night](https://github.com/JeremyLakeyJr/stremio-vr/releases) · [What still needs testing](docs/ACCEPTANCE.md)
 
 **Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout and board progress save on the headset.
 
@@ -32,6 +32,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Play chess/tic-tac-toe against local computer opponents or practice both sides.
 - [x] Fix Alpha 2's stereo startup bug — stererecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
+- [x] Windows OpenXR and Linux SteamVR PC builds, with bundled browser, offline Solo rules and WebRTC voice.
 - [x] Browse 4,274 Open Source Avatars with saved selection, creator credits, VRM loading and peer/mirror support.
 - [x] Customize R6 avatars; show hand nubs in first person and full characters to peers.
 - [x] Restore the mirror with render-target state preservation and an On/Off setting.
@@ -60,7 +61,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 
 ## Play solo — no server setup
 
-Install the [latest Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Solo mode** also leaves multiplayer and restores your saved solo apartment.
+Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.7-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Solo mode** also leaves multiplayer and restores your saved solo apartment.
 
 Discover, Stremio account/add-on import, watch history, and the web browser connect directly to their online services. Direct HTTP(S) videos play on the headset without a room server. Websites and streamed movies still need internet access. Unsupported codecs, torrent delivery, and sources requiring proxy headers still need an appropriate streaming/transcoding service; solo does not secretly start or connect to Docker. DRM support is unchanged.
 
@@ -427,3 +428,37 @@ Creator, collection license and source appear in each avatar's details. **Avatar
 Rebuild the Docker room server with `docker compose up -d --build` when updating to this version: older servers discard the new avatar selection field. Solo needs no server. Only catalog IDs cross the room protocol; peers cannot provide arbitrary download URLs.
 
 Maintainers: refresh the pinned catalog using `node scripts/import-avatar-registry.mjs /path/to/open-source-avatars`, review license changes, and ship the generated headset/server catalogs together. UniVRM 0.131.4 is pinned in Unity's package manifest and loads VRM 1.0 plus migrated VRM 0.x models. Spring-bone physics and facial animation are currently disabled to keep tracked posing predictable on Quest.
+
+
+### PC VR — Windows and Linux (Alpha preview)
+
+PC VR players can join the same rooms as Quest players. Download the appropriate archive from [Releases](https://github.com/JeremyLakeyJr/stremio-vr/releases). Extract the **entire** archive: the `DesktopRuntime` and game data folders must stay beside the game executable. Node.js, Unity, and Docker are not needed to play Solo.
+
+**Windows:** start SteamVR or the Meta Quest Link desktop app and connect your headset. Set the runtime you use as the active OpenXR runtime in its settings. Launch `MovieNight.exe`. Quest Link/Air Link and SteamVR-compatible controllers use the Windows OpenXR build with Direct3D 11.
+
+**Linux:** start SteamVR, connect a supported headset, and launch `Launch-Movie-Night.sh` (or `./MovieNight.x86_64`). The Linux build uses Valve's OpenVR provider with Vulkan; Unity's OpenXR provider does not support Linux. Quest headsets need a Linux-compatible PC streaming solution such as [ALVR](https://github.com/alvr-org/ALVR). Follow [ALVR's Linux setup/troubleshooting](https://github.com/alvr-org/ALVR/wiki/Linux-Troubleshooting) for the SteamVR driver and headset audio devices. The desktop browser uses X11/XWayland; the system needs a working Vulkan driver and Chromium's normal Linux runtime dependencies and user-namespace sandbox support. No sandbox-disabling launch flag is shipped.
+
+Use the left stick/trackpad to walk, the right one to turn, trigger to select, and grips to pick up chess pieces. The left controller's **A/X primary face button** also toggles the menu on PC, because some system/menu buttons are reserved by the VR runtime. Keyboard **Tab** provides another menu toggle. Comfort settings, reclined viewing, screen placement/curvature, the mirror, and the avatar library remain available. Select your headset's speakers and microphone as the operating system's audio devices.
+
+Solo launches automatically. The bundled desktop runtime supplies the browser, offline tabletop rules, video decoding and WebRTC; it starts and closes with the app. In multiplayer, browsers still run on the room server and stream to everyone. Existing Alpha 8 room servers and Quest clients remain protocol-compatible; no new room-server deployment is required for PC support.
+
+Browser frames target 1920×1080 at up to 60 fps, with bounded frame buffering; actual frame rate depends on the GPU, decoder and source. If your Linux browser GPU driver fails, try `MOVIE_NIGHT_BROWSER_SOFTWARE=1 ./Launch-Movie-Night.sh` as a slower software-rendering fallback. DRM services that require a bundled commercial CDM are not supported by this desktop runtime.
+
+Stremio credentials and the server-browser profile key use the operating system's encrypted storage through Electron. On Linux, unlock your GNOME Keyring/KWallet-compatible secret store. When secure storage is unavailable, sign-in remains in memory and local browser cookies use a temporary session instead of writing them with a plaintext fallback. Logs are under the application's persistent-data folder (`desktop-runtime.log` and Unity's `Player.log`).
+
+Validation covers the native player builds, offline rules, 1080p browser frames/color, pointer input, tab management, real WebRTC video/audio, synthetic-microphone voice negotiation and MP4 decoding. Physical Windows/Linux headset display, controller mappings and sustained VR performance still require testing on those systems; these PC downloads are previews.
+
+#### Build the PC versions
+
+Install Unity 6000.0.66f2 with Linux and Windows **Mono** build support. Prepare the Home assets as described above, then:
+
+```bash
+npm ci --prefix desktop
+node desktop/node_modules/electron/install.js
+Unity -batchmode -nographics -quit -projectPath unity -buildTarget StandaloneWindows64 -executeMethod StremioVR.Editor.PcBuild.Windows
+Unity -batchmode -nographics -quit -projectPath unity -buildTarget StandaloneLinux64 -executeMethod StremioVR.Editor.PcBuild.Linux
+node scripts/package-desktop-runtime.cjs win32 unity/Builds/Windows/DesktopRuntime
+node scripts/package-desktop-runtime.cjs linux unity/Builds/Linux/DesktopRuntime
+```
+
+The Unity menu also offers **Movie Night → Build Windows PC VR / Build Linux PC VR**. Each build selects its own XR loader. Run `node scripts/check-desktop-runtime.mjs` for the desktop integration test (requires FFmpeg and a graphical desktop). It uses synthetic audio, not your microphone. Set `MOVIE_NIGHT_TEST_SOFTWARE=0` to test the default GPU configuration; the test defaults to software rendering for reproducibility. The runtime's authenticated IPC socket binds only to loopback and does not create a multiplayer room server.

@@ -177,3 +177,12 @@ Integrated the ToxSam registry at revision `0f9a1b2fd99894736563d55b2c9dc9125700
 40 Unity EditMode tests passed, including a real CC0 Devil avatar from Polygonal Mind/100Avatars R1, migration from VRM 0.x, export/reimport through the VRM 1.0 loader, malformed/external-resource rejection, and existing rendering/interaction regressions. 58 server tests passed, including profile synchronization, unknown ID rejection and parity between the server/headset catalogs. The real-model fixture lives in ignored `unity/Builds/avatar-fixture.vrm`; download it from the pinned catalog to repeat that integration test. No claim that all 4,274 individual models have been tested.
 
 Alpha 8 (0.1.7, Android code 8) built and installed on Quest. The user confirmed that preview, selection, both-eye appearance, mirror and tracked head/arms work. Recent Unity/Android logs showed no matching runtime errors. The Docker image built successfully and loaded all 4,274 catalog IDs. Multi-headset performance across the full avatar catalog remains unmeasured.
+
+
+## Alpha 9: Windows and Linux PC VR preview
+
+Windows x64 builds with OpenXR/Direct3D 11; Linux x86_64 builds with Valve OpenVR/Vulkan. Both include the pinned Electron runtime for Solo rules, browser tabs, native media decoding, room-browser WebRTC and voice. Credentials use OS encrypted storage, with an in-memory fallback when secure storage is unavailable. Desktop controller input includes a Linux OpenVR button adapter and a primary-face-button menu fallback.
+
+Both native builds and the Android regression build succeeded. 40 Unity EditMode tests and 60 Node/server/Solo tests passed; JavaScript syntax and bundled Solo parity checks passed. The desktop integration test passed Solo placement, 1920×1080 BGRA frame delivery, pointer input, tabs, real WebRTC video/audio, MP4 decoding and synthetic microphone voice negotiation. The packaged Linux player started Solo and displayed a 1920×1080 browser frame. This machine has no configured SteamVR runtime; the app reported that condition and continued to its desktop view.
+
+Physical Windows/Linux headset rendering, controller mappings, audio routing and sustained VR performance remain unverified. Windows execution has not been tested on this Linux build machine. These downloads are PC previews; the previously accepted Quest Alpha 8 remains available.
