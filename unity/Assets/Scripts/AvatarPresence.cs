@@ -102,12 +102,12 @@ public sealed class AvatarPresence : MonoBehaviour {
             head = new GameObject("Tracked head").transform; head.SetParent(root.transform); head.position = seat + Vector3.up * 1.65f;
             left = new GameObject("Tracked left hand").transform; left.SetParent(root.transform); left.position = seat + new Vector3(-0.45f, 1.15f, 0.25f);
             right = new GameObject("Tracked right hand").transform; right.SetParent(root.transform); right.position = seat + new Vector3(0.45f, 1.15f, 0.25f);
-            model.SetPose(head.position, head.rotation, left.position, right.position);
+            model.SetPose(head.position, head.rotation, left.position, left.rotation, right.position, right.rotation);
         }
         public void Seated(bool value) { model.SetSeated(value); }
         public void Pose(JObject pose) { Set(head, pose["head"]); Set(left, pose["left"]); Set(right, pose["right"]); }
         void Set(Transform target, JToken data) { if (data == null) return; var p = data["position"]; var r = data["rotation"]; positions[target] = new Vector3((float)p[0], (float)p[1], (float)p[2]); rotations[target] = Quaternion.Euler((float)r[0], (float)r[1], (float)r[2]); }
-        public void Update() { float t = 1 - Mathf.Exp(-15 * Time.deltaTime); foreach (var pair in positions) { pair.Key.position = Vector3.Lerp(pair.Key.position, pair.Value, t); pair.Key.rotation = Quaternion.Slerp(pair.Key.rotation, rotations[pair.Key], t); } model.SetPose(head.position, head.rotation, left.position, right.position); }
+        public void Update() { float t = 1 - Mathf.Exp(-15 * Time.deltaTime); foreach (var pair in positions) { pair.Key.position = Vector3.Lerp(pair.Key.position, pair.Value, t); pair.Key.rotation = Quaternion.Slerp(pair.Key.rotation, rotations[pair.Key], t); } model.SetPose(head.position, head.rotation, left.position, left.rotation, right.position, right.rotation); }
         public void Dispose() { Object.Destroy(root); }
     }
 }

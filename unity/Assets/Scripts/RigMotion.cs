@@ -12,10 +12,25 @@ public sealed class RigMotion : MonoBehaviour {
  public float MoveSpeed=1.5f, TurnSpeed=60, RayPitch=45;
  public bool Seated => seatedSeat>=0;
  public float ViewPitch => Mathf.DeltaAngle(0,Tracking.localEulerAngles.x);
+ public float AvatarEyeHeight { get; private set; } = 1.65f;
  CharacterController controller; int seatedSeat=-1; string joinedRoom; bool standDown; float verticalVelocity;
  public void Initialize() {
   Rig.gameObject.layer=8; controller=Rig.gameObject.AddComponent<CharacterController>(); controller.radius=0.2f; controller.height=1.65f; controller.center=Vector3.up*0.825f; controller.stepOffset=0.35f; controller.slopeLimit=55;
   Rig.position=World.Data.Spawn; Room.Message+=Message;
+ }
+ public void SetAvatarHeight(float eyeHeight) {
+  if (eyeHeight > 0.3f && eyeHeight < 4.0f) {
+   AvatarEyeHeight = eyeHeight;
+   if (controller != null) {
+    controller.height = AvatarEyeHeight;
+    controller.center = Vector3.up * (AvatarEyeHeight * 0.5f);
+   }
+   float currentHeadY = Head != null ? Head.localPosition.y : 1.65f;
+   if (currentHeadY > 0.2f && Tracking != null) {
+    float scaleRatio = AvatarEyeHeight / currentHeadY;
+    Tracking.localScale = Vector3.one * Mathf.Clamp(scaleRatio, 0.35f, 2.5f);
+   }
+  }
  }
  void Message(JObject message) {
   if((string)message["type"]!="state") return;
@@ -68,7 +83,7 @@ public sealed class RigMotion : MonoBehaviour {
   if(Mathf.Abs(turn.x)>0.2f) Rig.RotateAround(Head.position,Vector3.up,turn.x*TurnSpeed*Time.deltaTime);
   if(MenuVisible?.Invoke()==true || Seated) return;
   var forward=FlatDirection(Head.forward); var rightward=Vector3.Cross(Vector3.up,forward);
-  var localHead=Rig.InverseTransformPoint(Head.position); float height=Mathf.Clamp(localHead.y,0.8f,2.2f);
+  var localHead=Rig.InverseTransformPoint(Head.position); float height=Mathf.Clamp(localHead.y,0.8f,2.4f);
   controller.height=height; controller.center=new Vector3(localHead.x,height*0.5f,localHead.z);
   verticalVelocity=controller.isGrounded?-1:Mathf.Max(-10,verticalVelocity-9.81f*Time.deltaTime);
   controller.Move(((forward*stick.y+rightward*stick.x)*MoveSpeed+Vector3.up*verticalVelocity)*Time.deltaTime);
