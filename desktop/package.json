@@ -1,6 +1,6 @@
 {
   "name": "movie-night-desktop-runtime",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "license": "AGPL-3.0-only",
   "main": "main.cjs",

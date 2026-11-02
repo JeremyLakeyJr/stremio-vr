@@ -195,3 +195,10 @@ Menus remain world anchored and now open at 1.6 m with a 15° angled navigation 
 43 Unity EditMode tests passed with graphics enabled, including angled/off-axis controller-ray intersection and out-of-range rejection. The actual runtime Home layout was rendered and inspected for spacing and clipping. Final in-headset readability, sounds and haptic strength require user acceptance; no new headset acceptance is claimed.
 
 Quest, Windows and Linux builds succeeded. The connected Quest still has Alpha 8 (0.1.7/code 8). Android rejected the update with INSTALL_FAILED_UPDATE_INCOMPATIBLE because its installed signing certificate differs from the local debug key. No uninstall or data clearing was performed. The new APK and the archived Alpha 8 APK both match the current local debug key; installing over this headset needs its original signing key or an explicitly approved reinstall.
+
+
+## Alpha 10: spatial menus on all platforms
+
+After user authorization, the old Quest installation was removed and the menu build installed and launched successfully. The user confirmed “looks good.” This supersedes the installation blocker and pending Quest menu acceptance above. Windows/Linux physical headset acceptance remains pending. Release version: 0.1.9, Android version code 10.
+
+All three platforms were rebuilt successfully for Alpha 10. The 60 server/Solo tests, JavaScript syntax checks and bundled Solo parity check passed again. The 43 Unity tests from the menu redesign remain passing; only release metadata changed since that run.

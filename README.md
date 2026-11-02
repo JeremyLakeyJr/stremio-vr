@@ -61,7 +61,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 
 ## Play solo — no server setup
 
-Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.7-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Invite friends / join a room → Return to Solo** also leaves multiplayer and restores your saved solo apartment.
+Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.9-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Invite friends / join a room → Return to Solo** also leaves multiplayer and restores your saved solo apartment.
 
 Discover, Stremio account/add-on import, watch history, and the web browser connect directly to their online services. Direct HTTP(S) videos play on the headset without a room server. Websites and streamed movies still need internet access. Unsupported codecs, torrent delivery, and sources requiring proxy headers still need an appropriate streaming/transcoding service; solo does not secretly start or connect to Docker. DRM support is unchanged.
 
@@ -467,7 +467,7 @@ The Unity menu also offers **Movie Night → Build Windows PC VR / Build Linux P
 
 ![Spatial menu layout](docs/screenshots/spatial-menu.png)
 
-*Rendered from the runtime menu layout; headset comfort testing is pending.*
+*Rendered from the runtime menu layout. The redesigned menus have been accepted on Quest.*
 
 Open the menu with the left controller menu button (PC also supports A/X or keyboard Tab). It appears 1.6 metres ahead and stays in place until you reopen it or choose **Recenter**. The angled navigation wing and main panel use world-space UI, including when viewing while reclined.
 
