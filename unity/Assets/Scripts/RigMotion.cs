@@ -5,15 +5,21 @@ using UnityEngine.XR;
 namespace StremioVR {
 [DefaultExecutionOrder(-50)]
 public sealed class RigMotion : MonoBehaviour {
- public Transform Rig, Tracking, Head;
+ public Transform Rig, Tracking, Head, LeftHand;
  public RoomClient Room; public WorldManager World;
  public Func<bool> MenuVisible;
  public event Action<string> Status;
  public float MoveSpeed=1.5f, TurnSpeed=60, RayPitch=45;
+ public bool SnapTurn = false;
+ public float SnapAngle = 45f;
+ public bool HandOriented = false;
+ public float SprintMultiplier = 1.75f;
  public bool Seated => seatedSeat>=0;
  public float ViewPitch => Mathf.DeltaAngle(0,Tracking.localEulerAngles.x);
  public float AvatarEyeHeight { get; private set; } = 1.65f;
  CharacterController controller; int seatedSeat=-1; string joinedRoom; bool standDown; float verticalVelocity;
+ bool snapReset = true;
+
  public void Initialize() {
   Rig.gameObject.layer=8; controller=Rig.gameObject.AddComponent<CharacterController>(); controller.radius=0.2f; controller.height=1.65f; controller.center=Vector3.up*0.825f; controller.stepOffset=0.35f; controller.slopeLimit=55;
   Rig.position=World.Data.Spawn; Room.Message+=Message;
@@ -77,17 +83,55 @@ public sealed class RigMotion : MonoBehaviour {
  void Update() {
   var left=InputDevices.GetDeviceAtXRNode(XRNode.LeftHand); var right=InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
   right.TryGetFeatureValue(CommonUsages.secondaryButton,out bool stand); if(stand && !standDown) Stand(); standDown=stand;
-  left.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 stick); if(stick.magnitude<0.2f) stick=Vector2.zero; stick=Vector2.ClampMagnitude(stick,1);
-  if(Seated && stick.magnitude>0.4f) Stand();
+  
+  // Smooth thumbstick input with quadratic curve & deadzone
+  left.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 rawStick);
+  Vector2 stick = Vector2.zero;
+  float mag = rawStick.magnitude;
+  if(mag >= 0.15f) {
+   float curved = (mag - 0.15f) / 0.85f;
+   stick = rawStick.normalized * (curved * curved);
+  }
+  
+  // Left stick click sprint / fast walk
+  left.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool sprintClick);
+  float activeSpeed = sprintClick ? MoveSpeed * SprintMultiplier : MoveSpeed;
+
+  if(Seated && rawStick.magnitude>0.4f) Stand();
+  
+  // Turn controls: Snap Turn vs Smooth Turn
   right.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 turn);
-  if(Mathf.Abs(turn.x)>0.2f) Rig.RotateAround(Head.position,Vector3.up,turn.x*TurnSpeed*Time.deltaTime);
+  if(SnapTurn) {
+   if(Mathf.Abs(turn.x) > 0.65f) {
+    if(snapReset) {
+     float snap = Mathf.Sign(turn.x) * SnapAngle;
+     Rig.RotateAround(Head.position, Vector3.up, snap);
+     snapReset = false;
+    }
+   } else if(Mathf.Abs(turn.x) < 0.25f) {
+    snapReset = true;
+   }
+  } else {
+   if(Mathf.Abs(turn.x) > 0.15f) {
+    float curveTurn = Mathf.Sign(turn.x) * ((Mathf.Abs(turn.x) - 0.15f) / 0.85f);
+    Rig.RotateAround(Head.position, Vector3.up, curveTurn * TurnSpeed * Time.deltaTime);
+   }
+  }
+
   if(MenuVisible?.Invoke()==true || Seated) return;
-  var forward=FlatDirection(Head.forward); var rightward=Vector3.Cross(Vector3.up,forward);
-  var localHead=Rig.InverseTransformPoint(Head.position); float height=Mathf.Clamp(localHead.y,0.8f,2.4f);
-  controller.height=height; controller.center=new Vector3(localHead.x,height*0.5f,localHead.z);
-  verticalVelocity=controller.isGrounded?-1:Mathf.Max(-10,verticalVelocity-9.81f*Time.deltaTime);
-  controller.Move(((forward*stick.y+rightward*stick.x)*MoveSpeed+Vector3.up*verticalVelocity)*Time.deltaTime);
-  if(Head.position.y< -3) Teleport(World.Data.Spawn,false);
+  
+  // Movement direction: Hand-oriented vs Head-oriented
+  Vector3 forward = (HandOriented && LeftHand != null) ? FlatDirection(LeftHand.forward) : FlatDirection(Head.forward);
+  Vector3 rightward = Vector3.Cross(Vector3.up, forward);
+  
+  var localHead = Rig.InverseTransformPoint(Head.position);
+  float height = AvatarEyeHeight > 0.4f ? AvatarEyeHeight : Mathf.Clamp(localHead.y, 0.8f, 2.4f);
+  controller.height = height;
+  controller.center = new Vector3(localHead.x, height * 0.5f, localHead.z);
+  
+  verticalVelocity = controller.isGrounded ? -2.5f : Mathf.Max(-10f, verticalVelocity - 9.81f * Time.deltaTime);
+  controller.Move(((forward * stick.y + rightward * stick.x) * activeSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
+  if(Head.position.y < -3) Teleport(World.Data.Spawn, false);
  }
  void OnDestroy() { if(Room!=null) Room.Message-=Message; }
 }

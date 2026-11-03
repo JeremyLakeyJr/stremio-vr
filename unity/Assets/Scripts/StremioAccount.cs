@@ -21,7 +21,35 @@ public sealed class StremioAccount : MonoBehaviour {
   if(SignedIn) StartCoroutine(LoadAccount(generation));
  }
  public void BeginLink() { CancelLink(); StartCoroutine(Link(generation)); }
- public void CancelLink() { generation++; LinkCode=null; LinkUrl=null; Changed?.Invoke(); }
+ public void CancelLink() { generation++; LinkCode=null; LinkUrl=null; Changed?.Invoke(); }
+ public void LoginWithCredentials(string email, string password) {
+  if(string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password)) {
+   Status?.Invoke("Please enter both email and password."); return;
+  }
+  CancelLink(); StartCoroutine(DoLogin(email, password, generation));
+ }
+ IEnumerator DoLogin(string email, string password, int run) {
+  Status?.Invoke("Signing in to account...");
+  JObject body = new JObject { ["email"] = email.Trim(), ["password"] = password };
+  JObject res = null;
+  yield return Request("https://api.strem.io/api/login", body, value => res = value as JObject);
+  if(run != generation || res == null) yield break;
+  string key = (string)res["authKey"];
+  if(string.IsNullOrEmpty(key)) {
+   Status?.Invoke("Sign-in failed. Check your email and password."); yield break;
+  }
+  authKey = key;
+  try { Vault("save", authKey); } catch { Status?.Invoke("Signed in for this session; secure storage was unavailable."); }
+  yield return LoadAccount(run);
+  Status?.Invoke("Signed in successfully as " + (DisplayName ?? email));
+ }
+ public void LoginWithAuthKey(string key) {
+  if(string.IsNullOrEmpty(key)) return;
+  CancelLink(); authKey = key.Trim();
+  try { Vault("save", authKey); } catch {}
+  StartCoroutine(LoadAccount(generation));
+  Status?.Invoke("Signed in with auth token");
+ }
  IEnumerator Link(int run) {
   JObject created=null; yield return Request("https://link.stremio.com/api/v2/create?type=Create",null,result=>created=result as JObject);
   if(run!=generation || created==null) yield break;

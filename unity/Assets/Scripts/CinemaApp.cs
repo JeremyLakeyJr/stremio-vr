@@ -27,7 +27,13 @@ public sealed class CinemaApp : MonoBehaviour {
         gameObject.AddComponent<WatchProgressSync>();
         account = gameObject.AddComponent<StremioAccount>(); account.Status += ShowStatus; account.AddonsImported += ImportAccountAddons;
         account.HistoryLoaded += () => { if (pageTitle != null && pageTitle.text == "Watch history") HistoryPage(); };
-        account.Changed += () => { if (pageTitle != null && pageTitle.text == "Stremio account") AccountPage(); };
+        account.Changed += () => {
+            if (pageTitle != null) {
+                if (pageTitle.text == "Stremio account") AccountPage();
+                else if (pageTitle.text == "Servers & Streaming") ServersHubPage();
+                else if (pageTitle.text == "Discover") Library();
+            }
+        };
         voice = gameObject.AddComponent<VoiceChat>(); voice.Initialize(room);
         room.Status += ShowStatus; library.Status += ShowStatus; voice.Status += ShowStatus;
         rig = new GameObject("XR Rig").transform;
@@ -41,9 +47,12 @@ public sealed class CinemaApp : MonoBehaviour {
         localBody=gameObject.AddComponent<LocalBody>(); localBody.Head=head; localBody.Left=left; localBody.Right=right; localBody.Room=room; localBody.Apply(profile);
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
+        motion.LeftHand = localBody.Left;
         motion.MoveSpeed=(float?)settings["moveSpeed"]??1.5f; motion.TurnSpeed=(float?)settings["turnSpeed"]??60; motion.RayPitch=(float?)settings["rayPitch"]??45;
+        motion.SnapTurn = (bool?)settings["snapTurn"] ?? false; motion.HandOriented = (bool?)settings["handOriented"] ?? false;
         motion.MenuVisible=()=>placement!=null && placement.Active; motion.Status+=ShowStatus; motion.Initialize();
         localBody.AvatarHeightChanged += h => motion.SetAvatarHeight(h);
+        ApplyBrowserRes((string)settings["browserRes"] ?? "1080p");
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
         ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
@@ -118,17 +127,18 @@ public sealed class CinemaApp : MonoBehaviour {
         status = Label("Solo starts automatically. Connect a room only when you want company.", panel, 280, 825, 955, 65, 20);
         status.color = new Color(0.25f, 0.9f, 0.72f);
         Label("BROWSE & WATCH", panel, 20, 105, 215, 40, 17);
-        Button("My room", panel, 15, 175, 215, Home);
-        Button("Discover", panel, 15, 245, 215, Library);
-        Button("Watch history",panel,15,315,215,HistoryPage);
-        Button("Avatar", panel, 15, 385, 215, Customize);
-        Button("Settings / worlds", panel, 15, 455, 215, Comfort);
+        Button("My room", panel, 15, 150, 215, Home);
+        Button("Discover", panel, 15, 210, 215, Library);
+        Button("Watch history", panel, 15, 270, 215, HistoryPage);
+        Button("Stremio account", panel, 15, 330, 215, AccountPage);
+        Button("Servers & streaming", panel, 15, 390, 215, ServersHubPage);
+        Button("Avatar", panel, 15, 450, 215, Customize);
+        Button("Settings / worlds", panel, 15, 510, 215, Comfort);
 
-        Button("Toggle mic", panel, 15, 525, 215, () => voice.Toggle());
-        Button("Toggle audio", panel, 15, 585, 215, () => voice.ToggleDeafen());
-        Button("Servers & streaming", panel, 15, 645, 215, ServersHubPage);
-        Button("Recenter", panel, 15, 715, 215, Recenter);
-        Label("Left stick: move\nRight stick: turn\nHold grip + stick: scroll", panel, 20, 795, 215, 95, 17);
+        Button("Toggle mic", panel, 15, 575, 215, () => voice.Toggle());
+        Button("Toggle audio", panel, 15, 635, 215, () => voice.ToggleDeafen());
+        Button("Recenter", panel, 15, 695, 215, Recenter);
+        Label("Left stick: move / sprint\nRight stick: turn\nHold grip + stick: scroll", panel, 20, 765, 215, 95, 17);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
         Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Games", panel, 745, 920, 220, GamesPage); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
         var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)); scrollGo.transform.SetParent(panel, false);
@@ -417,6 +427,8 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading("Movement & turning");
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings["moveSpeed"]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
+        ActionButton("Turn style: " + (motion.SnapTurn ? "Snap Turn (45°)" : "Smooth Turn"), () => { motion.SnapTurn = !motion.SnapTurn; settings["snapTurn"] = motion.SnapTurn; Save(); Comfort(); });
+        ActionButton("Movement direction: " + (motion.HandOriented ? "Left Hand / Controller-oriented" : "Head / Gaze-oriented"), () => { motion.HandOriented = !motion.HandOriented; settings["handOriented"] = motion.HandOriented; Save(); Comfort(); });
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
@@ -516,8 +528,7 @@ public sealed class CinemaApp : MonoBehaviour {
         var controller = InputDevices.GetDeviceAtXRNode(XRNode.RightHand); var leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
         leftController.TryGetFeatureValue(CommonUsages.menuButton, out bool menu);
         leftController.TryGetFeatureValue(CommonUsages.secondaryButton, out bool leftY);
-        leftController.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool leftStickClick);
-        bool menuPressed = menu || leftY || leftStickClick;
+        bool menuPressed = menu || leftY;
         if ((menuPressed && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menuPressed;
 
         pointer.enabled = true;
@@ -619,8 +630,15 @@ public sealed class CinemaApp : MonoBehaviour {
             Heading("Waiting for Stremio approval…");
         } else {
             Heading("Sign in on your phone, computer, or Quest browser");
-            ActionButton("Link my Stremio account", account.BeginLink);
+            ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
+            Heading("— Or Sign In Directly with Credentials —");
+            string accEmail = (string)settings["accEmail"] ?? "";
+            var emailInput = Field("Account Email", accEmail, v => { settings["accEmail"] = v; Save(); });
+            var passInput = Field("Account Password", "", null);
+            ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
         }
+        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
+        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
     }
     void BackendsPage() {
@@ -699,107 +717,206 @@ public sealed class CinemaApp : MonoBehaviour {
                 BackendsPage();
             }
         });
+        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
+        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
     }
 
+
+        int serverHubTab = 0; // 0: QuickLaunch, 1: Nuvio, 2: Stremio, 3: Jellyfin, 4: MediaStorm/Silo, 5: Display & 4K
+
+    void ApplyBrowserRes(string res) {
+        settings["browserRes"] = res; Save();
+        if (browser == null) return;
+        if (res == "4k") browser.SetResolution(3840, 2160);
+        else if (res == "1440p") browser.SetResolution(2560, 1440);
+        else if (res == "720p") browser.SetResolution(1280, 720);
+        else browser.SetResolution(1920, 1080);
+    }
 
     void ServersHubPage() {
         Clear(); pageTitle.text = "Servers & Streaming";
         Heading("Media Servers, Debrid & Streaming Services");
 
-        Heading("One-Click Web Streamers (1080p FHD VR Browser)");
-        Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
-        Button("🌌 Nuvio Web", content, 10, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
-        Button("🎬 Stremio Web", content, 235, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
-        Button("🍿 Jellyfin Web", content, 460, row + 8, 215, () => {
-            string j = (string)settings["jellyfinUrl"];
-            if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
-            else { ShowStatus("Set Jellyfin URL below first"); }
-        });
-        Button("📺 YouTube", content, 685, row + 8, 215, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
-        row += 75;
+        // Top Navigation Bar
+        Plate(content, 0, row, actionWidth, 48, new Color(0.08f, 0.09f, 0.15f));
+        Button("🚀 Launch", content, 5, row + 4, 145, () => { serverHubTab = 0; ServersHubPage(); });
+        Button("🌌 Nuvio", content, 155, row + 4, 145, () => { serverHubTab = 1; ServersHubPage(); });
+        Button("🎬 Stremio", content, 305, row + 4, 145, () => { serverHubTab = 2; ServersHubPage(); });
+        Button("🍿 Jellyfin", content, 455, row + 4, 145, () => { serverHubTab = 3; ServersHubPage(); });
+        Button("⚡ Debrid/Silo", content, 605, row + 4, 150, () => { serverHubTab = 4; ServersHubPage(); });
+        Button("🖥 4K/Display", content, 760, row + 4, 150, () => { serverHubTab = 5; ServersHubPage(); });
+        row += 58;
 
-        Heading("🌌 Nuvio Profile Sync");
-        Label("Sync your Nuvio profile and Stremio-compatible addons into VR.", content, 0, row, actionWidth, 30, 18); row += 35;
-        string mUrl = (string)settings["mellonUrl"] ?? "http://192.168.1.166:8085";
-        string mToken = (string)settings["mellonToken"] ?? "";
-        var mUrlInput = Field("Nuvio / Mellon Server URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
-        var mTokenInput = Field("Nuvio Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
-        ActionButton("Sync Nuvio Addons to In-VR Library", async () => {
-            var reg = GetComponent<MediaProviderRegistry>();
-            if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
-                ShowStatus("Syncing Nuvio profile addons...");
-                int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
-                ShowStatus("Synced " + count + " addon(s) from Nuvio into VR library!");
-                ServersHubPage();
+        var reg = GetComponent<MediaProviderRegistry>();
+
+        if (serverHubTab == 0) {
+            Heading("🚀 One-Click Web Streamers");
+            Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
+            Button("🌌 Nuvio Web", content, 10, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+            Button("🎬 Stremio Web", content, 235, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+            Button("🍿 Jellyfin Web", content, 460, row + 8, 215, () => {
+                string j = (string)settings["jellyfinUrl"];
+                if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
+                else { ShowStatus("Configure your Jellyfin URL in the Jellyfin tab first"); serverHubTab = 3; ServersHubPage(); }
+            });
+            Button("📺 YouTube", content, 685, row + 8, 215, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
+            row += 72;
+
+            Heading("Active Server Status");
+            string sStatus = account.SignedIn ? "🟢 Stremio: Signed in (" + (account.DisplayName ?? "Account") + ")" : "⚪ Stremio: Not paired";
+            string nStatus = !string.IsNullOrEmpty((string)settings["mellonUrl"]) ? "🟢 Nuvio Sync: " + (string)settings["mellonUrl"] : "⚪ Nuvio: Standby";
+            string jStatus = (reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated) ? "🟢 Jellyfin: Connected" : "⚪ Jellyfin: Disconnected";
+            string msStatus = (reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated) ? "🟢 MediaStorm: Active" : "⚪ MediaStorm: Standby";
+            string siloStatus = (reg?.Silo != null && reg.Silo.IsAuthenticated) ? "🟢 Silo: Active" : "⚪ Silo: Standby";
+            string curRes = ((string)settings["browserRes"] ?? "1080p").ToUpperInvariant();
+
+            Label(sStatus + "\n" + nStatus + "\n" + jStatus + "\n" + msStatus + "\n" + siloStatus + "\n🖥 Display Quality: " + curRes, content, 0, row, actionWidth, 145, 19);
+            row += 155;
+
+            ActionButton("🎬 Manage Stremio Pairing & Sync", () => { serverHubTab = 2; ServersHubPage(); });
+            ActionButton("🌌 Configure Nuvio Addon Sync", () => { serverHubTab = 1; ServersHubPage(); });
+            ActionButton("🍿 Configure Jellyfin Media Server", () => { serverHubTab = 3; ServersHubPage(); });
+            ActionButton("🖥 Change Web Screen Resolution (1080p / 4K / 720p)", () => { serverHubTab = 5; ServersHubPage(); });
+        }
+        else if (serverHubTab == 1) {
+            Heading("🌌 Nuvio Streaming & Account Sync");
+            Label("Nuvio is an open-source Stremio fork sharing the same account, addon, and streaming ecosystem.", content, 0, row, actionWidth, 35, 18); row += 40;
+            ActionButton("🌌 Open Nuvio Web Player (nuvio.app)", () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+
+            Heading("Nuvio / Stremio Account Connection");
+            if (account.SignedIn) {
+                Heading("🟢 Connected Account: " + (account.DisplayName ?? "Nuvio User"));
+                ActionButton("⚡ Sync Account Add-ons & Catalogs", account.SyncAddons);
+                ActionButton("Sign out", account.SignOut);
+            } else if (!string.IsNullOrEmpty(account.LinkCode)) {
+                Heading("Sign-in code: " + account.LinkCode);
+                Heading("Open this link on your phone, PC, or headset browser:");
+                Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+                ActionButton("Open sign-in in Quest browser", account.OpenLink);
+                ActionButton("Cancel sign-in", account.CancelLink);
+                Heading("Waiting for approval (will refresh automatically)…");
+            } else {
+                ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
+                Heading("— Or Sign In Directly with Credentials —");
+                string accEmail = (string)settings["accEmail"] ?? "";
+                var emailInput = Field("Account Email", accEmail, v => { settings["accEmail"] = v; Save(); });
+                var passInput = Field("Account Password", "", null);
+                ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
             }
-        });
 
-        Heading("🎬 Stremio Account Pairing");
-        if (account.SignedIn) {
-            Heading("✓ Signed in: " + (account.DisplayName ?? "Stremio Account"));
-            ActionButton("Sync Stremio Account Add-ons", account.SyncAddons);
-            ActionButton("Sign out from Stremio", account.SignOut);
-        } else if (!string.IsNullOrEmpty(account.LinkCode)) {
-            Heading("Sign-in code: " + account.LinkCode);
-            Heading("Open this link on your phone, PC, or headset browser:");
-            Label(account.LinkUrl, content, 0, row, 920, 60, 22); row += 70;
-            ActionButton("Open sign-in in Quest browser", account.OpenLink);
-            ActionButton("Cancel sign-in", account.CancelLink);
-            Heading("Waiting for Stremio approval…");
-        } else {
-            ActionButton("Link my Stremio Account", account.BeginLink);
+            Heading("Self-Hosted Nuvio / Mellon Profile Sync (Optional)");
+            string mUrl = (string)settings["mellonUrl"] ?? "http://192.168.1.166:8085";
+            string mToken = (string)settings["mellonToken"] ?? "";
+            var mUrlInput = Field("Mellon / Nuvio Sync URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
+            var mTokenInput = Field("Mellon Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
+            ActionButton("Sync Self-Hosted Mellon Addons", async () => {
+                if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
+                    ShowStatus("Syncing Mellon profile addons...");
+                    int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
+                    ShowStatus("Synced " + count + " addon(s) from Mellon into VR library!");
+                    ServersHubPage();
+                }
+            });
+        }
+        else if (serverHubTab == 2) {
+            Heading("🎬 Stremio Account Pairing");
+            if (account.SignedIn) {
+                Heading("🟢 Signed in: " + (account.DisplayName ?? "Stremio Account"));
+                ActionButton("⚡ Sync Stremio Account Add-ons", account.SyncAddons);
+                ActionButton("Sign out from Stremio", account.SignOut);
+            } else if (!string.IsNullOrEmpty(account.LinkCode)) {
+                Heading("Sign-in code: " + account.LinkCode);
+                Heading("Open this link on your phone, PC, or Quest browser:");
+                Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+                ActionButton("Open sign-in in Quest browser", account.OpenLink);
+                ActionButton("Cancel sign-in", account.CancelLink);
+                Heading("Waiting for Stremio approval (will refresh automatically)…");
+            } else {
+                ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
+                Heading("— Or Sign In Directly with Credentials —");
+                string accEmail = (string)settings["accEmail"] ?? "";
+                var emailInput = Field("Stremio Email", accEmail, v => { settings["accEmail"] = v; Save(); });
+                var passInput = Field("Stremio Password", "", null);
+                ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
+            }
+            ActionButton("🎬 Open Stremio Web Player (web.stremio.com)", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+            ActionButton("Manage Catalogs & Addon Manifests", AddonsPage);
+        }
+        else if (serverHubTab == 3) {
+            Heading("🍿 Jellyfin / Remux Media Server");
+            string statusText = (reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated) ? "🟢 Connected to Jellyfin" : "⚪ Disconnected";
+            Heading(statusText);
+            string jUrl = (string)settings["jellyfinUrl"] ?? "";
+            string jUser = (string)settings["jellyfinUser"] ?? "";
+            string jPass = (string)settings["jellyfinPass"] ?? "";
+            var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
+            var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
+            var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
+            ActionButton("Connect & Authenticate Jellyfin", async () => {
+                if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
+                    ShowStatus("Connecting to Jellyfin...");
+                    bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
+                    ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
+                    ServersHubPage();
+                }
+            });
+            ActionButton("🍿 Open Jellyfin Web Player", () => {
+                string j = (string)settings["jellyfinUrl"];
+                if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
+                else { ShowStatus("Enter your Jellyfin URL above first"); }
+            });
+        }
+        else if (serverHubTab == 4) {
+            Heading("⚡ MediaStorm Debrid / Usenet Streamer");
+            string msStatus = (reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated) ? "🟢 Connected" : "⚪ Standby";
+            Heading("Status: " + msStatus);
+            string msUrl = (string)settings["mediastormUrl"] ?? "";
+            string msKey = (string)settings["mediastormKey"] ?? "";
+            var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.166:7777)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
+            var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
+            ActionButton("Connect MediaStorm", async () => {
+                if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
+                    ShowStatus("Connecting to MediaStorm...");
+                    bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
+                    ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm connection failed.");
+                    ServersHubPage();
+                }
+            });
+
+            Heading("🚀 Silo High-Performance Backend");
+            string siloStatus = (reg?.Silo != null && reg.Silo.IsAuthenticated) ? "🟢 Connected" : "⚪ Standby";
+            Heading("Status: " + siloStatus);
+            string sUrl = (string)settings["siloUrl"] ?? "";
+            string sUser = (string)settings["siloUser"] ?? "";
+            string sPass = (string)settings["siloPass"] ?? "";
+            var sUrlInput = Field("Silo Server URL", sUrl, v => { settings["siloUrl"] = v; Save(); });
+            var sUserInput = Field("Silo Username / Token", sUser, v => { settings["siloUser"] = v; Save(); });
+            var sPassInput = Field("Silo Password", sPass, v => { settings["siloPass"] = v; Save(); });
+            ActionButton("Connect Silo", async () => {
+                if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
+                    ShowStatus("Connecting to Silo...");
+                    bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
+                    ShowStatus(ok ? "Silo connected successfully!" : "Silo connection failed.");
+                    ServersHubPage();
+                }
+            });
+        }
+        else if (serverHubTab == 5) {
+            Heading("🖥 Virtual Web Screen Resolution & 4K Options");
+            Label("Native movie streams (ExoPlayer/Hardware Decoder) play at up to 4K 60FPS automatically.\nSelect your preferred resolution for the interactive web desktop:", content, 0, row, actionWidth, 48, 18); row += 55;
+            string cur = (string)settings["browserRes"] ?? "1080p";
+
+            ActionButton((cur == "1080p" ? "● " : "○ ") + "1080p Full HD (1920×1080) — Balanced & Crisp [Recommended]", () => { ApplyBrowserRes("1080p"); ServersHubPage(); });
+            ActionButton((cur == "4k" ? "● " : "○ ") + "4K Ultra HD (3840×2160) — Maximum Desktop Sharpness", () => { ApplyBrowserRes("4k"); ServersHubPage(); });
+            ActionButton((cur == "1440p" ? "● " : "○ ") + "1440p Quad HD (2560×1440) — High Density", () => { ApplyBrowserRes("1440p"); ServersHubPage(); });
+            ActionButton((cur == "720p" ? "● " : "○ ") + "720p Standard HD (1280×720) — Battery Saver", () => { ApplyBrowserRes("720p"); ServersHubPage(); });
+
+            Heading("Active Resolution: " + browser.WebWidth + "×" + browser.WebHeight);
         }
 
-        Heading("🍿 Jellyfin / Remux Media Server");
-        string jUrl = (string)settings["jellyfinUrl"] ?? "";
-        string jUser = (string)settings["jellyfinUser"] ?? "";
-        string jPass = (string)settings["jellyfinPass"] ?? "";
-        var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
-        var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
-        var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
-        ActionButton("Connect & Authenticate Jellyfin", async () => {
-            var reg = GetComponent<MediaProviderRegistry>();
-            if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
-                ShowStatus("Connecting to Jellyfin...");
-                bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
-                ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
-                ServersHubPage();
-            }
-        });
-
-        Heading("⚡ MediaStorm Debrid / Usenet Streamer");
-        string msUrl = (string)settings["mediastormUrl"] ?? "";
-        string msKey = (string)settings["mediastormKey"] ?? "";
-        var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.166:7777)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
-        var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
-        ActionButton("Connect MediaStorm", async () => {
-            var reg = GetComponent<MediaProviderRegistry>();
-            if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
-                ShowStatus("Connecting to MediaStorm...");
-                bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
-                ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm connection failed.");
-                ServersHubPage();
-            }
-        });
-
-        Heading("🚀 Silo High-Performance Backend");
-        string sUrl = (string)settings["siloUrl"] ?? "";
-        string sUser = (string)settings["siloUser"] ?? "";
-        string sPass = (string)settings["siloPass"] ?? "";
-        var sUrlInput = Field("Silo Server URL", sUrl, v => { settings["siloUrl"] = v; Save(); });
-        var sUserInput = Field("Silo Username / Token", sUser, v => { settings["siloUser"] = v; Save(); });
-        var sPassInput = Field("Silo Password", sPass, v => { settings["siloPass"] = v; Save(); });
-        ActionButton("Connect Silo", async () => {
-            var reg = GetComponent<MediaProviderRegistry>();
-            if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
-                ShowStatus("Connecting to Silo...");
-                bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
-                ShowStatus(ok ? "Silo connected successfully!" : "Silo connection failed.");
-                ServersHubPage();
-            }
-        });
-
+        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
+        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
         Resize();
     }
