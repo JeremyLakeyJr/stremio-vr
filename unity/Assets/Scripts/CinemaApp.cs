@@ -9,6 +9,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.XR;
 using StremioVR.Providers;
+
 namespace StremioVR {
 public sealed class CinemaApp : MonoBehaviour {
     int layoutPageRevision=-1; RoomPlacement placement; TabletopGames games; LocalBody localBody; WebCinema browser; RoomClient room; CinemaPlayback playback; VoiceChat voice; MediaLibrary library; StremioAccount account; RigMotion motion; WorldManager world; Transform tracking; VideoAmbient ambient; PanelMotion panelMotion; float scrollTarget; bool historyContinue, historyLocal; JObject watching; string watchingUrl; float nextHistory;
@@ -17,7 +18,21 @@ public sealed class CinemaApp : MonoBehaviour {
     RectTransform content; Font font; JObject settings, profile; float row; int pageGeneration; float actionWidth = 920; Text pageTitle;
     InputField serverInput, roomInput, streamInput; readonly List<RaycastResult> hits = new List<RaycastResult>();
     bool triggerWasDown; string shownRoom; GameObject hovered; LineRenderer pointer;
+    float rightALongPressTimer; bool rightALongPressFired; bool menuWasDown;
+    string providerFilter = "all"; int serverHubTab = 0;
+
+    public static readonly string[] MenuButtonOptions = new string[] {
+        "Left Controller Menu Button",
+        "Left Controller Y Button",
+        "Left Controller X Button",
+        "Right Controller A Button",
+        "Right Controller B Button",
+        "Right Controller A (Hold 0.4s)",
+        "Left Stick Click"
+    };
+
     string SettingsPath => Path.Combine(Application.persistentDataPath, "profile.json");
+
     void Awake() {
         Application.targetFrameRate = 72; font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         try { settings = JObject.Parse(File.ReadAllText(SettingsPath)); } catch { settings = new JObject(); }
@@ -48,19 +63,30 @@ public sealed class CinemaApp : MonoBehaviour {
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
         motion.LeftHand = localBody.Left;
-        motion.MoveSpeed=(float?)settings["moveSpeed"]??1.5f; motion.TurnSpeed=(float?)settings["turnSpeed"]??60; motion.RayPitch=(float?)settings["rayPitch"]??45;
-        motion.SnapTurn = (bool?)settings["snapTurn"] ?? false; motion.HandOriented = (bool?)settings["handOriented"] ?? false;
+        motion.MoveSpeed=(float?)settings[SettingsKeys.MoveSpeed]??1.5f;
+        motion.TurnSpeed=(float?)settings[SettingsKeys.TurnSpeed]??60;
+        motion.RayPitch=(float?)settings[SettingsKeys.RayPitch]??45;
+        motion.SnapTurn = (bool?)settings[SettingsKeys.SnapTurn] ?? false;
+        motion.SnapAngle = (float?)settings[SettingsKeys.SnapAngle] ?? 45f;
+        motion.HandOriented = (bool?)settings[SettingsKeys.HandOriented] ?? false;
+        motion.SprintEnabled = (bool?)settings[SettingsKeys.SprintEnabled] ?? true;
         motion.MenuVisible=()=>placement!=null && placement.Active; motion.Status+=ShowStatus; motion.Initialize();
         localBody.AvatarHeightChanged += h => motion.SetAvatarHeight(h);
-        ApplyBrowserRes((string)settings["browserRes"] ?? "1080p");
+        ApplyBrowserRes((string)settings[SettingsKeys.BrowserRes] ?? "1080p");
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
-        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings["ambient"]??true; ambient.Strength=(float?)settings["ambientStrength"]??0.65f;
+        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings[SettingsKeys.Ambient]??true; ambient.Strength=(float?)settings[SettingsKeys.AmbientStrength]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
         browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus; browser.Initialize();
         games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
         placement=gameObject.AddComponent<RoomPlacement>();placement.Room=room;placement.Head=head;placement.Status+=ShowStatus;
         placement.Finished+=()=>{panelMotion.Show(true);Recenter();LayoutPage();};
-        BuildCanvas(); Library();
+        serverHubTab = Mathf.Clamp((int?)settings[SettingsKeys.LastServerTab] ?? 0, 0, 5);
+        BuildCanvas();
+        if (settings[SettingsKeys.HasOnboarded] == null && !account.SignedIn && (settings["addons"] as JArray == null || (settings["addons"] as JArray).Count == 0)) {
+            OnboardingWizard();
+        } else {
+            Library();
+        }
         room.Message += message => {
             if ((string)message["type"] == "joined") { library.CoreEndpoint = room.ApiEndpoint; if(!room.IsSolo)library.ValidateInstalled(); }
             if ((string)message["type"] == "state") {
@@ -77,12 +103,12 @@ public sealed class CinemaApp : MonoBehaviour {
             try { if(accountEndpoints.Contains(MediaLibrary.AddonEndpoint((string)addon))) continue; } catch { }
             library.Install((string)addon, () => { if(pageTitle.text=="Discover") Library(); });
         }
-        if(library.Addons.Count>0) Library();
+        if(library.Addons.Count>0 && pageTitle.text=="Discover") Library();
     }
+
     void Start() {
         room.StartSolo(profile); account.Resume();
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
-        // Explicit development-only launch options make USB smoke tests repeatable.
         using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
         using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
         using (var intent = activity.Call<AndroidJavaObject>("getIntent")) {
@@ -99,6 +125,7 @@ public sealed class CinemaApp : MonoBehaviour {
         }
 #endif
     }
+
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
     IEnumerator DevelopmentWebScreen() {
         float deadline=Time.realtimeSinceStartup+20; while(!room.IsHost && Time.realtimeSinceStartup<deadline) yield return null;
@@ -111,6 +138,7 @@ public sealed class CinemaApp : MonoBehaviour {
         library.Install(url, () => { SaveAddons(); Debug.Log("[StremioCore] Development add-on installed"); });
     }
 #endif
+
     void BuildCanvas() {
         if (FindFirstObjectByType<EventSystem>() == null) new GameObject("EventSystem", typeof(EventSystem));
         var go = new GameObject("Cinema controls", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)); panel = go.transform;
@@ -147,8 +175,36 @@ public sealed class CinemaApp : MonoBehaviour {
         var scroll = scrollGo.GetComponent<ScrollRect>(); scroll.viewport = scrollGo.GetComponent<RectTransform>(); scroll.content = content; scroll.horizontal = false;
         pointer = new GameObject("Controller ray").AddComponent<LineRenderer>(); pointer.positionCount = 2; pointer.startWidth = 0.003f; pointer.endWidth = 0.001f; pointer.material = new Material(Shader.Find("Unlit/Color")); pointer.material.color = new Color(0.1f, 0.9f, 0.65f);
     }
+
     public void Recenter() { panel.position = head.position + head.forward * 1.8f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
     void Clear() { scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
+
+    void Heading(string text) { Label(text, content, 0, row, 920, 45, 24); row += 55; Resize(); }
+
+    void OnboardingWizard() {
+        Clear(); pageTitle.text = "Welcome to Movie Night VR";
+        Heading("🎬 Welcome to Movie Night VR!");
+        Label("Your personal virtual cinema with support for Stremio, Nuvio, Jellyfin, MediaStorm, and Silo.\nFollow these quick steps to get streaming in seconds:", content, 0, row, actionWidth, 65, 20); row += 75;
+
+        Plate(content, 0, row, actionWidth, 160, new Color(0.1f, 0.12f, 0.2f));
+        Label("Step 1: Connect your streaming accounts or home media servers.\nPair via link code or authenticate your server.", content, 20, row + 15, actionWidth - 40, 50, 19);
+        Button("⚡ Open Servers & Accounts Hub", content, 20, row + 75, 420, ServersHubPage);
+        Button("🌌 Open Nuvio Web Player", content, 460, row + 75, 420, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+        row += 175;
+
+        Plate(content, 0, row, actionWidth, 160, new Color(0.1f, 0.12f, 0.2f));
+        Label("Step 2: Browse Discover or Search catalogs for movies and series.\nHardware-accelerated native playback at up to 4K 60FPS.", content, 20, row + 15, actionWidth - 40, 50, 19);
+        Button("🍿 Explore Discover Catalogs", content, 20, row + 75, 420, () => { settings[SettingsKeys.HasOnboarded] = true; Save(); Library(); });
+        Button("🎬 Open Stremio Web Player", content, 460, row + 75, 420, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+        row += 175;
+
+        Plate(content, 0, row, actionWidth, 120, new Color(0.1f, 0.12f, 0.2f));
+        Label("Step 3: Enjoy alone in Solo Mode or host a watch party with friends!", content, 20, row + 15, actionWidth - 40, 40, 19);
+        Button("🛋 Enter Cinema (Skip Onboarding)", content, 20, row + 60, 420, () => { settings[SettingsKeys.HasOnboarded] = true; Save(); Home(); });
+        row += 135;
+        Resize();
+    }
+
     void Home() {
         Clear(); pageTitle.text = "My room"; Heading(room.IsSolo?"Solo mode — no server needed":"Room & playback");
         ActionButton("Solo mode / return to my apartment",()=>{if(browser.Active)browser.Close();room.StartSolo(profile);Home();});
@@ -164,7 +220,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Play / pause", () => playback.Toggle());
         ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
         Heading("Multiplayer — connect only when inviting friends");
-        serverInput = Field("Server WebSocket URL", (string)settings["server"] ?? "ws://192.168.1.100:3000/ws", value => { settings["server"] = value; Save(); });
+        serverInput = Field("Server WebSocket URL", (string)settings[SettingsKeys.Server] ?? "ws://192.168.1.100:3000/ws", value => { settings[SettingsKeys.Server] = value; Save(); });
         roomInput = Field("Room code (empty creates a room)", "", null);
         ActionButton("Connect / create room", () => { room.Connect(serverInput.text.Trim(), roomInput.text.Trim(), profile); });
         ActionButton("Leave room / return to solo", () => room.Leave());
@@ -179,12 +235,15 @@ public sealed class CinemaApp : MonoBehaviour {
             ActionButton("😱 Shock", () => SendReaction("😱"));
             ActionButton("😴 Sleep", () => SendReaction("😴"));
         }
-        ActionButton("Hide / show panel: left controller menu button", () => panelMotion.Show(false));
+        int curMenuOpt = Mathf.Clamp((int?)settings[SettingsKeys.MenuButtonOption] ?? 0, 0, MenuButtonOptions.Length - 1);
+        ActionButton("Hide / show menu: " + MenuButtonOptions[curMenuOpt], () => panelMotion.Show(false));
     }
+
     void SendReaction(string emoji) {
         room.Send(new JObject { ["type"] = "reaction", ["emoji"] = emoji });
         presence?.ShowReaction(room.PlayerId, emoji);
     }
+
     void SeatsPage() {
         Clear(); pageTitle.text = "Choose a seat / sofa";
         Heading("Select any vacant cinema seat to teleport and snap into view:");
@@ -212,61 +271,31 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Stand up / return to aisle", () => { motion.Stand(); SeatsPage(); });
         ActionButton("Back to my room", Home);
     }
+
     void GamesPage() {
         Clear();pageTitle.text="Tabletop games";
         Heading("Place tables using Arrange room. Grip a chess piece, move it, and release above a green square. Trigger also works.");
         ActionButton("Arrange room",LayoutPage);
         if(room.IsSolo)ActionButton((bool?)room.State?["computer"]==false?"Practice both sides → play computer":"Play computer → practice both sides",()=>{room.Send(new JObject{["type"]="solo-opponent",["computer"]=(bool?)room.State?["computer"]==false});ShowStatus("Opponent updated. Refresh boards to see the mode.");});
         foreach(string id in new[]{"chess","tictactoe"}) {string game=id;Heading(id=="chess"?"Chess":"Tic-tac-toe");Heading(games.Description(id));
-            if(!room.IsSolo){ActionButton("Join "+id,()=>{games.Command(game,"join");});ActionButton("Leave "+id,()=>games.Command(game,"leave"));}ActionButton("Reset "+id,()=>games.Command(game,"reset"));
-        }
-        ActionButton("Promotion: "+games.Promotion.ToUpperInvariant(),()=>{string choices="qrbn";games.SetPromotion(choices[(choices.IndexOf(games.Promotion)+1)%4].ToString());GamesPage();});
-        Heading("Chess Set by Jacob G · CC BY-ND 4.0\nprintables.com/model/32741-chess-set\ncreativecommons.org/licenses/by-nd/4.0/\nOriginal geometry; technical format conversion only. Supplied as-is.");ActionButton("Refresh boards",GamesPage);ActionButton("Hide menu / play",()=>panelMotion.Show(false));
+            if(room.IsHost)ActionButton("Spawn "+id+" on open table",()=>{var placement=GetComponent<RoomPlacement>();placement.Begin(game);panelMotion.Show(false);});}
+        ActionButton("Back to my room",Home);
     }
-    void BeginPlacement(string kind,string id=null) {
-        placement.Begin(kind,id);if(placement.Active)panelMotion.Show(false);
-    }
-    void LayoutPage() {
-        Clear();pageTitle.text="Arrange room";layoutPageRevision=(int?)room.State?["layout"]?["revision"]??-1;
-        Heading(room.IsHost?"Aim to place; use sticks to adjust. Trigger confirms; menu cancels.":"Only the room host can place, move, or remove objects.");
-        MonitorControls("main",(float?)room.State?["layout"]?["mainScreen"]?["width"]??4.34f,(float?)room.State?["layout"]?["mainScreen"]?["curve"]??0,"Main screen");
-        ActionButton("Add movie screen",()=>BeginPlacement("screen"));
-        var items=room.State?["layout"]?["items"] as JArray??new JArray();
-        foreach(string kind in new[]{"chess","tictactoe"}) {bool found=false;foreach(var item in items)if((string)item["kind"]==kind)found=true;if(!found){string type=kind;ActionButton("Place "+kind+" table",()=>BeginPlacement(type));}}
-        int number=0;foreach(var item in items) {string id=(string)item["id"],kind=(string)item["kind"];Heading((++number)+" · "+kind);ActionButton("Move "+kind,()=>BeginPlacement(kind,id));ActionButton("Remove "+kind,()=>placement.Remove(id));if(kind=="screen")MonitorControls(id,(float?)item["width"]??2.1f,(float?)item["curve"]??0,"Monitor");}
-        Heading("Up to six extra screens and one table for each game. Solo layouts save on this headset; multiplayer layouts last for the room.");
-        ActionButton("Refresh layout",LayoutPage);
-    }
-    void MonitorControls(string id,float width,float curve,string label){
-        Heading(label+" · width "+width.ToString("0.00")+" m · curve "+curve.ToString("0")+"°");
-        ActionButton("Smaller −0.25 m",()=>placement.Configure(id,width-.25f,curve));ActionButton("Larger +0.25 m",()=>placement.Configure(id,width+.25f,curve));
-        ActionButton("Less curved −15°",()=>placement.Configure(id,width,curve-15));ActionButton("More curved +15°",()=>placement.Configure(id,width,curve+15));ActionButton("Flat screen",()=>placement.Configure(id,width,0));
-    }
+
     void AudioSettings() {
-        Clear(); pageTitle.text = "Movie audio & subtitles";
-        Heading(playback.AudioInfo);
-        ActionButton("Next audio track", () => { playback.NextAudioTrack(); ShowStatus("Preparing selected audio track…"); });
-        if (room.IsHost) {
-            Heading("Server Transcode Audio Stream (Host)");
-            for (int i = 0; i < 4; i++) {
-                int trackIdx = i;
-                string mark = playback.ServerAudioTrackIndex == trackIdx ? "● " : "○ ";
-                ActionButton(mark + "Stream " + (trackIdx + 1) + (trackIdx == 0 ? " (Default)" : ""), () => {
-                    playback.SelectServerAudioTrack(trackIdx);
-                    AudioSettings();
-                });
-            }
-        }
-        SpeedControl("Movie volume", playback.Volume, 0, 1, 0.1f, value => playback.SetVolume(value), "", AudioSettings);
-        Heading("In-VR Subtitles");
-        bool subEnabled = playback.Subtitles != null && playback.Subtitles.Enabled;
-        double subOffset = playback.Subtitles != null ? playback.Subtitles.OffsetSeconds : 0;
-        ActionButton("Subtitles: " + (subEnabled ? "ON" : "OFF"), () => {
-            playback.Subtitles?.Toggle();
+        Clear(); pageTitle.text = "Audio & subtitles";
+        Heading("Audio tracks");
+        ActionButton(playback.AudioInfo, () => { playback.NextAudioTrack(); AudioSettings(); });
+        ActionButton("Cycle server-transcoded audio track", () => {
+            playback.NextServerAudioTrack();
             AudioSettings();
         });
+        Heading("Subtitle controls");
         if (playback.Subtitles != null) {
-            Heading("Subtitle sync offset: " + subOffset.ToString("+0.00;-0.00;0.00") + "s (Cues: " + playback.Subtitles.CueCount + ")");
+            ActionButton("Subtitles: " + (playback.Subtitles.Enabled ? "Enabled" : "Disabled"), () => {
+                playback.Subtitles.Toggle();
+                AudioSettings();
+            });
             ActionButton("Sync offset -0.5s", () => { playback.Subtitles.AdjustOffset(-0.5); AudioSettings(); });
             ActionButton("Sync offset +0.5s", () => { playback.Subtitles.AdjustOffset(0.5); AudioSettings(); });
             ActionButton("Reset subtitle offset", () => { playback.Subtitles.ResetOffset(); AudioSettings(); });
@@ -274,6 +303,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Refresh audio & subtitle information", AudioSettings);
         Heading("If a source uses unsupported AC-3/DTS audio, choose an AAC source or configure a compatible transcoding service. Voice volume is separate.");
     }
+
     void BrowserControls() {
         Clear(); pageTitle.text="Web browser";
         Heading(room.IsSolo?"Your private browser — account session stays on this headset":"Shared server browser — everyone in the room sees and hears it");
@@ -283,9 +313,9 @@ public sealed class CinemaApp : MonoBehaviour {
         Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
         Button("🎬 Stremio Web", content, 10, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         Button("🍿 Jellyfin Web", content, 235, row + 8, 215, () => {
-            string j = (string)settings["jellyfinUrl"];
+            string j = (string)settings[SettingsKeys.JellyfinUrl];
             if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
-            else { ShowStatus("Set your Jellyfin URL first in Media Backends"); BackendsPage(); }
+            else { ShowStatus("Configure Jellyfin URL in the Streaming Hub first"); serverHubTab = 3; ServersHubPage(); }
         });
         Button("🌌 Nuvio Web", content, 460, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
         Button("📺 YouTube", content, 685, row + 8, 215, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
@@ -301,12 +331,18 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Forget web-screen sign-in",browser.ForgetSession);
         Heading("Walk and turn with the sticks. Hold right grip + right stick to scroll. Select a web input with the beam, then enter text here. Web video plays locally until shared.");
     }
+
     void AddonsPage() {
-        pageTitle.text = "Catalogs";
-        Clear(); Heading("Media Catalogs");
-        var addonUrl = Field("Catalog manifest URL", "https://v3-cinemeta.strem.io/manifest.json", null);
-        ActionButton("Install catalog", () => library.Install(addonUrl.text, () => { SaveAddons(); Library(); }));
-        Heading("Installed catalogs");
+        pageTitle.text = "Catalogs"; Clear(); Heading("Manage catalogs and add-ons");
+        ActionButton("Add official and community add-ons", () => Application.OpenURL("https://stremio-addons.netlify.app/"));
+        var field = Field("Add-on manifest URL", "https://", null);
+        ActionButton("Install add-on", () => {
+            string url = field.text.Trim();
+            if (!url.EndsWith("manifest.json")) { ShowStatus("URL must end with manifest.json"); return; }
+            ShowStatus("Installing add-on…"); library.Install(url, () => { SaveAddons(); AddonsPage(); });
+        });
+        ActionButton("Stremio account and official sync", AccountPage);
+        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
         foreach (var addon in library.Addons) {
             var selected = addon; Heading((string)addon["name"] ?? (string)addon["id"]);
             ActionButton("Remove " + ((string)addon["name"] ?? "add-on"), () => { library.Addons.Remove(selected); SaveAddons(); Library(); });
@@ -318,29 +354,158 @@ public sealed class CinemaApp : MonoBehaviour {
                 });
             }
         }
-        Field("Video type", (string)settings["type"] ?? "movie", value => settings["type"] = value);
+        Field("Video type", (string)settings[SettingsKeys.VideoType] ?? "movie", value => settings[SettingsKeys.VideoType] = value);
         var id = Field("Video ID (e.g. tt1254207 or series episode ID)", "", null);
-        ActionButton("Find streams by ID", () => Streams((string)settings["type"] ?? "movie", id.text.Trim(), id.text.Trim()));
+        ActionButton("Find streams by ID", () => Streams((string)settings[SettingsKeys.VideoType] ?? "movie", id.text.Trim(), id.text.Trim()));
     }
+
     void Library() {
-        Clear(); pageTitle.text="Discover";
+        Clear(); pageTitle.text = "Discover";
         Heading("Your cinema. Your collection.");
+
+        // Provider Filter Pills
+        Plate(content, 0, row, actionWidth, 54, new Color(0.08f, 0.09f, 0.15f));
+        Button((providerFilter == "all" ? "● " : "") + "🌐 All Catalogs", content, 5, row + 4, 185, () => { providerFilter = "all"; Library(); });
+        Button((providerFilter == "stremio" ? "● " : "") + "🎬 Stremio / Nuvio", content, 195, row + 4, 195, () => { providerFilter = "stremio"; Library(); });
+        Button((providerFilter == "jellyfin" ? "● " : "") + "🍿 Jellyfin", content, 395, row + 4, 165, () => { providerFilter = "jellyfin"; Library(); });
+        Button((providerFilter == "mediastorm" ? "● " : "") + "⚡ MediaStorm", content, 565, row + 4, 175, () => { providerFilter = "mediastorm"; Library(); });
+        Button((providerFilter == "silo" ? "● " : "") + "🚀 Silo", content, 745, row + 4, 170, () => { providerFilter = "silo"; Library(); });
+        row += 62;
+
+        var reg = GetComponent<MediaProviderRegistry>();
+        if (providerFilter == "jellyfin" && reg?.Jellyfin != null) {
+            RenderProviderView(reg.Jellyfin);
+            return;
+        } else if (providerFilter == "mediastorm" && reg?.MediaStorm != null) {
+            RenderProviderView(reg.MediaStorm);
+            return;
+        } else if (providerFilter == "silo" && reg?.Silo != null) {
+            RenderProviderView(reg.Silo);
+            return;
+        }
+
         ActionButton("⚡ Servers & Streaming Hub (Stremio / Nuvio / Jellyfin)", ServersHubPage);
         ActionButton("Manage catalogs", AddonsPage);
-        if(library.Addons.Count==0) { library.Install("https://v3-cinemeta.strem.io/manifest.json",()=>{SaveAddons(); Library();}); return; }
-        JObject featuredAddon=null, featuredCatalog=null; int tabs=0;
-        foreach(var addon in library.Addons) foreach(var token in addon["catalogs"] as JArray??new JArray()) {
-            var selected=addon; var catalog=(JObject)token;
-            if(featuredCatalog==null || (string)addon["id"]=="com.linvo.cinemeta" && (string)catalog["type"]=="movie" && (string)catalog["id"]=="top") { featuredAddon=addon; featuredCatalog=catalog; }
-            if(tabs<3) { Button(((string)catalog["name"]??(string)catalog["id"])+" / "+(string)catalog["type"],content,tabs*310,row,298,()=> {
-                int generation=pageGeneration; ShowStatus("Loading posters…"); library.Catalog(selected,catalog,items=>{if(generation==pageGeneration) Catalog(selected,(string)catalog["type"],items);});
-            }); tabs++; }
+        if (library.Addons.Count == 0) {
+            library.Install("https://v3-cinemeta.strem.io/manifest.json", () => { SaveAddons(); Library(); });
+            return;
         }
-        row+=70; ActionButton("All catalogs and add-ons",AddonsPage);
-        if(featuredCatalog!=null) {
-            Heading("Featured titles"); int generation=pageGeneration; var addon=featuredAddon; string type=(string)featuredCatalog["type"];
-            library.Catalog(addon,featuredCatalog,items=>{if(generation==pageGeneration) PosterGrid(addon,type,items,"");});
+
+        JObject featuredAddon = null, featuredCatalog = null; int tabs = 0;
+        foreach (var addon in library.Addons) {
+            foreach (var token in addon["catalogs"] as JArray ?? new JArray()) {
+                var selected = addon; var catalog = (JObject)token;
+                if (featuredCatalog == null || ((string)addon["id"] == "com.linvo.cinemeta" && (string)catalog["type"] == "movie" && (string)catalog["id"] == "top")) {
+                    featuredAddon = addon; featuredCatalog = catalog;
+                }
+                if (tabs < 3) {
+                    Button(((string)catalog["name"] ?? (string)catalog["id"]) + " / " + (string)catalog["type"], content, tabs * 310, row, 298, () => {
+                        int generation = pageGeneration; ShowStatus("Loading posters…");
+                        library.Catalog(selected, catalog, items => { if (generation == pageGeneration) Catalog(selected, (string)catalog["type"], items); });
+                    });
+                    tabs++;
+                }
+            }
         }
+        row += 70;
+        ActionButton("All catalogs and add-ons", AddonsPage);
+        if (featuredCatalog != null) {
+            Heading("Featured titles");
+            int generation = pageGeneration;
+            var addon = featuredAddon;
+            string type = (string)featuredCatalog["type"];
+            library.Catalog(addon, featuredCatalog, items => { if (generation == pageGeneration) PosterGrid(addon, type, items, ""); });
+        }
+    }
+
+    async void RenderProviderView(IMediaProvider prov) {
+        if (!prov.IsAuthenticated) {
+            Heading(prov.DisplayName + " is not connected.");
+            Label("Configure your server URL and credentials in the Streaming Hub to browse its library natively in VR.", content, 0, row, actionWidth, 40, 19); row += 48;
+            ActionButton("⚡ Open " + prov.DisplayName + " Settings in Hub", () => {
+                if (prov.ProviderId == "jellyfin") serverHubTab = 3;
+                else if (prov.ProviderId == "mediastorm") serverHubTab = 4;
+                else if (prov.ProviderId == "silo") serverHubTab = 4;
+                ServersHubPage();
+            });
+            Resize();
+            return;
+        }
+
+        ShowStatus("Loading " + prov.DisplayName + " catalogs…");
+        var catalogs = await prov.GetCatalogsAsync();
+        Heading(prov.DisplayName + " Catalogs");
+        int generation = pageGeneration;
+        int t = 0;
+        foreach (var cat in catalogs) {
+            var currentCat = cat;
+            if (t < 3) {
+                Button(currentCat.Name + " (" + currentCat.Type + ")", content, t * 310, row, 298, async () => {
+                    ShowStatus("Loading " + currentCat.Name + "…");
+                    var items = await prov.GetCatalogItemsAsync(currentCat.CatalogId);
+                    if (generation == pageGeneration) ProviderPosterGrid(items, prov);
+                });
+                t++;
+            }
+        }
+        if (t > 0) row += 70;
+
+        if (catalogs.Count > 0) {
+            Heading("Featured from " + catalogs[0].Name);
+            var items = await prov.GetCatalogItemsAsync(catalogs[0].CatalogId);
+            if (generation == pageGeneration) ProviderPosterGrid(items, prov);
+        } else {
+            Heading("No media items found on " + prov.DisplayName);
+            Resize();
+        }
+    }
+
+    void ProviderPosterGrid(List<MediaItem> items, IMediaProvider prov) {
+        int count = 0; float start = row;
+        foreach (var item in items) {
+            var currentItem = item;
+            string title = item.Title ?? "Untitled";
+            float x = (count % 4) * 232, y = start + (count / 4) * 370;
+            var card = new GameObject("Title: " + title, typeof(RectTransform), typeof(Image), typeof(Button));
+            card.transform.SetParent(content, false); Place(card.GetComponent<RectTransform>(), x, y, 216, 350);
+            card.GetComponent<Button>().transition = Selectable.Transition.None; card.GetComponent<Image>().color = new Color(0.11f, 0.09f, 0.18f); card.AddComponent<UiMotion>().Card = true;
+            var poster = new GameObject("Poster", typeof(RectTransform), typeof(RawImage), typeof(PosterImage));
+            poster.transform.SetParent(card.transform, false); Place(poster.GetComponent<RectTransform>(), 6, 6, 204, 288);
+            poster.GetComponent<RawImage>().color = new Color(0.2f, 0.17f, 0.28f); poster.GetComponent<RawImage>().raycastTarget = false;
+            poster.GetComponent<PosterImage>().Load(item.PosterUrl);
+            Label(title, card.transform, 10, 300, 196, 44, 18);
+            card.GetComponent<Button>().onClick.AddListener(() => ProviderItemDetails(currentItem, prov));
+            if (++count >= 60) break;
+        }
+        row = start + Mathf.Ceil(count / 4f) * 370; Resize();
+        ShowStatus(count == 0 ? "No media found" : "Select a poster for details and playback.");
+    }
+
+    void ProviderItemDetails(MediaItem item, IMediaProvider prov) {
+        Clear(); pageTitle.text = item.Title;
+        ActionButton("Back to Discover", Library);
+        Heading(item.Title);
+        string desc = "Native stream from " + prov.DisplayName;
+        Label(desc, content, 0, row, 920, 150, 21); row += 165;
+        ActionButton("Watch / Choose Stream Source", async () => {
+            ShowStatus("Resolving streams from " + prov.DisplayName + "…");
+            var streams = await prov.GetStreamsAsync(item.ItemId);
+            Clear(); ActionButton("Back to Discover", Library); Heading("Sources for " + item.Title);
+            if (streams == null || streams.Count == 0) {
+                Heading("No streams available for this item.");
+            } else {
+                foreach (var s in streams) {
+                    var curStream = s;
+                    ActionButton(curStream.Title ?? "Stream", () => {
+                        watching = new JObject { ["_id"] = item.ItemId, ["name"] = item.Title, ["type"] = item.Type, ["state"] = new JObject() };
+                        watchingUrl = curStream.StreamUrl;
+                        playback.Load(curStream, item.Title, item.ResumePositionTicks > 0 ? item.ResumePositionTicks / 10000000.0 : 0);
+                    });
+                }
+            }
+            Resize();
+        });
+        Resize();
     }
 
     void Catalog(JObject addon, string type, JArray items) {
@@ -360,7 +525,7 @@ public sealed class CinemaApp : MonoBehaviour {
             float x=(count%4)*232, y=start+(count/4)*370;
             var card=new GameObject("Title: "+title,typeof(RectTransform),typeof(Image),typeof(Button)); card.transform.SetParent(content,false); Place(card.GetComponent<RectTransform>(),x,y,216,350);
             card.GetComponent<Button>().transition=Selectable.Transition.None; card.GetComponent<Image>().color=new Color(0.11f,0.09f,0.18f); card.AddComponent<UiMotion>().Card=true;
-            var poster=new GameObject("Poster",typeof(RectTransform),typeof(RawImage),typeof(PosterImage)); poster.transform.SetParent(card.transform,false); Place(poster.GetComponent<RectTransform>(),6,6,204,288); poster.GetComponent<RawImage>().color=new Color(0.2f,0.17f,0.28f); poster.GetComponent<RawImage>().raycastTarget=false; poster.GetComponent<PosterImage>().Load((string)item["poster"]);
+            var poster = new GameObject("Poster",typeof(RectTransform),typeof(RawImage),typeof(PosterImage)); poster.transform.SetParent(card.transform,false); Place(poster.GetComponent<RectTransform>(),6,6,204,288); poster.GetComponent<RawImage>().color=new Color(0.2f,0.17f,0.28f); poster.GetComponent<RawImage>().raycastTarget=false; poster.GetComponent<PosterImage>().Load((string)item["poster"]);
             Label(title,card.transform,10,300,196,44,18); card.GetComponent<Button>().onClick.AddListener(()=>Details(addon,type,item));
             if(++count>=60) break;
         }
@@ -385,7 +550,7 @@ public sealed class CinemaApp : MonoBehaviour {
             if (generation != pageGeneration) return;
             foreach (var token in streams) { var stream = (JObject)token;
                 if(room.IsSolo && stream["externalUrl"]!=null){string website=(string)stream["externalUrl"];ActionButton("Open website: "+((string)stream["name"]??"Source"),()=>{try{browser.Open(MediaLibrary.Http(website));panelMotion.Show(false);}catch(Exception error){ShowStatus(error.Message);}});continue;}
-                ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings["streamingService"], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; playback.Load(url, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
+                ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings[SettingsKeys.StreamingService], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; playback.Load(url, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
             ShowStatus(streams.Count == 0 ? "No streams. Install a stream-provider add-on." : "Choose a source, then use Room → Play.");
         });
     }
@@ -400,7 +565,7 @@ public sealed class CinemaApp : MonoBehaviour {
         Button(historyLocal?"Source: this headset":"Source: Stremio account",content,0,row,450,()=>{historyLocal=!historyLocal;HistoryPage();});
         Button(historyContinue?"Continue watching":"All watched titles",content,470,row,450,()=>{historyContinue=!historyContinue;HistoryPage();}); row+=70;
         if(!historyLocal) { if(!account.SignedIn) { ActionButton("Sign in to view Stremio history",AccountPage); return; } ActionButton("Refresh Stremio history",account.RefreshHistory); }
-        var entries=historyLocal?(settings["recent"] as JArray??new JArray()):account.History;
+        var entries=historyLocal?(settings[SettingsKeys.RecentHistory] as JArray??new JArray()):account.History;
         int count=0;
         foreach(var token in entries) {
             var item=(JObject)token; var state=item["state"] as JObject??new JObject(); double offset=(double?)state["timeOffset"]??0, duration=(double?)state["duration"]??0;
@@ -413,37 +578,57 @@ public sealed class CinemaApp : MonoBehaviour {
     }
     void RecordHistory() {
         if(watching==null || playback.SourceUrl!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
-        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
-        var recent=settings["recent"] as JArray??new JArray(); for(int i=recent.Count-1;i>=0;i--) if((string)recent[i]["_id"]==(string)watching["_id"]) recent.RemoveAt(i); recent.Insert(0,watching.DeepClone()); while(recent.Count>100) recent.RemoveAt(recent.Count-1); settings["recent"]=recent; Save();
+        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]!; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
+        var recent=settings[SettingsKeys.RecentHistory] as JArray??new JArray(); for(int i=recent.Count-1;i>=0;i--) if((string)recent[i]["_id"]==(string)watching["_id"]) recent.RemoveAt(i); recent.Insert(0,watching.DeepClone()); while(recent.Count>100) recent.RemoveAt(recent.Count-1); settings[SettingsKeys.RecentHistory]=recent; Save();
     }
     void ChangeWorld(string id) {
         if(room.State==null) world.Load(id);
-        else if(room.IsHost) room.Send(new JObject { ["type"]="world",["world"]=id });
+        else if(room.IsHost) room.Send(new JObject { ["type"]="world", ["world"]=id });
         else ShowStatus("Only the host can change the world");
     }
+
     void Comfort() {
         Clear(); pageTitle.text="Settings";
         ActionButton("Movie Night source / AGPLv3",()=>Application.OpenURL("https://github.com/JeremyLakeyJr/stremio-vr"));
         Heading("Movement & turning");
-        SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings["moveSpeed"]=value;Save();},"m/s");
-        SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings["turnSpeed"]=value;Save();},"°/s");
-        ActionButton("Turn style: " + (motion.SnapTurn ? "Snap Turn (45°)" : "Smooth Turn"), () => { motion.SnapTurn = !motion.SnapTurn; settings["snapTurn"] = motion.SnapTurn; Save(); Comfort(); });
-        ActionButton("Movement direction: " + (motion.HandOriented ? "Left Hand / Controller-oriented" : "Head / Gaze-oriented"), () => { motion.HandOriented = !motion.HandOriented; settings["handOriented"] = motion.HandOriented; Save(); Comfort(); });
+        SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings[SettingsKeys.MoveSpeed]=value;Save();},"m/s");
+        SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings[SettingsKeys.TurnSpeed]=value;Save();},"°/s");
+        ActionButton("Turn style: " + (motion.SnapTurn ? "Snap Turn" : "Smooth Turn"), () => { motion.SnapTurn = !motion.SnapTurn; settings[SettingsKeys.SnapTurn] = motion.SnapTurn; Save(); Comfort(); });
+        if (motion.SnapTurn) {
+            ActionButton("Snap turn angle: " + motion.SnapAngle + "°", () => {
+                motion.SnapAngle = motion.SnapAngle >= 90 ? 15 : motion.SnapAngle + 15;
+                settings[SettingsKeys.SnapAngle] = motion.SnapAngle; Save(); Comfort();
+            });
+        }
+        ActionButton("Movement direction: " + (motion.HandOriented ? "Left Hand / Controller-oriented" : "Head / Gaze-oriented"), () => { motion.HandOriented = !motion.HandOriented; settings[SettingsKeys.HandOriented] = motion.HandOriented; Save(); Comfort(); });
+        ActionButton("Left stick sprint: " + (motion.SprintEnabled ? "Enabled" : "Disabled"), () => { motion.SprintEnabled = !motion.SprintEnabled; settings[SettingsKeys.SprintEnabled] = motion.SprintEnabled; Save(); Comfort(); });
+
+        Heading("VR Menu Controls (Single Selected Option)");
+        int curMenuOpt = Mathf.Clamp((int?)settings[SettingsKeys.MenuButtonOption] ?? 0, 0, MenuButtonOptions.Length - 1);
+        ActionButton("Menu toggle button: " + MenuButtonOptions[curMenuOpt], () => {
+            int next = (curMenuOpt + 1) % MenuButtonOptions.Length;
+            settings[SettingsKeys.MenuButtonOption] = next;
+            if (next == 6) motion.SprintEnabled = false; // Disable sprint conflict if stick click is menu
+            Save();
+            Comfort();
+        });
+
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
-        ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings["ambient"]=ambient.Enabled;Save();Comfort();});
-        ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=2?0.25f:Mathf.Min(2,ambient.Strength+0.25f);settings["ambientStrength"]=ambient.Strength;Save();Comfort();});
+        ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings[SettingsKeys.Ambient]=ambient.Enabled;Save();Comfort();});
+        ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=2?0.25f:Mathf.Min(2,ambient.Strength+0.25f);settings[SettingsKeys.AmbientStrength]=ambient.Strength;Save();Comfort();});
         Heading("Hide the menu: left stick walks, right stick turns.");
         ActionButton("Stand up / return to aisle",motion.Stand);
         ActionButton("Calibrate reclined view (look where you want the screen)",()=> { motion.CalibrateReclined(); Recenter(); Comfort(); });
         ActionButton("View angle +5°",()=> { motion.AdjustView(5); Recenter(); }); ActionButton("View angle −5°",()=> { motion.AdjustView(-5); Recenter(); });
         ActionButton("Reset view angle",()=> { motion.ResetView(); Recenter(); });
-        ActionButton("Pointer angle: "+motion.RayPitch+"°  /  change by 15°",()=> { motion.RayPitch=motion.RayPitch>=75?-30:motion.RayPitch+15; settings["rayPitch"]=motion.RayPitch; Save(); Comfort(); });
+        ActionButton("Pointer angle: "+motion.RayPitch+"°  /  change by 15°",()=> { motion.RayPitch=motion.RayPitch>=75?-30:motion.RayPitch+15; settings[SettingsKeys.RayPitch]=motion.RayPitch; Save(); Comfort(); });
         Heading("Chairs — or point at a chair and press the trigger");
         for(int i=0;i<world.Data.Seats.Length;i++) { int seat=i; ActionButton("Sit in chair "+(i+1),()=> { motion.RequestSeat(seat); panelMotion.Show(false); }); }
     }
+
     void Customize() {
         Clear(); pageTitle.text = "Avatar studio"; Heading("Your avatar — saved on this device");
         actionWidth = 500;
@@ -458,57 +643,70 @@ public sealed class CinemaApp : MonoBehaviour {
         if(OpenAvatarCatalog.Find((string)profile["avatarId"])!=null)ActionButton("Use customizable R6",()=>{profile.Remove("avatarId");UpdateProfile();Customize();});
         Field("Name", (string)profile["name"], value => { profile["name"] = value; UpdateProfile(); });
         if(string.IsNullOrEmpty((string)profile["avatarId"])) {
-        Choice("head", new[] { "round", "square" }); Choice("body", new[] { "regular", "wide" }); Choice("hair", new[] { "none", "short", "tall" });
-        Choice("skin", new[] { "#f5d0ad", "#d7a17b", "#b98059", "#815335", "#452b20" });
-        Choice("outfit", new[] { "casual", "formal", "sport" }); Choice("color", new[] { "#7958ff", "#238caa", "#ce5353", "#333333" });
-        Choice("accessory", new[] { "none", "glasses", "hat", "headset" });
+            Choice("body", new[] { "regular", "tall", "round" });
+            Choice("head", new[] { "round", "block" });
+            Choice("hair", new[] { "none", "short", "bun", "curly" });
+            Choice("outfit", new[] { "casual", "suit", "dress", "hoodie" });
+            Choice("accessory", new[] { "none", "glasses", "headphones", "catEars" });
+            ActionButton("Randomize avatar", () => {
+                string[] skins = { "#ffd1b3", "#e8b590", "#b98059", "#7c4b28", "#4a2c11" }, colors = { "#7958ff", "#ff588b", "#4cd3a5", "#f6a623", "#4a90e2" };
+                profile["skin"] = skins[UnityEngine.Random.Range(0, skins.Length)]; profile["color"] = colors[UnityEngine.Random.Range(0, colors.Length)];
+                profile["head"] = UnityEngine.Random.value > 0.5f ? "round" : "block"; profile["hair"] = new[] { "none", "short", "bun", "curly" }[UnityEngine.Random.Range(0, 4)];
+                profile["outfit"] = new[] { "casual", "suit", "dress", "hoodie" }[UnityEngine.Random.Range(0, 4)];
+                profile["accessory"] = new[] { "none", "glasses", "headphones", "catEars" }[UnityEngine.Random.Range(0, 4)];
+                UpdateProfile(); Customize();
+            });
         }
-        content.sizeDelta = new Vector2(930, Mathf.Max(900, row));
+        ActionButton("Back to my room", Home);
     }
-    void RoomAvatarCredits() {
-        Clear();pageTitle.text="Room avatar credits";ActionButton("Back to Avatar studio",Customize);
-        var ids=new HashSet<string>();if(profile["avatarId"]!=null)ids.Add((string)profile["avatarId"]);
-        if(room.State?["players"] is JArray players)foreach(var player in players)if(player["profile"]?["avatarId"]!=null)ids.Add((string)player["profile"]["avatarId"]);
-        foreach(string id in ids){var entry=OpenAvatarCatalog.Find(id);if(entry==null)continue;Label(OpenAvatarCatalog.Credit(entry)+"\n"+entry["source"]+"\nAdapted for headset/controller posing and player height.",content,0,row,900,160,19);row+=180;}
-        if(ids.Count==0)Heading("No registry avatars in this room.");Resize();
-    }
-    void AvatarLibrary(string query,int offset) {
-        Clear(); pageTitle.text="Open Source Avatars";
-        ActionButton("Back to Avatar studio",Customize);
-        Field("Search name, collection or creator",query,value=>AvatarLibrary(value,0));
-        var matches=OpenAvatarCatalog.Entries.Where(a=>((string)a["name"]+" "+a["collection"]+" "+a["creator"]).IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).ToList();
-        Heading(matches.Count+" avatars · downloads require internet");
-        foreach(var entry in matches.Skip(offset).Take(10)) {var selected=entry;ActionButton(OpenAvatarCatalog.Credit(entry),()=>AvatarDetails(selected,query,offset));}
-        if(offset>0)ActionButton("Previous page",()=>AvatarLibrary(query,Math.Max(0,offset-10)));
-        if(offset+10<matches.Count)ActionButton("Next page",()=>AvatarLibrary(query,offset+10));
+
+    void AvatarLibrary(string query, int offset) {
+        Clear(); pageTitle.text = "Open Source Avatars";
+        ActionButton("Back to Avatar studio", Customize);
+        Field("Search name, collection or creator", query, value => AvatarLibrary(value, 0));
+        var matches = OpenAvatarCatalog.Entries.Where(a => ((string)a["name"] + " " + a["collection"] + " " + a["creator"]).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+        Heading(matches.Count + " avatars · downloads require internet");
+        foreach (var entry in matches.Skip(offset).Take(10)) { var selected = entry; ActionButton(OpenAvatarCatalog.Credit(entry), () => AvatarDetails(selected, query, offset)); }
+        if (offset > 0) ActionButton("Previous page", () => AvatarLibrary(query, Math.Max(0, offset - 10)));
+        if (offset + 10 < matches.Count) ActionButton("Next page", () => AvatarLibrary(query, offset + 10));
         ShowStatus("Downloaded avatars work offline. Large or incompatible models fall back to R6.");
     }
-    void AvatarDetails(JObject entry,string query,int offset) {
-        Clear();pageTitle.text=(string)entry["name"];actionWidth=500;
-        ActionButton("Back to results",()=>AvatarLibrary(query,offset));
-        var appearance=(JObject)profile.DeepClone();appearance["avatarId"]=entry["id"];
-        var go=new GameObject("Registry avatar preview",typeof(RectTransform),typeof(RawImage),typeof(AvatarPreview));go.transform.SetParent(content,false);Place(go.GetComponent<RectTransform>(),550,80,370,490);go.GetComponent<RawImage>().raycastTarget=false;
-        var preview=go.GetComponent<AvatarPreview>();preview.Initialize(appearance);preview.StatusLabel=Label("Loading avatar…",content,550,640,370,170,19);
-        Button("Turn left",content,550,585,175,()=>preview.Turn(-30));Button("Turn right",content,740,585,180,()=>preview.Turn(30));
-        Label("Collection: "+entry["collection"]+"\nCreator: "+entry["creator"]+"\nLicense: "+entry["license"],content,0,row,500,150,21);row+=165;
-        ActionButton("Use this avatar",()=>{if(!preview.Ready){ShowStatus("Wait for the preview to load. If it fails, choose another avatar.");return;}profile["avatarId"]=entry["id"];UpdateProfile();Customize();});
-        ActionButton("Source and license credits",()=>{Clear();pageTitle.text="Avatar credits";ActionButton("Back to avatar",()=>AvatarDetails(entry,query,offset));Label(OpenAvatarCatalog.Credit(entry)+"\n\nSource: "+entry["source"]+"\n\nLicense: "+((string)entry["license"]=="CC0"?"https://creativecommons.org/publicdomain/zero/1.0/":"CC-BY — see the collection source for its license terms")+"\n\nAdaptation: scaled to player height, posed from headset/controllers. Original creator and collection license remain applicable.",content,0,row,900,420,20);row+=440;Resize();});
-        content.sizeDelta=new Vector2(930,900);
+    void AvatarDetails(JObject entry, string query, int offset) {
+        Clear(); pageTitle.text = (string)entry["name"];
+        ActionButton("Back to avatar library", () => AvatarLibrary(query, offset));
+        Heading(OpenAvatarCatalog.Credit(entry));
+        ActionButton("Use this avatar", () => { profile["avatarId"] = (string)entry["id"]; UpdateProfile(); Customize(); });
+    }
+    void RoomAvatarCredits() {
+        Clear(); pageTitle.text = "Avatar credits"; Heading("Room & avatar attribution");
+        Label("Movie Night VR includes customizable avatars and curated open source models.\nR6 avatar rig created for Movie Night under AGPLv3.\nThird-party avatars: see individual attribution tags in the avatar library.", content, 0, row, 920, 220, 21); row += 235;
+        ActionButton("Back to studio", Customize);
     }
     void Choice(string key, string[] values) { ActionButton(key + ": " + profile[key] + "  →", () => { int index = Array.IndexOf(values, (string)profile[key]); profile[key] = values[(index + 1) % values.Length]; UpdateProfile(); Customize(); }); }
     void UpdateProfile() { localBody.Apply(profile); Save(); if (room.Connected && room.State != null) room.Send(new JObject { ["type"] = "profile", ["profile"] = profile }); }
-    void SaveAddons() { var urls = new JArray(); foreach (var addon in library.Addons) urls.Add(MediaLibrary.ResourceUrl((string)addon["endpoint"],"manifest.json")); settings["addons"] = urls; Save(); }
-    void Save() { settings["profile"] = profile; try { File.WriteAllText(SettingsPath, settings.ToString()); } catch (Exception error) { ShowStatus("Could not save settings: " + error.Message); } }
-    void ShowStatus(string message) { if (status != null) status.text = message; if (Debug.isDebugBuild) Debug.Log("[Cinema] " + message); }
-    void Heading(string text) { Label(text, content, 0, row, 920, 45, 24); row += 55; Resize(); }
-    void ActionButton(string text, Action click) { Button(text, content, 0, row, actionWidth, click); row += 65; Resize(); }
-    InputField Field(string label, string value, Action<string> changed) {
-        Label(label, content, 0, row, 920, 28, 18); row += 30;
-        var go = new GameObject(label, typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 920, 48); go.GetComponent<Image>().color = new Color(0.13f, 0.15f, 0.22f);
-        var text = Label("", go.transform, 12, 4, 890, 40, 21); text.supportRichText = false;
-        var field = go.GetComponent<InputField>(); field.textComponent = text; field.text = value; field.characterLimit = 4096;
+    void SaveAddons() { var urls = new JArray(); foreach (var addon in library.Addons) urls.Add(MediaLibrary.ResourceUrl((string)addon["endpoint"], "manifest.json")); settings["addons"] = urls; Save(); }
+    void Save() { try { File.WriteAllText(SettingsPath, settings.ToString()); } catch { } }
+    void ShowStatus(string message) { status.text = message; }
+    void ActionButton(string text, Action click) { Button(text, content, 0, row, actionWidth, click); row += 62; Resize(); }
+
+    InputField Field(string placeholder, string current, Action<string> changed) {
+        var go = new GameObject("Field", typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 920, 52);
+        go.GetComponent<Image>().color = new Color(0.1f, 0.08f, 0.16f);
+        var text = new GameObject("Text", typeof(RectTransform), typeof(Text)); text.transform.SetParent(go.transform, false); Place(text.GetComponent<RectTransform>(), 12, 0, 896, 52);
+        var label = text.GetComponent<Text>(); label.font = font; label.fontSize = 20; label.color = Color.white; label.alignment = TextAnchor.MiddleLeft;
+        var placeholderGo = new GameObject("Placeholder", typeof(RectTransform), typeof(Text)); placeholderGo.transform.SetParent(go.transform, false); Place(placeholderGo.GetComponent<RectTransform>(), 12, 0, 896, 52);
+        var ph = placeholderGo.GetComponent<Text>(); ph.font = font; ph.fontSize = 20; ph.color = new Color(0.5f, 0.45f, 0.65f); ph.text = placeholder; ph.alignment = TextAnchor.MiddleLeft;
+        var field = go.GetComponent<InputField>(); field.textComponent = label; field.placeholder = ph; field.text = current ?? "";
         field.onEndEdit.AddListener(result => changed?.Invoke(result)); row += 65; Resize(); return field;
     }
+
+    InputField PasswordField(string placeholder, string current, Action<string> changed) {
+        var field = Field(placeholder, current, changed);
+        field.contentType = InputField.ContentType.Password;
+        field.ForceLabelUpdate();
+        return field;
+    }
+
     void Resize() { content.sizeDelta = new Vector2(930, Mathf.Max(690, row)); }
     Text Label(string text, Transform parent, float x, float y, float width, float height, int size) {
         var go = new GameObject("Text", typeof(RectTransform), typeof(Text)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height);
@@ -519,17 +717,76 @@ public sealed class CinemaApp : MonoBehaviour {
         go.GetComponent<Image>().color = new Color(0.13f,0.105f,0.21f); go.GetComponent<Button>().transition=Selectable.Transition.None; go.GetComponent<Button>().onClick.AddListener(() => click()); go.AddComponent<UiMotion>(); Label(text, go.transform, 12, 3, width - 24, 46, 20);
     }
     static void Plate(Transform parent, float x, float y, float width, float height, Color color) {
-        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height); go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
+        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height);
+        go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
     }
     static void Place(RectTransform rect, float x, float y, float w, float h) { rect.anchorMin = rect.anchorMax = new Vector2(0, 1); rect.pivot = new Vector2(0, 1); rect.anchoredPosition = new Vector2(x, -y); rect.sizeDelta = new Vector2(w, h); }
-    bool menuWasDown;
+
+    static InputDevice GetValidDevice(XRNode node, InputDeviceCharacteristics fallback) {
+        var dev = InputDevices.GetDeviceAtXRNode(node);
+        if (dev.isValid) return dev;
+        var list = new List<InputDevice>();
+        InputDevices.GetDevicesWithCharacteristics(fallback, list);
+        return list.Count > 0 ? list[0] : dev;
+    }
+
+    bool CheckMenuButton(InputDevice leftDev, InputDevice rightDev) {
+        int opt = Mathf.Clamp((int?)settings[SettingsKeys.MenuButtonOption] ?? 0, 0, MenuButtonOptions.Length - 1);
+        switch (opt) {
+            case 0:
+                leftDev.TryGetFeatureValue(CommonUsages.menuButton, out bool m);
+                return m;
+            case 1:
+                leftDev.TryGetFeatureValue(CommonUsages.secondaryButton, out bool y);
+                return y;
+            case 2:
+                leftDev.TryGetFeatureValue(CommonUsages.primaryButton, out bool x);
+                return x;
+            case 3:
+                rightDev.TryGetFeatureValue(CommonUsages.primaryButton, out bool a);
+                return a;
+            case 4:
+                rightDev.TryGetFeatureValue(CommonUsages.secondaryButton, out bool b);
+                return b;
+            case 5:
+                rightDev.TryGetFeatureValue(CommonUsages.primaryButton, out bool aHold);
+                if (aHold) {
+                    rightALongPressTimer += Time.unscaledDeltaTime;
+                    if (rightALongPressTimer >= 0.4f && !rightALongPressFired) {
+                        rightALongPressFired = true;
+                        return true;
+                    }
+                } else {
+                    rightALongPressTimer = 0;
+                    rightALongPressFired = false;
+                }
+                return false;
+            case 6:
+                leftDev.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool click);
+                return click;
+            default:
+                leftDev.TryGetFeatureValue(CommonUsages.menuButton, out bool defM);
+                return defM;
+        }
+    }
+
     void Update() {
         RecordHistory();
-        var controller = InputDevices.GetDeviceAtXRNode(XRNode.RightHand); var leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-        leftController.TryGetFeatureValue(CommonUsages.menuButton, out bool menu);
-        leftController.TryGetFeatureValue(CommonUsages.secondaryButton, out bool leftY);
-        bool menuPressed = menu || leftY;
-        if ((menuPressed && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) { if(placement.Active)placement.Cancel();else {panelMotion.Show(!panelMotion.Visible); if (panelMotion.Visible) {if(browser.Active&&room.IsHost)BrowserControls();Recenter();}} } menuWasDown = menuPressed;
+        var controller = GetValidDevice(XRNode.RightHand, InputDeviceCharacteristics.Right | InputDeviceCharacteristics.Controller);
+        var leftController = GetValidDevice(XRNode.LeftHand, InputDeviceCharacteristics.Left | InputDeviceCharacteristics.Controller);
+        
+        bool menuPressed = CheckMenuButton(leftController, controller);
+        if ((menuPressed && !menuWasDown) || Input.GetKeyDown(KeyCode.Tab)) {
+            if (placement.Active) placement.Cancel();
+            else {
+                panelMotion.Show(!panelMotion.Visible);
+                if (panelMotion.Visible) {
+                    if (browser.Active && room.IsHost) BrowserControls();
+                    Recenter();
+                }
+            }
+        }
+        menuWasDown = menuPressed;
 
         pointer.enabled = true;
         Vector3 origin = controller.isValid ? right.position : head.position; Vector3 direction = controller.isValid ? RigMotion.RayDirection(right.rotation, motion.RayPitch) : head.forward;
@@ -558,175 +815,96 @@ public sealed class CinemaApp : MonoBehaviour {
         if(target==null && !webHit && Physics.Raycast(ray,out var worldHit,12,~((1<<30)|(1<<8)),QueryTriggerInteraction.Collide)) { chair=worldHit.collider.GetComponent<SeatTarget>(); tableTarget=worldHit.collider.GetComponent<TabletopTarget>(); pointer.SetPosition(1,worldHit.point); }
         bool uiInteractive=target!=null && (target.GetComponentInParent<Selectable>()!=null || target.GetComponentInParent<ScrollRect>()!=null);
         pointer.enabled=uiInteractive||(target==null&&(webHit||chair!=null||tableTarget!=null));
-        pointer.material.color=chair!=null||tableTarget!=null?Color.yellow:new Color(0.1f,0.9f,0.65f);
-        if(!triggerWasDown && (webTrigger||Input.GetMouseButton(0))) {if(chair!=null)motion.RequestSeat(chair.Index);if(tableTarget!=null)tableTarget.Activate();}
-        if (target != hovered) { if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerExitHandler); hovered = target; if (hovered != null) ExecuteEvents.ExecuteHierarchy(hovered, data, ExecuteEvents.pointerEnterHandler); }
-        controller.TryGetFeatureValue(CommonUsages.triggerButton, out bool trigger); trigger |= Input.GetMouseButton(0);
-        if (trigger && !triggerWasDown && target != null) {
-            var field = target.GetComponentInParent<InputField>();
-            if (field != null) StartCoroutine(Edit(field));
-            else ExecuteEvents.ExecuteHierarchy(target, data, ExecuteEvents.pointerClickHandler);
-        }
+        if(Input.GetMouseButtonUp(0)) triggerWasDown=false;
+        controller.TryGetFeatureValue(CommonUsages.triggerButton, out bool trigger);
+        if(target!=null) {
+            ExecuteEvents.Execute(target, data, ExecuteEvents.pointerMoveHandler);
+            if (target != hovered) {
+                if (hovered != null) ExecuteEvents.Execute(hovered, data, ExecuteEvents.pointerExitHandler);
+                ExecuteEvents.Execute(target, data, ExecuteEvents.pointerEnterHandler); hovered = target;
+            }
+            if ((trigger && !triggerWasDown) || Input.GetMouseButtonDown(0)) { ExecuteEvents.Execute(target, data, ExecuteEvents.pointerDownHandler); ExecuteEvents.Execute(target, data, ExecuteEvents.pointerClickHandler); }
+            if ((!trigger && triggerWasDown) || Input.GetMouseButtonUp(0)) ExecuteEvents.Execute(target, data, ExecuteEvents.pointerUpHandler);
+            controller.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 stick);
+            if (Mathf.Abs(stick.y) > 0.1f) {
+                var scrollRect = target.GetComponentInParent<ScrollRect>();
+                if (scrollRect != null) {
+                    scrollTarget = Mathf.Clamp01((scrollTarget == 0 ? scrollRect.verticalNormalizedPosition : scrollTarget) + stick.y * Time.unscaledDeltaTime * 2.5f);
+                    scrollRect.verticalNormalizedPosition = Mathf.Lerp(scrollRect.verticalNormalizedPosition, scrollTarget, 1 - Mathf.Exp(-12 * Time.unscaledDeltaTime));
+                }
+            } else scrollTarget = 0;
+        } else if (hovered != null) { ExecuteEvents.Execute(hovered, data, ExecuteEvents.pointerExitHandler); hovered = null; }
+        if (target == null && !webHit && chair != null && ((trigger && !triggerWasDown) || Input.GetMouseButtonDown(0))) { motion.RequestSeat(chair.Index); panelMotion.Show(false); }
         triggerWasDown = trigger;
-        controller.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 stick);
-        float scroll = (panelMotion.Visible ? stick.y : 0) * Time.unscaledDeltaTime * 600 + Input.mouseScrollDelta.y * 35;
-        scrollTarget=Mathf.Clamp(scrollTarget-scroll,0,Mathf.Max(0,content.sizeDelta.y-620)); content.anchoredPosition=Vector2.Lerp(content.anchoredPosition,new Vector2(0,scrollTarget),1-Mathf.Exp(-14*Time.unscaledDeltaTime));
-    }
-    bool editing;
-    IEnumerator Edit(InputField field) {
-        if (editing) yield break;
-        editing = true;
-        var keyboard = new GameObject("Keyboard", typeof(RectTransform), typeof(Image)); keyboard.transform.SetParent(panel, false);
-        Place(keyboard.GetComponent<RectTransform>(), 0, 0, 1280, 1000); keyboard.GetComponent<Image>().color = new Color(0.04f, 0.05f, 0.09f);
-        string original = field.text; bool upper = false;
-        var preview = Label(field.text, keyboard.transform, 25, 25, 950, 120, 23);
-        string keys = "1234567890-_=qwertyuiop[]asdfghjkl;:'zxcvbnm,./?@!#$%&*()+";
-        for (int i = 0; i < keys.Length; i++) {
-            char key = keys[i]; int index = i;
-            Button(key.ToString(), keyboard.transform, 25 + index % 12 * 79, 180 + index / 12 * 70, 73, () => {
-                if (field != null && field.text.Length < 4096) { field.text += upper ? char.ToUpperInvariant(key) : key; preview.text = field.text; }
-            });
-        }
-        Button("Shift", keyboard.transform, 25, 600, 220, () => { upper = !upper; preview.text = (upper ? "SHIFT ON: " : "") + field.text; });
-        Button("Space", keyboard.transform, 260, 600, 220, () => { field.text += " "; preview.text = field.text; });
-        Button("Backspace", keyboard.transform, 495, 600, 220, () => { if (field.text.Length > 0) field.text = field.text.Substring(0, field.text.Length - 1); preview.text = field.text; });
-        Button("Clear", keyboard.transform, 730, 600, 220, () => { field.text = ""; preview.text = ""; });
-        Button("Done", keyboard.transform, 25, 700, 450, () => { field.onEndEdit.Invoke(field.text); editing = false; Destroy(keyboard); });
-        Button("Cancel", keyboard.transform, 500, 700, 450, () => { field.text = original; editing = false; Destroy(keyboard); });
-        yield return null;
     }
 
-    static bool HasAddonEndpoint(JArray list, string endpoint) { foreach (var token in list) if ((string)token["endpoint"] == endpoint) return true; return false; }
-    void ImportAccountAddons(JArray collection) {
-        var imported = new JArray(); int skipped = 0;
-        foreach (var descriptor in collection.OfType<JObject>()) {
-            try {
-                var addon = MediaLibrary.AccountAddon(descriptor);
-                imported.Add(addon);
-                library.Addons.RemoveAll(a => (string)a["endpoint"] == (string)addon["endpoint"]);
-                library.Addons.Add(addon);
-            } catch { skipped++; }
-        }
-        settings["accountAddons"] = imported; var cache = new JArray(); foreach (var addon in library.Addons) if (HasAddonEndpoint(imported, (string)addon["endpoint"])) cache.Add(addon.DeepClone()); settings["accountCache"] = cache; SaveAddons();
-        if (pageTitle.text == "Discover") Library();
-        ShowStatus("Imported " + imported.Count + " account add-ons" + (skipped > 0 ? "; " + skipped + " unsupported entries skipped" : ""));
-        if (room.IsHost && !room.IsSolo && account.SignedIn) {
-            var addonUrls = new JArray();
-            foreach (var a in library.Addons) { if (a["endpoint"] != null) addonUrls.Add((string)a["endpoint"]); }
-            room.Send(new JObject { ["type"] = "stremio:session", ["user"] = account.DisplayName ?? "Stremio User", ["addons"] = addonUrls });
-        }
+    void LayoutPage() {
+        Clear(); pageTitle.text = "Arrange room"; Heading(room.IsSolo?"Solo apartment layout — saved on this headset":"Room layout — host arranges for all connected players");
+        if (!room.IsHost) { ActionButton("Only the host can arrange the cinema", Home); return; }
+        layoutPageRevision = (int?)room.State?["layout"]?["revision"] ?? 0;
+        ActionButton("Reset room to default layout", () => { room.Send(new JObject { ["type"] = "layout", ["action"] = "reset", ["revision"] = layoutPageRevision }); LayoutPage(); });
+        var screens = new List<JObject>(); var tables = new List<JObject>();
+        foreach (var item in room.State?["layout"]?["items"] as JArray ?? new JArray()) { if ((string)item["kind"] == "screen") screens.Add((JObject)item); else tables.Add((JObject)item); }
+        Heading("Screens (up to 4)");
+        if (screens.Count < 4) ActionButton("Place another screen", () => { placement.Begin("screen"); panelMotion.Show(false); });
+        foreach (var screen in screens) { string id = (string)screen["id"]; ActionButton("Move screen " + id, () => { placement.Begin("screen", id); panelMotion.Show(false); }); ActionButton("Adjust screen " + id, () => MonitorPage(id)); ActionButton("Remove screen " + id, () => { placement.Remove(id); LayoutPage(); }); }
+        Heading("Game tables (up to 3)");
+        if (tables.Count < 3) { ActionButton("Place chess table", () => { placement.Begin("chess"); panelMotion.Show(false); }); ActionButton("Place tic-tac-toe table", () => { placement.Begin("tictactoe"); panelMotion.Show(false); }); }
+        foreach (var table in tables) { string id = (string)table["id"]; ActionButton("Move " + (string)table["kind"] + " table " + id, () => { placement.Begin((string)table["kind"], id); panelMotion.Show(false); }); ActionButton("Remove table " + id, () => { placement.Remove(id); LayoutPage(); }); }
+        ActionButton("Back to my room", Home);
     }
+
+    void MonitorPage(string id) {
+        Clear(); pageTitle.text = "Adjust monitor";
+        float width = 2.1f, curve = 0;
+        foreach (var item in room.State?["layout"]?["items"] as JArray ?? new JArray()) if ((string)item["id"] == id) { width = (float?)item["width"] ?? 2.1f; curve = (float?)item["curve"] ?? 0; }
+        Heading("Size and curve for " + id);
+        SpeedControl("Width", width, 1.2f, 4.5f, 0.2f, value => placement.Configure(id, value, curve), "m", () => MonitorPage(id));
+        SpeedControl("Curve", curve, 0, 90, 10, value => placement.Configure(id, width, value), "°", () => MonitorPage(id));
+        ActionButton("Back to layout", LayoutPage);
+    }
+
     void AccountPage() {
-        Clear(); pageTitle.text = "Stremio account";
+        Clear(); pageTitle.text = "Stremio account"; Heading("Pair your Stremio or Nuvio account");
         if (account.SignedIn) {
-            Heading("Signed in: " + (account.DisplayName ?? "Stremio account"));
-            ActionButton("Sync my account add-ons", account.SyncAddons);
-            ActionButton("Sign out and remove imported add-ons", account.SignOut);
+            Heading("Signed in as " + (account.DisplayName ?? "account"));
+            ActionButton("Sync account add-ons", account.SyncAddons);
+            ActionButton("Sign out", account.SignOut);
         } else if (!string.IsNullOrEmpty(account.LinkCode)) {
-            Heading("Sign-in code: " + account.LinkCode); Heading("Open this link on your phone or computer:");
-            Label(account.LinkUrl, content, 0, row, 920, 100, 22); row += 110;
-            ActionButton("Open sign-in in Quest browser", account.OpenLink);
+            Heading("Sign-in code: " + account.LinkCode);
+            Heading("Open this link on your phone, PC, or headset browser:");
+            Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+            ActionButton("Open sign-in link in Quest browser", account.OpenLink);
             ActionButton("Cancel sign-in", account.CancelLink);
-            Heading("Waiting for Stremio approval…");
+            Heading("Waiting for approval (refreshes automatically)…");
         } else {
-            Heading("Sign in on your phone, computer, or Quest browser");
-            ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
-            Heading("— Or Sign In Directly with Credentials —");
-            string accEmail = (string)settings["accEmail"] ?? "";
-            var emailInput = Field("Account Email", accEmail, v => { settings["accEmail"] = v; Save(); });
-            var passInput = Field("Account Password", "", null);
+            ActionButton("Pair with device code (recommended)", account.BeginLink);
+            Heading("Or sign in directly with credentials");
+            string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+            var emailInput = Field("Account Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+            var passInput = PasswordField("Account Password", "", null);
             ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
         }
         ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
         ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
     }
-    void BackendsPage() {
-        Clear(); pageTitle.text = "Media Backends";
-        Heading("Configure Media Backends & Sync Services");
-        var reg = GetComponent<MediaProviderRegistry>();
-        if (reg != null) {
-            foreach (var prov in reg.Providers) {
-                string statusText = prov.IsAuthenticated ? "Connected / Ready" : "Standby / Offline";
-                Heading(prov.DisplayName + "  ·  " + statusText);
+
+    void ImportAccountAddons(JArray addons) {
+        var endpoints = new JArray();
+        foreach (var addon in addons) {
+            if (addon is JObject obj && obj["transportUrl"] != null) {
+                string url = (string)obj["transportUrl"]; endpoints.Add(url);
+                library.Install(url, () => { SaveAddons(); if (pageTitle != null && pageTitle.text == "Discover") Library(); });
             }
         }
-        Heading("Connect Jellyfin / Remux server");
-        string jUrl = (string)settings["jellyfinUrl"] ?? "";
-        string jUser = (string)settings["jellyfinUser"] ?? "";
-        string jPass = (string)settings["jellyfinPass"] ?? "";
-        var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
-        var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
-        var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
-        ActionButton("Authenticate Jellyfin", async () => {
-            if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
-                ShowStatus("Connecting to Jellyfin...");
-                bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
-                ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Connect MediaStorm instance (Debrid / Usenet)");
-        string msUrl = (string)settings["mediastormUrl"] ?? "";
-        string msKey = (string)settings["mediastormKey"] ?? "";
-        var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.100:8080)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
-        var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
-        ActionButton("Authenticate MediaStorm", async () => {
-            if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
-                ShowStatus("Connecting to MediaStorm...");
-                bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
-                ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Connect Silo server (Go High-Performance Backend)");
-        string sUrl = (string)settings["siloUrl"] ?? "";
-        string sUser = (string)settings["siloUser"] ?? "";
-        string sPass = (string)settings["siloPass"] ?? "";
-        var sUrlInput = Field("Silo Server URL (e.g. http://192.168.1.100:8082)", sUrl, v => { settings["siloUrl"] = v; Save(); });
-        var sUserInput = Field("Silo Username or API Token", sUser, v => { settings["siloUser"] = v; Save(); });
-        var sPassInput = Field("Silo Password (empty if token)", sPass, v => { settings["siloPass"] = v; Save(); });
-        ActionButton("Authenticate Silo", async () => {
-            if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
-                ShowStatus("Connecting to Silo...");
-                bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
-                ShowStatus(ok ? "Silo connected successfully!" : "Silo authentication failed.");
-                BackendsPage();
-            }
-        });
-        Heading("Install custom Stremio Addon manifest");
-        var addonField = Field("Addon Manifest URL", "https://", null);
-        ActionButton("Install Stremio Addon", async () => {
-            if (reg != null && !string.IsNullOrEmpty(addonField.text) && addonField.text.EndsWith("manifest.json")) {
-                ShowStatus("Installing addon manifest...");
-                bool ok = await reg.AddStremioAddonAsync(addonField.text);
-                ShowStatus(ok ? "Addon installed successfully!" : "Failed to load addon manifest.");
-                BackendsPage();
-            }
-        });
-        Heading("Sync Mellon / Nuvio profile addons");
-        string mUrl = (string)settings["mellonUrl"] ?? "";
-        string mToken = (string)settings["mellonToken"] ?? "";
-        var mUrlInput = Field("Mellon Sync Server URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
-        var mTokenInput = Field("Mellon Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
-        ActionButton("Sync Mellon Addons", async () => {
-            if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
-                ShowStatus("Syncing Mellon profile addons...");
-                int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
-                ShowStatus("Synced " + count + " addon(s) from Mellon profile.");
-                BackendsPage();
-            }
-        });
-        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
-        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
-        ActionButton("Back to media library", Library);
+        settings["accountAddons"] = endpoints;
+        settings["accountCache"] = addons.DeepClone();
+        Save();
     }
 
-
-        int serverHubTab = 0; // 0: QuickLaunch, 1: Nuvio, 2: Stremio, 3: Jellyfin, 4: MediaStorm/Silo, 5: Display & 4K
-
     void ApplyBrowserRes(string res) {
-        settings["browserRes"] = res; Save();
+        settings[SettingsKeys.BrowserRes] = res; Save();
         if (browser == null) return;
         if (res == "4k") browser.SetResolution(3840, 2160);
         else if (res == "1440p") browser.SetResolution(2560, 1440);
@@ -738,17 +916,21 @@ public sealed class CinemaApp : MonoBehaviour {
         Clear(); pageTitle.text = "Servers & Streaming";
         Heading("Media Servers, Debrid & Streaming Services");
 
-        // Top Navigation Bar
-        Plate(content, 0, row, actionWidth, 48, new Color(0.08f, 0.09f, 0.15f));
-        Button("🚀 Launch", content, 5, row + 4, 145, () => { serverHubTab = 0; ServersHubPage(); });
-        Button("🌌 Nuvio", content, 155, row + 4, 145, () => { serverHubTab = 1; ServersHubPage(); });
-        Button("🎬 Stremio", content, 305, row + 4, 145, () => { serverHubTab = 2; ServersHubPage(); });
-        Button("🍿 Jellyfin", content, 455, row + 4, 145, () => { serverHubTab = 3; ServersHubPage(); });
-        Button("⚡ Debrid/Silo", content, 605, row + 4, 150, () => { serverHubTab = 4; ServersHubPage(); });
-        Button("🖥 4K/Display", content, 760, row + 4, 150, () => { serverHubTab = 5; ServersHubPage(); });
-        row += 58;
-
         var reg = GetComponent<MediaProviderRegistry>();
+        bool sConn = account.SignedIn;
+        bool jConn = reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated;
+        bool msConn = reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated;
+        bool siloConn = reg?.Silo != null && reg.Silo.IsAuthenticated;
+
+        // Top Navigation Bar with active tab indicators
+        Plate(content, 0, row, actionWidth, 56, new Color(0.08f, 0.09f, 0.15f));
+        Button((serverHubTab == 0 ? "● " : "") + "🚀 Launch", content, 5, row + 4, 145, () => { serverHubTab = 0; settings[SettingsKeys.LastServerTab] = 0; Save(); ServersHubPage(); });
+        Button((sConn ? "● " : "○ ") + "🌌 Nuvio", content, 155, row + 4, 145, () => { serverHubTab = 1; settings[SettingsKeys.LastServerTab] = 1; Save(); ServersHubPage(); });
+        Button((sConn ? "● " : "○ ") + "🎬 Stremio", content, 305, row + 4, 145, () => { serverHubTab = 2; settings[SettingsKeys.LastServerTab] = 2; Save(); ServersHubPage(); });
+        Button((jConn ? "● " : "○ ") + "🍿 Jellyfin", content, 455, row + 4, 145, () => { serverHubTab = 3; settings[SettingsKeys.LastServerTab] = 3; Save(); ServersHubPage(); });
+        Button(((msConn || siloConn) ? "● " : "○ ") + "⚡ Debrid/Silo", content, 605, row + 4, 150, () => { serverHubTab = 4; settings[SettingsKeys.LastServerTab] = 4; Save(); ServersHubPage(); });
+        Button((serverHubTab == 5 ? "● " : "") + "🖥 4K/Display", content, 760, row + 4, 150, () => { serverHubTab = 5; settings[SettingsKeys.LastServerTab] = 5; Save(); ServersHubPage(); });
+        row += 66;
 
         if (serverHubTab == 0) {
             Heading("🚀 One-Click Web Streamers");
@@ -756,7 +938,7 @@ public sealed class CinemaApp : MonoBehaviour {
             Button("🌌 Nuvio Web", content, 10, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
             Button("🎬 Stremio Web", content, 235, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
             Button("🍿 Jellyfin Web", content, 460, row + 8, 215, () => {
-                string j = (string)settings["jellyfinUrl"];
+                string j = (string)settings[SettingsKeys.JellyfinUrl];
                 if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
                 else { ShowStatus("Configure your Jellyfin URL in the Jellyfin tab first"); serverHubTab = 3; ServersHubPage(); }
             });
@@ -765,11 +947,11 @@ public sealed class CinemaApp : MonoBehaviour {
 
             Heading("Active Server Status");
             string sStatus = account.SignedIn ? "🟢 Stremio: Signed in (" + (account.DisplayName ?? "Account") + ")" : "⚪ Stremio: Not paired";
-            string nStatus = !string.IsNullOrEmpty((string)settings["mellonUrl"]) ? "🟢 Nuvio Sync: " + (string)settings["mellonUrl"] : "⚪ Nuvio: Standby";
-            string jStatus = (reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated) ? "🟢 Jellyfin: Connected" : "⚪ Jellyfin: Disconnected";
-            string msStatus = (reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated) ? "🟢 MediaStorm: Active" : "⚪ MediaStorm: Standby";
-            string siloStatus = (reg?.Silo != null && reg.Silo.IsAuthenticated) ? "🟢 Silo: Active" : "⚪ Silo: Standby";
-            string curRes = ((string)settings["browserRes"] ?? "1080p").ToUpperInvariant();
+            string nStatus = !string.IsNullOrEmpty((string)settings[SettingsKeys.MellonUrl]) ? "🟢 Nuvio Sync: " + (string)settings[SettingsKeys.MellonUrl] : "⚪ Nuvio: Standby";
+            string jStatus = jConn ? "🟢 Jellyfin: Connected" : "⚪ Jellyfin: Disconnected";
+            string msStatus = msConn ? "🟢 MediaStorm: Active" : "⚪ MediaStorm: Standby";
+            string siloStatus = siloConn ? "🟢 Silo: Active" : "⚪ Silo: Standby";
+            string curRes = ((string)settings[SettingsKeys.BrowserRes] ?? "1080p").ToUpperInvariant();
 
             Label(sStatus + "\n" + nStatus + "\n" + jStatus + "\n" + msStatus + "\n" + siloStatus + "\n🖥 Display Quality: " + curRes, content, 0, row, actionWidth, 145, 19);
             row += 155;
@@ -799,17 +981,17 @@ public sealed class CinemaApp : MonoBehaviour {
             } else {
                 ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
                 Heading("— Or Sign In Directly with Credentials —");
-                string accEmail = (string)settings["accEmail"] ?? "";
-                var emailInput = Field("Account Email", accEmail, v => { settings["accEmail"] = v; Save(); });
-                var passInput = Field("Account Password", "", null);
+                string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+                var emailInput = Field("Account Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+                var passInput = PasswordField("Account Password", "", null);
                 ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
             }
 
             Heading("Self-Hosted Nuvio / Mellon Profile Sync (Optional)");
-            string mUrl = (string)settings["mellonUrl"] ?? "http://192.168.1.166:8085";
-            string mToken = (string)settings["mellonToken"] ?? "";
-            var mUrlInput = Field("Mellon / Nuvio Sync URL", mUrl, v => { settings["mellonUrl"] = v; Save(); });
-            var mTokenInput = Field("Mellon Auth Token", mToken, v => { settings["mellonToken"] = v; Save(); });
+            string mUrl = (string)settings[SettingsKeys.MellonUrl] ?? "http://192.168.1.166:8085";
+            string mToken = (string)settings[SettingsKeys.MellonToken] ?? "";
+            var mUrlInput = Field("Mellon / Nuvio Sync URL", mUrl, v => { settings[SettingsKeys.MellonUrl] = v; Save(); });
+            var mTokenInput = PasswordField("Mellon Auth Token", mToken, v => { settings[SettingsKeys.MellonToken] = v; Save(); });
             ActionButton("Sync Self-Hosted Mellon Addons", async () => {
                 if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
                     ShowStatus("Syncing Mellon profile addons...");
@@ -835,9 +1017,9 @@ public sealed class CinemaApp : MonoBehaviour {
             } else {
                 ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
                 Heading("— Or Sign In Directly with Credentials —");
-                string accEmail = (string)settings["accEmail"] ?? "";
-                var emailInput = Field("Stremio Email", accEmail, v => { settings["accEmail"] = v; Save(); });
-                var passInput = Field("Stremio Password", "", null);
+                string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+                var emailInput = Field("Stremio Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+                var passInput = PasswordField("Stremio Password", "", null);
                 ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
             }
             ActionButton("🎬 Open Stremio Web Player (web.stremio.com)", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
@@ -845,14 +1027,14 @@ public sealed class CinemaApp : MonoBehaviour {
         }
         else if (serverHubTab == 3) {
             Heading("🍿 Jellyfin / Remux Media Server");
-            string statusText = (reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated) ? "🟢 Connected to Jellyfin" : "⚪ Disconnected";
+            string statusText = jConn ? "🟢 Connected to Jellyfin" : "⚪ Disconnected";
             Heading(statusText);
-            string jUrl = (string)settings["jellyfinUrl"] ?? "";
-            string jUser = (string)settings["jellyfinUser"] ?? "";
-            string jPass = (string)settings["jellyfinPass"] ?? "";
-            var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings["jellyfinUrl"] = v; Save(); });
-            var jUserInput = Field("Jellyfin Username", jUser, v => { settings["jellyfinUser"] = v; Save(); });
-            var jPassInput = Field("Jellyfin Password", jPass, v => { settings["jellyfinPass"] = v; Save(); });
+            string jUrl = (string)settings[SettingsKeys.JellyfinUrl] ?? "";
+            string jUser = (string)settings[SettingsKeys.JellyfinUser] ?? "";
+            string jPass = (string)settings[SettingsKeys.JellyfinPass] ?? "";
+            var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings[SettingsKeys.JellyfinUrl] = v; Save(); });
+            var jUserInput = Field("Jellyfin Username", jUser, v => { settings[SettingsKeys.JellyfinUser] = v; Save(); });
+            var jPassInput = PasswordField("Jellyfin Password", jPass, v => { settings[SettingsKeys.JellyfinPass] = v; Save(); });
             ActionButton("Connect & Authenticate Jellyfin", async () => {
                 if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
                     ShowStatus("Connecting to Jellyfin...");
@@ -862,19 +1044,19 @@ public sealed class CinemaApp : MonoBehaviour {
                 }
             });
             ActionButton("🍿 Open Jellyfin Web Player", () => {
-                string j = (string)settings["jellyfinUrl"];
+                string j = (string)settings[SettingsKeys.JellyfinUrl];
                 if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
                 else { ShowStatus("Enter your Jellyfin URL above first"); }
             });
         }
         else if (serverHubTab == 4) {
             Heading("⚡ MediaStorm Debrid / Usenet Streamer");
-            string msStatus = (reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated) ? "🟢 Connected" : "⚪ Standby";
+            string msStatus = msConn ? "🟢 Connected" : "⚪ Standby";
             Heading("Status: " + msStatus);
-            string msUrl = (string)settings["mediastormUrl"] ?? "";
-            string msKey = (string)settings["mediastormKey"] ?? "";
-            var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.166:7777)", msUrl, v => { settings["mediastormUrl"] = v; Save(); });
-            var msKeyInput = Field("MediaStorm API Key", msKey, v => { settings["mediastormKey"] = v; Save(); });
+            string msUrl = (string)settings[SettingsKeys.MediaStormUrl] ?? "";
+            string msKey = (string)settings[SettingsKeys.MediaStormKey] ?? "";
+            var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.166:7777)", msUrl, v => { settings[SettingsKeys.MediaStormUrl] = v; Save(); });
+            var msKeyInput = PasswordField("MediaStorm API Key", msKey, v => { settings[SettingsKeys.MediaStormKey] = v; Save(); });
             ActionButton("Connect MediaStorm", async () => {
                 if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
                     ShowStatus("Connecting to MediaStorm...");
@@ -885,14 +1067,14 @@ public sealed class CinemaApp : MonoBehaviour {
             });
 
             Heading("🚀 Silo High-Performance Backend");
-            string siloStatus = (reg?.Silo != null && reg.Silo.IsAuthenticated) ? "🟢 Connected" : "⚪ Standby";
+            string siloStatus = siloConn ? "🟢 Connected" : "⚪ Standby";
             Heading("Status: " + siloStatus);
-            string sUrl = (string)settings["siloUrl"] ?? "";
-            string sUser = (string)settings["siloUser"] ?? "";
-            string sPass = (string)settings["siloPass"] ?? "";
-            var sUrlInput = Field("Silo Server URL", sUrl, v => { settings["siloUrl"] = v; Save(); });
-            var sUserInput = Field("Silo Username / Token", sUser, v => { settings["siloUser"] = v; Save(); });
-            var sPassInput = Field("Silo Password", sPass, v => { settings["siloPass"] = v; Save(); });
+            string sUrl = (string)settings[SettingsKeys.SiloUrl] ?? "";
+            string sUser = (string)settings[SettingsKeys.SiloUser] ?? "";
+            string sPass = (string)settings[SettingsKeys.SiloPass] ?? "";
+            var sUrlInput = Field("Silo Server URL", sUrl, v => { settings[SettingsKeys.SiloUrl] = v; Save(); });
+            var sUserInput = Field("Silo Username / Token", sUser, v => { settings[SettingsKeys.SiloUser] = v; Save(); });
+            var sPassInput = PasswordField("Silo Password", sPass, v => { settings[SettingsKeys.SiloPass] = v; Save(); });
             ActionButton("Connect Silo", async () => {
                 if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
                     ShowStatus("Connecting to Silo...");
@@ -905,7 +1087,7 @@ public sealed class CinemaApp : MonoBehaviour {
         else if (serverHubTab == 5) {
             Heading("🖥 Virtual Web Screen Resolution & 4K Options");
             Label("Native movie streams (ExoPlayer/Hardware Decoder) play at up to 4K 60FPS automatically.\nSelect your preferred resolution for the interactive web desktop:", content, 0, row, actionWidth, 48, 18); row += 55;
-            string cur = (string)settings["browserRes"] ?? "1080p";
+            string cur = (string)settings[SettingsKeys.BrowserRes] ?? "1080p";
 
             ActionButton((cur == "1080p" ? "● " : "○ ") + "1080p Full HD (1920×1080) — Balanced & Crisp [Recommended]", () => { ApplyBrowserRes("1080p"); ServersHubPage(); });
             ActionButton((cur == "4k" ? "● " : "○ ") + "4K Ultra HD (3840×2160) — Maximum Desktop Sharpness", () => { ApplyBrowserRes("4k"); ServersHubPage(); });
@@ -920,6 +1102,5 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Back to media library", Library);
         Resize();
     }
-
 }
 }

@@ -13,7 +13,7 @@ if (!fs.existsSync(apkPath)) {
 }
 
 const apkSize = fs.statSync(apkPath).size;
-console.log(`Uploading ${apkPath} (${apkSize} bytes)...`);
+console.log(`Uploading ${apkPath} (${(apkSize / (1024 * 1024)).toFixed(2)} MB)...`);
 
 const token = execSync('git credential fill', { input: 'protocol=https\nhost=github.com\n\n' })
   .toString()
@@ -26,11 +26,76 @@ const headers = {
   Accept: 'application/vnd.github+json'
 };
 
+const RELEASE_TAG = 'v0.2.3';
+const RELEASE_NAME = 'Movie Night VR v0.2.3 — Configurable Menu Toggle, Native Multi-Provider Hub & 4K Engine';
+
+const RELEASE_BODY = `## Movie Night VR v0.2.3 • Meta Quest Release
+
+### 🎮 Configurable Menu Toggle & Controller Sleep Resilience
+- **Single-Option Menu Activation**: Menu activation is now strictly single-option with zero button conflicts. Choose between:
+  - **Left Menu Button** (Default standard VR convention)
+  - **Left Y Button**
+  - **Left X Button**
+  - **Right A Button**
+  - **Right B Button**
+  - **Right A Long-Press (0.4s)**
+  - **Left Stick Click**
+- **Quest 3 Sleep/Wake & Hand-Tracking Fallback**: Replaced fragile single-frame device queries with dynamic XR device caching and characteristic scanning. Headset sleep/wake cycles or hand-tracking swaps no longer lock users out of the menu.
+- **Sprint / Movement Isolation**: Left stick click sprinting is guarded against accidental sprint triggering when stick click is mapped to menu toggle.
+
+### 🎬 Native Multi-Provider Discover & Streaming Catalog
+- **Integrated Catalog Browser**: Unified browse interface in Library with filter pills:
+  - **All Sources**
+  - **Stremio & Nuvio**
+  - **Jellyfin**
+  - **MediaStorm**
+  - **Silo**
+- **Asynchronous Pagination & Direct ExoPlayer Loading**: Streams load directly with upstream auth tokens preserved in ExoPlayer HTTP headers without broadcasting credentials to multiplayer room peers.
+- **Multiplayer Multi-Channel Audio**: Added room server audio cycling (\`NextServerAudioTrack\`) to easily switch transcoded audio tracks on the fly.
+
+### ⚡ 4K Virtual Display Engine & Snapdragon XR2 Guard
+- **Adaptive Frame Throttling**: 4K web cinema and desktop display emulation dynamically throttles to 24fps on ultra-high resolutions, preventing Snapdragon XR2 Gen 2 JNI queue congestion and maintaining silky-smooth 90/120Hz head tracking.
+- **Password Security Masking**: Upgraded all credentials and token input fields (Jellyfin, MediaStorm, Silo, Mellon, Stremio) with native bullet masking (\`InputField.ContentType.Password\`).
+- **First-Run Onboarding Wizard**: Guided 3-step setup flow for new solo users.
+
+### 📦 Sideload Instructions (Meta Quest 3 / 2 / Pro)
+1. Download **\`movie-night.apk\`** below.
+2. Sideload via **SideQuest** or run:
+   \`\`\`bash
+   adb install -r movie-night.apk
+   \`\`\`
+3. Put on your Quest headset, open **App Library -> Unknown Sources**, and launch **Movie Night VR**.`;
+
 async function run() {
-  const relRes = await fetch('https://api.github.com/repos/oOflyeyesOo/Media-VR/releases/tags/v0.2.2', { headers });
-  if (!relRes.ok) throw new Error('Failed to get release: ' + relRes.statusText);
-  const rel = await relRes.json();
-  console.log(`Found release ${rel.tag_name} (id: ${rel.id})`);
+  console.log(`Checking release for ${RELEASE_TAG}...`);
+  let relRes = await fetch(`https://api.github.com/repos/oOflyeyesOo/Media-VR/releases/tags/${RELEASE_TAG}`, { headers });
+  let rel;
+
+  if (relRes.status === 404) {
+    console.log(`Release ${RELEASE_TAG} does not exist. Creating new release...`);
+    const createRes = await fetch('https://api.github.com/repos/oOflyeyesOo/Media-VR/releases', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        tag_name: RELEASE_TAG,
+        target_commitish: 'master',
+        name: RELEASE_NAME,
+        body: RELEASE_BODY,
+        draft: false,
+        prerelease: false
+      })
+    });
+    if (!createRes.ok) {
+      throw new Error(`Failed to create release (${createRes.status}): ${await createRes.text()}`);
+    }
+    rel = await createRes.json();
+    console.log(`Created release ${rel.tag_name} (id: ${rel.id})`);
+  } else if (!relRes.ok) {
+    throw new Error('Failed to get release: ' + relRes.statusText);
+  } else {
+    rel = await relRes.json();
+    console.log(`Found existing release ${rel.tag_name} (id: ${rel.id})`);
+  }
 
   // Delete existing movie-night.apk asset if present
   for (const asset of rel.assets) {
@@ -71,36 +136,12 @@ async function run() {
   console.log('✔ Asset uploaded successfully! ID:', assetData.id, 'Download URL:', assetData.browser_download_url);
 
   // Update release description
-  const body = `## Movie Night VR v0.2.2 • Quest Sideload Release
-
-### 🎮 Player Locomotion, Avatar Mechanics & Axis Fixes
-- **Hand & Wrist IK Articulation**: Full rotational 6DOF tracking for controller-to-avatar wrist mechanics. Hands now rotate realistically with Quest controllers instead of remaining rigid.
-- **Dynamic Avatar Height & Eye Level Adaptation**: Replaced forced 1.65m normalization with natural VRM scaling and automatic player eye-level tracking. Headset tracking space and character controller bounds adjust dynamically to whatever avatar you select.
-- **Unconstrained Locomotion**: Thumbstick movement and smooth turning remain fully enabled while menus are open, eliminating movement lockouts.
-
-### 🌐 Unified Servers & Streaming Hub
-- **1-Click Web Streamers (720p HD Virtual Display)**:
-  - 🌌 **Nuvio Web**: Direct access to Nuvio streaming frontend with instant Stremio addon compatibility.
-  - 🎬 **Stremio Web**: Stream via your Stremio library and addons in solo or multiplayer theater.
-  - 🍿 **Jellyfin Web**: Connect to your self-hosted Jellyfin server with native authentication.
-  - ⚡ **MediaStorm & Silo**: Direct backend integration for Debrid, Usenet, and high-performance streaming.
-- **Nuvio Profile Addon Sync**: Automatically sync addons and catalogs from your Nuvio profile into your in-VR library.
-- **Hardware-Accelerated Web Engine**: Upgraded virtual display to 720p HD (1280x720) with desktop Chromium emulation for full web player functionality.
-
-### 📦 Sideload Instructions (Meta Quest 3 / 2 / Pro)
-1. Download **\`movie-night.apk\`** below.
-2. Install via **SideQuest** (drag & drop APK) or ADB:
-   \`\`\`bash
-   adb install -r movie-night.apk
-   \`\`\`
-3. Put on your Quest headset, navigate to **App Library -> Unknown Sources**, and launch **Movie Night VR**.`;
-
   const patchRes = await fetch(`https://api.github.com/repos/oOflyeyesOo/Media-VR/releases/${rel.id}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({
-      name: 'Movie Night VR v0.2.2 - Locomotion, Wrist IK & Streaming Hub',
-      body
+      name: RELEASE_NAME,
+      body: RELEASE_BODY
     })
   });
 

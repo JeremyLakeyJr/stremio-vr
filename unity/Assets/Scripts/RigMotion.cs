@@ -13,6 +13,7 @@ public sealed class RigMotion : MonoBehaviour {
  public bool SnapTurn = false;
  public float SnapAngle = 45f;
  public bool HandOriented = false;
+ public bool SprintEnabled = true;
  public float SprintMultiplier = 1.75f;
  public bool Seated => seatedSeat>=0;
  public float ViewPitch => Mathf.DeltaAngle(0,Tracking.localEulerAngles.x);
@@ -95,7 +96,7 @@ public sealed class RigMotion : MonoBehaviour {
   
   // Left stick click sprint / fast walk
   left.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out bool sprintClick);
-  float activeSpeed = sprintClick ? MoveSpeed * SprintMultiplier : MoveSpeed;
+  float activeSpeed = (SprintEnabled && sprintClick) ? MoveSpeed * SprintMultiplier : MoveSpeed;
 
   if(Seated && rawStick.magnitude>0.4f) Stand();
   

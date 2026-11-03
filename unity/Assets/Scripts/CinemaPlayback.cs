@@ -126,6 +126,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
         });
         Status?.Invoke("Requested server audio track " + (trackIndex + 1));
     }
+    public void NextServerAudioTrack() => SelectServerAudioTrack((ServerAudioTrackIndex + 1) % 8);
     public void Load(string url, string title, double position=0) {
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
         try { SourceUrl=MediaLibrary.Http(url); Room.Send(new JObject { ["type"] = "playback", ["url"] = SourceUrl, ["title"] = title, ["position"] = Math.Max(0,position) }); } catch (Exception error) { Status?.Invoke(error.Message); }

@@ -75,7 +75,7 @@ public sealed class WebCinema : MonoBehaviour {
  void Update() {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
   if(remoteMode){try{ReceiveFrame();}catch(Exception e){Status?.Invoke("Browser frame failed: "+e.GetType().Name);Release();}return;}
-  if(Time.unscaledTime<nextFrame)return; nextFrame=Time.unscaledTime+1f/30;
+  float targetFps = WebWidth >= 3840 ? 24f : 30f; if(Time.unscaledTime<nextFrame)return; nextFrame=Time.unscaledTime+1f/targetFps;
   try { var bytes=web?.Call<sbyte[]>("takeFrame"); if(bytes!=null && bytes.Length==WebWidth*WebHeight*4) {Buffer.BlockCopy(bytes,0,pixels,0,bytes.Length);texture.LoadRawTextureData(pixels);texture.Apply(false); if(!receivedFrame){receivedFrame=true;Debug.Log("[WebScreen] Hardware frame received: "+WebWidth+"x"+WebHeight+" RGBA");}} } catch(Exception e) { Status?.Invoke("Web screen stopped: "+e.GetType().Name);Close(); }
  }
  public bool Point(Ray ray,bool held,float scroll,out Vector3 point) {
