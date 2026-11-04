@@ -22,7 +22,7 @@ Hang out in Open Concept Home on Meta Quest, stream your favorite movies and sho
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
 - **Talk and play:** WebRTC voice with echo cancellation, customizable R6 avatars, and shared tabletop games.
 
-[Download the Quest alpha](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md)
+[Download the Quest alpha](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md)
 
 **Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout, boards, and continue watching queue save on the headset.
 
