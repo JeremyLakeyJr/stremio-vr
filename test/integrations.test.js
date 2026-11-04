@@ -120,12 +120,12 @@ test('api: /api/providers reports all configured provider fixtures online', asyn
   const originalStreamingServiceUrl = getConfig().streamingServiceUrl;
   await saveConfig({ streamingServiceUrl: baseUrl });
   const environment = {
-    JELLYFIN_URL: baseUrl,
-    MEDIASTORM_URL: baseUrl,
+    JELLYFIN_URL: `${baseUrl}/jellyfin`,
+    MEDIASTORM_URL: `${baseUrl}/mediastorm`,
     MEDIASTORM_KEY: 'fixture-media-storm-key',
-    SILO_URL: baseUrl,
+    SILO_URL: `${baseUrl}/silo`,
     SILO_TOKEN: 'fixture-silo-token',
-    REMUX_URL: baseUrl
+    REMUX_URL: `${baseUrl}/remux`
   };
   const previous = {};
   for (const [key, value] of Object.entries(environment)) {
@@ -154,8 +154,14 @@ test('api: /api/providers reports all configured provider fixtures online', asyn
     const responseText = JSON.stringify(data);
     assert.equal(responseText.includes('fixture-media-storm-key'), false);
     assert.equal(responseText.includes('fixture-silo-token'), false);
-    assert.ok(received.some(request => request.mediaStormKey === 'fixture-media-storm-key'));
-    assert.ok(received.some(request => request.authorization));
+    const mediaStormRequests = received.filter(request => request.mediaStormKey);
+    const authorizationRequests = received.filter(request => request.authorization);
+    assert.ok(mediaStormRequests.length > 0);
+    assert.ok(authorizationRequests.length > 0);
+    assert.ok(mediaStormRequests.every(request => request.mediaStormKey === 'fixture-media-storm-key'));
+    assert.ok(mediaStormRequests.every(request => request.authorization === undefined));
+    assert.ok(authorizationRequests.every(request => request.authorization === 'Bearer fixture-silo-token'));
+    assert.ok(authorizationRequests.every(request => request.mediaStormKey === undefined));
   } finally {
     await saveConfig({ streamingServiceUrl: originalStreamingServiceUrl });
     for (const key of Object.keys(environment)) {
