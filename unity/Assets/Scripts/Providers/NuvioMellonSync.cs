@@ -8,6 +8,8 @@ namespace StremioVR.Providers
 {
     public class NuvioMellonSync
     {
+        private const int RequestTimeoutSeconds = 15;
+
         [Serializable]
         private class MellonProfileResponse
         {
@@ -23,6 +25,7 @@ namespace StremioVR.Providers
             var manifests = new List<string>();
             string baseUrl = mellonServerUrl.Trim().TrimEnd('/');
             using var req = UnityWebRequest.Get($"{baseUrl}/api/addons");
+            req.timeout = RequestTimeoutSeconds;
             req.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
             var tcs = new TaskCompletionSource<bool>();

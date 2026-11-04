@@ -17,6 +17,7 @@ namespace StremioVR.Providers
 
         private string _serverUrl;
         private string _token;
+        private const int RequestTimeoutSeconds = 15;
 
         public SiloProvider(string providerId = "silo", string displayName = "Silo")
         {
@@ -40,6 +41,7 @@ namespace StremioVR.Providers
                 _token = usernameOrToken.Trim();
                 string testUrl = $"{_serverUrl}/api/libraries";
                 using var testReq = UnityWebRequest.Get(testUrl);
+                testReq.timeout = RequestTimeoutSeconds;
                 testReq.SetRequestHeader("Authorization", $"Bearer {_token}");
                 await SendRequestAsync(testReq);
                 if (testReq.result == UnityWebRequest.Result.Success)
@@ -52,6 +54,7 @@ namespace StremioVR.Providers
             string bodyJson = JsonUtility.ToJson(new LoginRequest { Username = usernameOrToken, Password = secret ?? "" });
 
             using var req = new UnityWebRequest(url, "POST");
+            req.timeout = RequestTimeoutSeconds;
             req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(bodyJson));
             req.downloadHandler = new DownloadHandlerBuffer();
             req.SetRequestHeader("Content-Type", "application/json");
@@ -198,6 +201,7 @@ namespace StremioVR.Providers
             });
 
             using var req = new UnityWebRequest(url, "POST");
+            req.timeout = RequestTimeoutSeconds;
             byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
@@ -248,6 +252,7 @@ namespace StremioVR.Providers
         private async Task<string> GetJsonAsync(string url)
         {
             using var req = UnityWebRequest.Get(url);
+            req.timeout = RequestTimeoutSeconds;
             req.SetRequestHeader("Authorization", $"Bearer {_token}");
             await SendRequestAsync(req);
             return req.result == UnityWebRequest.Result.Success ? req.downloadHandler.text : null;

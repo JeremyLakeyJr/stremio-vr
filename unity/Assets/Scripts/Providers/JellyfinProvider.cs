@@ -20,6 +20,7 @@ namespace StremioVR.Providers
         private string _accessToken;
         private string _userId;
         private readonly string _deviceId;
+        private const int RequestTimeoutSeconds = 15;
 
         public JellyfinProvider(string providerId = "jellyfin", string displayName = "Jellyfin / Remux")
         {
@@ -42,6 +43,7 @@ namespace StremioVR.Providers
             string bodyJson = JsonUtility.ToJson(new AuthRequest { Username = username, Pw = password });
 
             using var req = new UnityWebRequest(url, "POST");
+            req.timeout = RequestTimeoutSeconds;
             byte[] bodyRaw = Encoding.UTF8.GetBytes(bodyJson);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
@@ -258,6 +260,7 @@ namespace StremioVR.Providers
         private async Task<string> GetJsonAsync(string url, string method = "GET", string jsonBody = null)
         {
             using var req = new UnityWebRequest(url, method);
+            req.timeout = RequestTimeoutSeconds;
             if (jsonBody != null)
             {
                 req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonBody));

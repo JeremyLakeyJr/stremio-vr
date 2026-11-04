@@ -15,6 +15,7 @@ namespace StremioVR.Providers
 
         private string _serverUrl;
         private string _apiKey;
+        private const int RequestTimeoutSeconds = 15;
 
         public MediaStormProvider(string providerId = "mediastorm", string displayName = "MediaStorm")
         {
@@ -35,6 +36,7 @@ namespace StremioVR.Providers
 
             string url = $"{_serverUrl}/api/v1/health";
             using var req = UnityWebRequest.Get(url);
+            req.timeout = RequestTimeoutSeconds;
             req.SetRequestHeader("X-MediaStorm-Key", _apiKey);
 
             await SendRequestAsync(req);
@@ -42,6 +44,7 @@ namespace StremioVR.Providers
             {
                 // Fallback check against root api
                 using var fallbackReq = UnityWebRequest.Get($"{_serverUrl}/api/v1/catalogs");
+                fallbackReq.timeout = RequestTimeoutSeconds;
                 fallbackReq.SetRequestHeader("X-MediaStorm-Key", _apiKey);
                 await SendRequestAsync(fallbackReq);
                 if (fallbackReq.result != UnityWebRequest.Result.Success)
@@ -187,6 +190,7 @@ namespace StremioVR.Providers
             });
 
             using var req = new UnityWebRequest(url, "POST");
+            req.timeout = RequestTimeoutSeconds;
             byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(body);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
@@ -238,6 +242,7 @@ namespace StremioVR.Providers
         private async Task<string> GetJsonAsync(string url)
         {
             using var req = UnityWebRequest.Get(url);
+            req.timeout = RequestTimeoutSeconds;
             req.SetRequestHeader("X-MediaStorm-Key", _apiKey);
             await SendRequestAsync(req);
             return req.result == UnityWebRequest.Result.Success ? req.downloadHandler.text : null;
