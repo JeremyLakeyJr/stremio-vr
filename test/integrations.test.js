@@ -151,6 +151,9 @@ test('api: /api/providers reports all configured provider fixtures online', asyn
     assert.equal(data.providers.mediastorm.configured, true);
     assert.equal(data.providers.silo.configured, true);
     assert.equal(data.providers.remux.configured, true);
+    const responseText = JSON.stringify(data);
+    assert.equal(responseText.includes('fixture-media-storm-key'), false);
+    assert.equal(responseText.includes('fixture-silo-token'), false);
     assert.ok(received.some(request => request.mediaStormKey === 'fixture-media-storm-key'));
     assert.ok(received.some(request => request.authorization));
   } finally {
