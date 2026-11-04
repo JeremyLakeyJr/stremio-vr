@@ -116,7 +116,8 @@ test('api: /api/config allows reading and updating server settings at runtime', 
       mediastormUrl: 'http://192.168.1.100:7777',
       mediastormKey: 'secret_ms_token_123',
       siloUrl: 'http://192.168.1.100:8082',
-      siloToken: 'secret_silo_token_abc'
+      siloToken: 'secret_silo_token_abc',
+      webhookUrl: 'https://discord.com/api/webhooks/secret-webhook-token'
     })
   });
   assert.equal(postRes.status, 200);
@@ -129,6 +130,8 @@ test('api: /api/config allows reading and updating server settings at runtime', 
   // Token masking
   assert.match(postData.config.mediastormKey, /••••/);
   assert.match(postData.config.siloToken, /••••/);
+  assert.match(postData.config.webhookUrl, /••••/);
+  assert.doesNotMatch(JSON.stringify(postData.config), /secret-webhook-token/);
 });
 
 test('api: /api/room/play triggers playback directly in an active room', async t => {
