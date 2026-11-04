@@ -31,7 +31,13 @@ namespace StremioVR.Providers
 
         public async Task<bool> AuthenticateAsync(string serverUrl, string apiKey, string secret = null)
         {
+            _apiKey = null;
             _serverUrl = NormalizeUrl(serverUrl);
+            if (!IsHttpUrl(_serverUrl))
+            {
+                Debug.LogWarning("[MediaStormProvider] Server URL must be an HTTP(S) URL");
+                return false;
+            }
             _apiKey = apiKey?.Trim();
 
             string url = $"{_serverUrl}/api/v1/health";
@@ -257,6 +263,13 @@ namespace StremioVR.Providers
         }
 
         private static string NormalizeUrl(string url) => url?.Trim().TrimEnd('/') ?? "";
+
+        private static bool IsHttpUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                   !string.IsNullOrEmpty(uri.Host);
+        }
 
         [Serializable] private class CatalogsEnvelope { public CatalogDto[] Catalogs; }
         [Serializable] private class CatalogDto { public string Id; public string Name; public string Type; }

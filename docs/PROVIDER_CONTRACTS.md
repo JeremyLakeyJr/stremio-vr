@@ -71,6 +71,9 @@ watching data to this adapter.
 
 ## Jellyfin and Remux-compatible servers
 
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
+
 Authentication is `POST /Users/AuthenticateByName` with:
 
 ```json
@@ -92,6 +95,9 @@ Video and subtitle stream entries use `Type`, `Codec`, `Index`, `Language`,
 and optional `DisplayTitle`.
 
 ## MediaStorm
+
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
 
 Requests use the `X-MediaStorm-Key` header. Authentication probes
 `GET /api/v1/health`, with `/api/v1/catalogs` as fallback.
@@ -142,6 +148,9 @@ Progress is posted to `/api/v1/user/progress` with `ItemId`,
 `PositionTicks`, and `IsPaused`.
 
 ## Silo
+
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
 
 Token-authenticated requests use the configured authorization token. Login
 uses `POST /api/auth/login` with `Username` and `Password`, returning:

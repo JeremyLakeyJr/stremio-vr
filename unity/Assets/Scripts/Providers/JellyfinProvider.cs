@@ -38,7 +38,14 @@ namespace StremioVR.Providers
 
         public async Task<bool> AuthenticateAsync(string serverUrl, string username, string password)
         {
+            _accessToken = null;
+            _userId = null;
             _serverUrl = NormalizeUrl(serverUrl);
+            if (!IsHttpUrl(_serverUrl))
+            {
+                Debug.LogWarning("[JellyfinProvider] Server URL must be an HTTP(S) URL");
+                return false;
+            }
             string url = $"{_serverUrl}/Users/AuthenticateByName";
             string bodyJson = JsonUtility.ToJson(new AuthRequest { Username = username, Pw = password });
 
@@ -283,6 +290,13 @@ namespace StremioVR.Providers
         }
 
         private static string NormalizeUrl(string url) => url?.Trim().TrimEnd('/') ?? "";
+
+        private static bool IsHttpUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                   !string.IsNullOrEmpty(uri.Host);
+        }
 
         [Serializable] private class AuthRequest { public string Username; public string Pw; }
         [Serializable] private class AuthResponse { public string AccessToken; public UserDto User; }

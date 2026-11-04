@@ -34,6 +34,12 @@ namespace StremioVR.Providers
         public async Task<bool> AuthenticateAsync(string serverUrl, string usernameOrToken, string secret = null)
         {
             _serverUrl = NormalizeUrl(serverUrl);
+            _token = null;
+            if (!IsHttpUrl(_serverUrl))
+            {
+                Debug.LogWarning("[SiloProvider] Server URL must be an HTTP(S) URL");
+                return false;
+            }
 
             // Direct token authentication if secret is null or empty
             if (string.IsNullOrEmpty(secret) && !string.IsNullOrEmpty(usernameOrToken))
@@ -267,6 +273,13 @@ namespace StremioVR.Providers
         }
 
         private static string NormalizeUrl(string url) => url?.Trim().TrimEnd('/') ?? "";
+
+        private static bool IsHttpUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                   !string.IsNullOrEmpty(uri.Host);
+        }
 
         [Serializable] private class LoginRequest { public string Username; public string Password; }
         [Serializable] private class LoginResponse { public string Token; }
