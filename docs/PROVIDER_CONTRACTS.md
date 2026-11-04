@@ -89,6 +89,9 @@ The response must include `AccessToken` and `User.Id`. Catalogs are read from
 { "Items": [{ "Id": "library", "Name": "Movies", "CollectionType": "movies" }] }
 ```
 
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
+
 Items and resume items use an `Items` array with `Id`, `Name`, `Type`,
 `RunTimeTicks`, and optional `UserData.PlaybackPositionTicks`. Stream
 resolution uses `POST /Items/{itemId}/PlaybackInfo?UserId={userId}` and expects
@@ -109,6 +112,9 @@ Catalogs:
 ```json
 { "Catalogs": [{ "Id": "movies", "Name": "Movies", "Type": "movie" }] }
 ```
+
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
 
 Catalog, continue-watching, and search results use:
 
@@ -162,6 +168,8 @@ uses `POST /api/auth/login` with `Username` and `Password`, returning:
 ```
 
 Libraries use `{ "Libraries": [{ "Id": "library", "Name": "Movies", "Type": "movie" }] }`.
+Blank library IDs and negative pagination offsets are rejected without a
+request.
 Items use the same `Items` shape as MediaStorm. Streams use the same fields
 as MediaStorm except `Bitrate` replaces `Debrid` and `Size`.
 

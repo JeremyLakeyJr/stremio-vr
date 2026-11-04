@@ -109,7 +109,7 @@ namespace StremioVR.Providers
         public async Task<List<MediaItem>> GetCatalogItemsAsync(string catalogId, int skip = 0)
         {
             var result = new List<MediaItem>();
-            if (!IsAuthenticated) return result;
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(catalogId) || skip < 0) return result;
 
             string url = $"{_serverUrl}/api/libraries/{UnityWebRequest.EscapeURL(catalogId)}/items?skip={skip}&limit=48";
             string json = await GetJsonAsync(url);

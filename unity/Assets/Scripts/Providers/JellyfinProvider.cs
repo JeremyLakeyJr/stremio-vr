@@ -110,7 +110,7 @@ namespace StremioVR.Providers
         public async Task<List<MediaItem>> GetCatalogItemsAsync(string catalogId, int skip = 0)
         {
             var result = new List<MediaItem>();
-            if (!IsAuthenticated) return result;
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(catalogId) || skip < 0) return result;
 
             string url = $"{_serverUrl}/Users/{_userId}/Items" +
                          $"?ParentId={UnityWebRequest.EscapeURL(catalogId)}" +
