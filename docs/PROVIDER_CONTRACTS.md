@@ -8,12 +8,13 @@ All collection responses must be valid JSON. Missing, null, malformed, or
 non-success responses are treated as an empty result by the current adapters,
 except authentication, which returns `false`.
 
-Native provider and Mellon requests use a bounded 15-second timeout. Timeout
-and transport failures follow the same empty-result or failed-auth behavior;
-retry and user-visible error reporting are not yet part of the adapter
-contract. The Quest UI can cancel a catalog, search, or stream view; this
-invalidates the in-flight result and prevents it from replacing the current
-page, while the underlying request completes under its timeout.
+Native provider and Mellon requests use bounded timeouts: 15 seconds for
+Jellyfin, MediaStorm, Silo, and Mellon, and 15 seconds for Stremio manifests
+and catalogs or 20 seconds for Stremio stream lookup. Timeout and transport
+failures follow the same empty-result or failed-auth behavior. The Quest UI
+provides retry, error, and cancellation actions for provider views;
+cancellation invalidates the in-flight result and prevents it from replacing
+the current page, while the underlying request completes under its timeout.
 
 ## Shared output model
 
