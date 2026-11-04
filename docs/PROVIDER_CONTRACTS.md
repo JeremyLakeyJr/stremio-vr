@@ -45,6 +45,9 @@ Failed authentication clears any previously loaded manifest.
 The adapter requests `/catalog/{type}/{id}.json`, or the
 `/skip={offset}.json` form for pagination. The response is:
 
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
+
 ```json
 {
   "metas": [

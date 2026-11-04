@@ -21,6 +21,9 @@ namespace StremioVR.Providers
         private string _manifestUrl;
         private string _baseUrl;
         private ManifestResponse _manifest;
+        private const int ManifestTimeoutSeconds = 15;
+        private const int CatalogTimeoutSeconds = 15;
+        private const int StreamTimeoutSeconds = 20;
 
         public StremioAddonProvider(string providerId = "stremio-addon", string displayName = "Stremio Addon")
         {
@@ -57,7 +60,7 @@ namespace StremioVR.Providers
             _baseUrl = normalized.Substring(0, normalized.Length - "/manifest.json".Length);
 
             using var req = UnityWebRequest.Get(_manifestUrl);
-            req.timeout = 15;
+            req.timeout = ManifestTimeoutSeconds;
             await SendRequestAsync(req);
 
             if (req.result != UnityWebRequest.Result.Success)
@@ -105,7 +108,7 @@ namespace StremioVR.Providers
         public async Task<List<MediaItem>> GetCatalogItemsAsync(string catalogId, int skip = 0)
         {
             var result = new List<MediaItem>();
-            if (!IsAuthenticated) return result;
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(catalogId) || skip < 0) return result;
 
             var catalogMeta = FindCatalog(catalogId);
             string type = catalogMeta?.type ?? "movie";
@@ -115,7 +118,7 @@ namespace StremioVR.Providers
 
             string url = _baseUrl + path;
             using var req = UnityWebRequest.Get(url);
-            req.timeout = 15;
+            req.timeout = CatalogTimeoutSeconds;
             await SendRequestAsync(req);
 
             if (req.result != UnityWebRequest.Result.Success) return result;
@@ -155,13 +158,13 @@ namespace StremioVR.Providers
         public async Task<List<ResolvedStream>> GetStreamsAsync(string itemId)
         {
             var result = new List<ResolvedStream>();
-            if (!IsAuthenticated || string.IsNullOrEmpty(itemId)) return result;
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(itemId)) return result;
 
             string type = itemId.StartsWith("tt") ? "movie" : "series";
             string url = $"{_baseUrl}/stream/{UnityWebRequest.EscapeURL(type)}/{UnityWebRequest.EscapeURL(itemId)}.json";
 
             using var req = UnityWebRequest.Get(url);
-            req.timeout = 20;
+            req.timeout = StreamTimeoutSeconds;
             await SendRequestAsync(req);
 
             if (req.result != UnityWebRequest.Result.Success) return result;
