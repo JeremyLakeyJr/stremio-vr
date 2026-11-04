@@ -197,7 +197,10 @@ namespace StremioVR.Providers
             {
                 await jellyfin.ReportPlaybackAsync(endpoint, body);
             }
-            catch {}
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[WatchProgressSync] Jellyfin progress report failed: {ex.Message}");
+            }
         }
 
         [Serializable]

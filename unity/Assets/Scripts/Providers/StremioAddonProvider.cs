@@ -123,7 +123,10 @@ namespace StremioVR.Providers
                     }
                 }
             }
-            catch {}
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[StremioAddonProvider] Catalog response parse failed: {ex.Message}");
+            }
 
             return result;
         }
@@ -171,7 +174,10 @@ namespace StremioVR.Providers
                     }
                 }
             }
-            catch {}
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[StremioAddonProvider] Stream response parse failed: {ex.Message}");
+            }
 
             return result;
         }
