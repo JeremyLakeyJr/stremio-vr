@@ -651,9 +651,18 @@ public sealed class CinemaApp : MonoBehaviour {
             if (string.IsNullOrEmpty(q)) return;
             ShowStatus("Searching " + prov.DisplayName + " for \"" + q + "\"…");
             List<MediaItem> res = null;
-            if (prov is JellyfinProvider jf) res = await jf.SearchAsync(q);
-            else if (prov is MediaStormProvider ms) res = await ms.SearchAsync(q);
-            else if (prov is SiloProvider silo) res = await silo.SearchAsync(q);
+            try
+            {
+                if (prov is JellyfinProvider jf) res = await jf.SearchAsync(q);
+                else if (prov is MediaStormProvider ms) res = await ms.SearchAsync(q);
+                else if (prov is SiloProvider silo) res = await silo.SearchAsync(q);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("[CinemaApp] Provider search failed: " + error.Message);
+                ShowStatus("Search failed. Check the provider connection and try again.");
+                return;
+            }
 
             Clear(); pageTitle.text = prov.DisplayName + ": " + q;
             ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
@@ -663,7 +672,20 @@ public sealed class CinemaApp : MonoBehaviour {
         });
 
         ShowStatus("Loading " + prov.DisplayName + " catalogs…");
-        var catalogs = await prov.GetCatalogsAsync();
+        List<MediaCatalog> catalogs;
+        try
+        {
+            catalogs = await prov.GetCatalogsAsync();
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning("[CinemaApp] Provider catalog load failed: " + error.Message);
+            Heading("Unable to load " + prov.DisplayName + " catalogs");
+            Label("Check the provider connection and credentials, then try again.", content, 0, row, actionWidth, 40, 19);
+            ShowStatus("Catalog load failed. Check the provider connection and try again.");
+            Resize();
+            return;
+        }
         Heading(prov.DisplayName + " Catalogs");
         int generation = pageGeneration;
         int t = 0;
@@ -672,8 +694,16 @@ public sealed class CinemaApp : MonoBehaviour {
             if (t < 3) {
                 Button(currentCat.Name + " (" + currentCat.Type + ")", content, t * 310, row, 298, async () => {
                     ShowStatus("Loading " + currentCat.Name + "…");
-                    var items = await prov.GetCatalogItemsAsync(currentCat.CatalogId);
-                    if (generation == pageGeneration) ProviderPosterGrid(items, prov, currentCat.CatalogId, 0);
+                    try
+                    {
+                        var items = await prov.GetCatalogItemsAsync(currentCat.CatalogId);
+                        if (generation == pageGeneration) ProviderPosterGrid(items, prov, currentCat.CatalogId, 0);
+                    }
+                    catch (Exception error)
+                    {
+                        Debug.LogWarning("[CinemaApp] Provider catalog items load failed: " + error.Message);
+                        ShowStatus("Catalog load failed. Check the provider connection and try again.");
+                    }
                 });
                 t++;
             }
@@ -682,8 +712,16 @@ public sealed class CinemaApp : MonoBehaviour {
 
         if (catalogs != null && catalogs.Count > 0) {
             Heading("Featured from " + catalogs[0].Name);
-            var items = await prov.GetCatalogItemsAsync(catalogs[0].CatalogId);
-            if (generation == pageGeneration) ProviderPosterGrid(items, prov, catalogs[0].CatalogId, 0);
+            try
+            {
+                var items = await prov.GetCatalogItemsAsync(catalogs[0].CatalogId);
+                if (generation == pageGeneration) ProviderPosterGrid(items, prov, catalogs[0].CatalogId, 0);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("[CinemaApp] Featured catalog load failed: " + error.Message);
+                ShowStatus("Featured titles could not be loaded. Try another catalog.");
+            }
         } else {
             Heading("No media catalogs found on " + prov.DisplayName);
             Label("Make sure libraries are configured on your server and credentials are active.", content, 0, row, actionWidth, 40, 19); row += 48;
@@ -719,11 +757,19 @@ public sealed class CinemaApp : MonoBehaviour {
             int nextSkip = skip + count;
             ActionButton("Load more from " + prov.DisplayName + "…", async () => {
                 ShowStatus("Loading more titles…");
-                var moreItems = await prov.GetCatalogItemsAsync(catalogId, nextSkip);
-                if (moreItems != null && moreItems.Count > 0) {
-                    ProviderPosterGrid(moreItems, prov, catalogId, nextSkip);
-                } else {
-                    ShowStatus("Reached end of catalog.");
+                try
+                {
+                    var moreItems = await prov.GetCatalogItemsAsync(catalogId, nextSkip);
+                    if (moreItems != null && moreItems.Count > 0) {
+                        ProviderPosterGrid(moreItems, prov, catalogId, nextSkip);
+                    } else {
+                        ShowStatus("Reached end of catalog.");
+                    }
+                }
+                catch (Exception error)
+                {
+                    Debug.LogWarning("[CinemaApp] More catalog items load failed: " + error.Message);
+                    ShowStatus("More titles could not be loaded. Try again.");
                 }
             });
         }
@@ -771,7 +817,17 @@ public sealed class CinemaApp : MonoBehaviour {
         Label(desc, content, 0, row, 920, 150, 21); row += 165;
         ActionButton("Watch / Choose Stream Source", async () => {
             ShowStatus("Resolving streams from " + prov.DisplayName + "…");
-            var streams = await prov.GetStreamsAsync(item.ItemId);
+            List<ResolvedStream> streams;
+            try
+            {
+                streams = await prov.GetStreamsAsync(item.ItemId);
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("[CinemaApp] Provider stream resolution failed: " + error.Message);
+                ShowStatus("Stream lookup failed. Check the provider connection and try again.");
+                return;
+            }
             Clear(); ActionButton("Back to Discover", Library); Heading("Sources for " + item.Title);
             if (streams == null || streams.Count == 0) {
                 Heading("No streams available for this item.");
