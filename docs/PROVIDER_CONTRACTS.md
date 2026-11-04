@@ -162,7 +162,9 @@ search is read from `/api/search?query=...&limit=32`.
 ```
 
 Only non-empty URLs ending in `manifest.json` are registered. Invalid entries
-are ignored and an unavailable endpoint produces an empty list.
+are ignored and an unavailable endpoint produces an empty list. The server URL
+must be absolute HTTP(S), and a non-empty auth token is required; invalid
+inputs are logged and produce an empty list without sending a request.
 
 ## Contract test requirements
 

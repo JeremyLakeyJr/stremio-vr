@@ -23,7 +23,20 @@ namespace StremioVR.Providers
         public async Task<List<string>> FetchProfileAddonManifestsAsync(string mellonServerUrl, string authToken)
         {
             var manifests = new List<string>();
-            string baseUrl = mellonServerUrl.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(mellonServerUrl) || string.IsNullOrWhiteSpace(authToken))
+            {
+                Debug.LogWarning("[NuvioMellonSync] Mellon server URL and auth token are required");
+                return manifests;
+            }
+
+            if (!Uri.TryCreate(mellonServerUrl.Trim(), UriKind.Absolute, out var serverUri) ||
+                (serverUri.Scheme != Uri.UriSchemeHttp && serverUri.Scheme != Uri.UriSchemeHttps))
+            {
+                Debug.LogWarning("[NuvioMellonSync] Mellon server URL must be an HTTP(S) URL");
+                return manifests;
+            }
+
+            string baseUrl = serverUri.ToString().TrimEnd('/');
             using var req = UnityWebRequest.Get($"{baseUrl}/api/addons");
             req.timeout = RequestTimeoutSeconds;
             req.SetRequestHeader("Authorization", $"Bearer {authToken}");
@@ -38,7 +51,16 @@ namespace StremioVR.Providers
                 return manifests;
             }
 
-            var parsed = JsonUtility.FromJson<MellonProfileResponse>(req.downloadHandler.text);
+            MellonProfileResponse parsed;
+            try
+            {
+                parsed = JsonUtility.FromJson<MellonProfileResponse>(req.downloadHandler.text);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NuvioMellonSync] Mellon addons response parse failed: {ex.Message}");
+                return manifests;
+            }
             if (parsed?.addons != null)
             {
                 foreach (var url in parsed.addons)
