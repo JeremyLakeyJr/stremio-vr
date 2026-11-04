@@ -27,7 +27,8 @@ performance, and product polish. Each phase should end with evidence in
   never enter room state, logs, screenshots, or diagnostics.
 - [ ] Add cancellation, timeout, retry, and user-visible error states to native
   catalog and stream requests.
-- [ ] Define and document the supported API response shapes for each provider.
+- [x] Define and document the supported API response shapes for each provider
+  in [PROVIDER_CONTRACTS.md](./PROVIDER_CONTRACTS.md).
 - [ ] Add provider fixtures so CI can test success, authentication failure,
   malformed responses, and offline behavior without live services.
 
