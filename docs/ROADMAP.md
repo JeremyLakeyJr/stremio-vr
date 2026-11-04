@@ -64,8 +64,8 @@ performance, and product polish. Each phase should end with evidence in
   licensed editor secrets and the authorized private-home asset.
 - [ ] Publish signed APK artifacts with version metadata and checksums. The
   Unity workflow now publishes SHA-256 checksums; signing remains pending.
-- [ ] Add a release checklist covering Unity, Node, Rust, Docker, provider
-  contracts, Quest smoke tests, and rollback notes.
+- [ ] Add a [release checklist](./RELEASE_CHECKLIST.md) covering Unity, Node,
+  Rust, Docker, provider contracts, Quest smoke tests, and rollback notes.
 - [ ] Add server health and notification delivery metrics without recording
   credentials or media URLs.
 - [ ] Track crash reports and user-facing failures by build version.
