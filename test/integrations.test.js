@@ -4,7 +4,7 @@ import http from 'node:http';
 import { srtToVtt, adjustVttOffset, fetchSubtitles, clearSubtitleCache, searchOpenSubtitles } from '../server/subtitles.js';
 import { sendNotification, formatNotificationPayload } from '../server/notifications.js';
 import { createServer } from '../server/index.js';
-import { saveConfig } from '../server/config.js';
+import { getConfig, saveConfig } from '../server/config.js';
 import { once } from 'node:events';
 import WebSocket from 'ws';
 
@@ -99,6 +99,67 @@ test('api: /api/providers reports media backend status', async (t) => {
   assert.ok('mediastorm' in data.providers);
   assert.ok('silo' in data.providers);
   assert.ok('remux' in data.providers);
+});
+
+test('api: /api/providers reports all configured provider fixtures online', async (t) => {
+  const received = [];
+  const fixture = http.createServer((req, res) => {
+    received.push({
+      path: req.url,
+      mediaStormKey: req.headers['x-mediastorm-key'],
+      authorization: req.headers.authorization
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, catalogs: [], items: [], streams: [] }));
+  });
+  fixture.listen(0, '127.0.0.1');
+  await once(fixture, 'listening');
+  t.after(() => fixture.close());
+
+  const baseUrl = `http://127.0.0.1:${fixture.address().port}`;
+  const originalStreamingServiceUrl = getConfig().streamingServiceUrl;
+  await saveConfig({ streamingServiceUrl: baseUrl });
+  const environment = {
+    JELLYFIN_URL: baseUrl,
+    MEDIASTORM_URL: baseUrl,
+    MEDIASTORM_KEY: 'fixture-media-storm-key',
+    SILO_URL: baseUrl,
+    SILO_TOKEN: 'fixture-silo-token',
+    REMUX_URL: baseUrl
+  };
+  const previous = {};
+  for (const [key, value] of Object.entries(environment)) {
+    previous[key] = process.env[key];
+    process.env[key] = value;
+  }
+
+  try {
+    const app = await createServer({ media: false });
+    app.server.listen(0, '127.0.0.1');
+    await once(app.server, 'listening');
+    t.after(() => app.close());
+
+    const port = app.server.address().port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+    const data = await res.json();
+    assert.equal(res.status, 200);
+    for (const provider of Object.values(data.providers)) {
+      if (provider.configured) assert.equal(provider.online, true);
+    }
+    assert.equal(data.providers.stremio.configured, true);
+    assert.equal(data.providers.jellyfin.configured, true);
+    assert.equal(data.providers.mediastorm.configured, true);
+    assert.equal(data.providers.silo.configured, true);
+    assert.equal(data.providers.remux.configured, true);
+    assert.ok(received.some(request => request.mediaStormKey === 'fixture-media-storm-key'));
+    assert.ok(received.some(request => request.authorization));
+  } finally {
+    await saveConfig({ streamingServiceUrl: originalStreamingServiceUrl });
+    for (const key of Object.keys(environment)) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });
 
 test('api: /api/subtitles validates query parameters and applies offset', async (t) => {
