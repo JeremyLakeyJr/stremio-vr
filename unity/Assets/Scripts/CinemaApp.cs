@@ -1343,11 +1343,24 @@ public sealed class CinemaApp : MonoBehaviour {
             var mUrlInput = Field("Mellon / Nuvio Sync URL", mUrl, v => { settings[SettingsKeys.MellonUrl] = v; Save(); });
             var mTokenInput = PasswordField("Mellon Auth Token", mToken, v => { settings[SettingsKeys.MellonToken] = v; Save(); });
             ActionButton("Sync Self-Hosted Mellon Addons", async () => {
-                if (reg != null && !string.IsNullOrEmpty(mUrlInput.text)) {
-                    ShowStatus("Syncing Mellon profile addons...");
+                if (reg == null) { ShowStatus("Provider registry is unavailable."); return; }
+                if (string.IsNullOrWhiteSpace(mUrlInput.text) || string.IsNullOrWhiteSpace(mTokenInput.text))
+                {
+                    ShowStatus("Enter a Mellon / Nuvio URL and auth token first.");
+                    return;
+                }
+
+                ShowStatus("Syncing Mellon profile addons...");
+                try
+                {
                     int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
                     ShowStatus("Synced " + count + " addon(s) from Mellon into VR library!");
                     ServersHubPage();
+                }
+                catch (Exception error)
+                {
+                    Debug.LogWarning("[CinemaApp] Mellon addon sync failed: " + error.Message);
+                    ShowStatus("Mellon sync failed. Check the URL, token, and server.");
                 }
             });
         }

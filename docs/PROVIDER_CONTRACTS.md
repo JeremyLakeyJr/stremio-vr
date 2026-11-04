@@ -179,6 +179,8 @@ Only non-empty URLs ending in `manifest.json` are registered. Invalid entries
 are ignored and an unavailable endpoint produces an empty list. The server URL
 must be absolute HTTP(S), and a non-empty auth token is required; invalid
 inputs are logged and produce an empty list without sending a request.
+The Unity settings action validates both fields and shows a user-facing error
+when synchronization fails.
 
 ## Contract test requirements
 
