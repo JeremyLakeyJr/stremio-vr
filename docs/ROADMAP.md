@@ -6,8 +6,9 @@ performance, and product polish. Each phase should end with evidence in
 
 ## Phase 1 — Release hardening
 
-- [ ] Run the Quest APK through a repeatable smoke checklist: install, first
-  launch, solo mode, room join, playback, subtitles, audio, and clean exit.
+- [ ] Run the Quest APK through the repeatable
+  [Quest smoke checklist](./QUEST_SMOKE_CHECKLIST.md): install, first launch,
+  solo mode, room join, playback, subtitles, audio, and clean exit.
 - [ ] Validate two physical Quests on different networks, including WebRTC
   voice and TURN fallback.
 - [ ] Record a 30–60 minute playback soak with frame rate, memory, thermal,
@@ -71,4 +72,3 @@ performance, and product polish. Each phase should end with evidence in
 - DRM bypass or redistribution of licensed content.
 - Copying third-party Unity projects or private assets without authorization.
 - Treating unverified provider behavior as supported production functionality.
-
