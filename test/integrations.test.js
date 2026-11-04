@@ -338,6 +338,67 @@ test('api: /api/providers accurately reports Remux status independently from Sil
   }
 });
 
+test('api: /api/providers marks offline and malformed providers without failing the response', async (t) => {
+  await saveConfig({
+    jellyfinUrl: 'http://127.0.0.1:1/unreachable',
+    mediastormUrl: 'not a URL',
+    siloUrl: '',
+    remuxUrl: ''
+  });
+
+  const app = await createServer({ media: false });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+
+  const port = app.server.address().port;
+  const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+  assert.equal(res.status, 200);
+
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.deepEqual(data.providers.jellyfin, {
+    configured: true,
+    online: false
+  });
+  assert.deepEqual(data.providers.mediastorm, {
+    configured: true,
+    online: false
+  });
+});
+
+test('api: /api/providers treats upstream 5xx responses as offline', async (t) => {
+  const upstream = http.createServer((_req, res) => {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'fixture unavailable' }));
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+  t.after(() => upstream.close());
+
+  await saveConfig({
+    jellyfinUrl: `http://127.0.0.1:${upstream.address().port}`,
+    mediastormUrl: '',
+    siloUrl: '',
+    remuxUrl: ''
+  });
+
+  const app = await createServer({ media: false });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+
+  const port = app.server.address().port;
+  const res = await fetch(`http://127.0.0.1:${port}/api/providers`);
+  const data = await res.json();
+  assert.equal(res.status, 200);
+  assert.deepEqual(data.providers.jellyfin, {
+    configured: true,
+    online: false,
+    status: 503
+  });
+});
+
 test('api: /api/room/play accepts subtitlesUrl and includes it in room playback state', async (t) => {
   const app = await createServer({ media: false });
   app.server.listen(0, '127.0.0.1');
