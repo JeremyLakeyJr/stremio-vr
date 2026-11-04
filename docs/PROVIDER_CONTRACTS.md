@@ -8,6 +8,11 @@ All collection responses must be valid JSON. Missing, null, malformed, or
 non-success responses are treated as an empty result by the current adapters,
 except authentication, which returns `false`.
 
+Native provider and Mellon requests use a bounded 15-second timeout. Timeout
+and transport failures follow the same empty-result or failed-auth behavior;
+retry and user-visible error reporting are not yet part of the adapter
+contract.
+
 ## Shared output model
 
 Adapters map provider responses to:
