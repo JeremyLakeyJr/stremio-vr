@@ -653,6 +653,8 @@ public sealed class CinemaApp : MonoBehaviour {
         });
 
         ShowStatus("Loading " + prov.DisplayName + " catalogs…");
+        ActionButton("Cancel catalog loading", Library);
+        int loadingGeneration = pageGeneration;
         List<MediaCatalog> catalogs;
         try
         {
@@ -660,6 +662,7 @@ public sealed class CinemaApp : MonoBehaviour {
         }
         catch (Exception error)
         {
+            if (loadingGeneration != pageGeneration) return;
             Debug.LogWarning("[CinemaApp] Provider catalog load failed: " + error.Message);
             Heading("Unable to load " + prov.DisplayName + " catalogs");
             Label("Check the provider connection and credentials, then try again.", content, 0, row, actionWidth, 40, 19);
@@ -668,6 +671,7 @@ public sealed class CinemaApp : MonoBehaviour {
             Resize();
             return;
         }
+        if (loadingGeneration != pageGeneration) return;
         Heading(prov.DisplayName + " Catalogs");
         int generation = pageGeneration;
         int t = 0;
@@ -694,13 +698,16 @@ public sealed class CinemaApp : MonoBehaviour {
 
         if (catalogs != null && catalogs.Count > 0) {
             Heading("Featured from " + catalogs[0].Name);
+            int featuredGeneration = pageGeneration;
             try
             {
                 var items = await prov.GetCatalogItemsAsync(catalogs[0].CatalogId);
+                if (featuredGeneration != pageGeneration) return;
                 if (generation == pageGeneration) ProviderPosterGrid(items, prov, catalogs[0].CatalogId, 0);
             }
             catch (Exception error)
             {
+                if (featuredGeneration != pageGeneration) return;
                 Debug.LogWarning("[CinemaApp] Featured catalog load failed: " + error.Message);
                 ActionButton("Retry featured titles", () => RenderProviderView(prov));
                 ShowStatus("Featured titles could not be loaded. Try another catalog.");
@@ -719,7 +726,9 @@ public sealed class CinemaApp : MonoBehaviour {
     }
 
     async void SearchProvider(IMediaProvider prov, string query) {
+        int generation = pageGeneration;
         ShowStatus("Searching " + prov.DisplayName + " for \"" + query + "\"…");
+        ActionButton("Cancel search", Library);
         List<MediaItem> res = null;
         try
         {
@@ -729,6 +738,7 @@ public sealed class CinemaApp : MonoBehaviour {
         }
         catch (Exception error)
         {
+            if (generation != pageGeneration) return;
             Debug.LogWarning("[CinemaApp] Provider search failed: " + error.Message);
             Clear();
             pageTitle.text = prov.DisplayName + ": " + query;
@@ -741,6 +751,7 @@ public sealed class CinemaApp : MonoBehaviour {
             return;
         }
 
+        if (generation != pageGeneration) return;
         Clear(); pageTitle.text = prov.DisplayName + ": " + query;
         ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
         Heading("Results for \"" + query + "\" (" + (res?.Count ?? 0) + " found)");
@@ -830,6 +841,8 @@ public sealed class CinemaApp : MonoBehaviour {
         Label(desc, content, 0, row, 920, 150, 21); row += 165;
         ActionButton("Watch / Choose Stream Source", async () => {
             ShowStatus("Resolving streams from " + prov.DisplayName + "…");
+            int generation = pageGeneration;
+            ActionButton("Cancel stream lookup", Library);
             List<ResolvedStream> streams;
             try
             {
@@ -837,11 +850,13 @@ public sealed class CinemaApp : MonoBehaviour {
             }
             catch (Exception error)
             {
+                if (generation != pageGeneration) return;
                 Debug.LogWarning("[CinemaApp] Provider stream resolution failed: " + error.Message);
                 ActionButton("Retry stream lookup", () => ProviderItemDetails(item, prov));
                 ShowStatus("Stream lookup failed. Check the provider connection and try again.");
                 return;
             }
+            if (generation != pageGeneration) return;
             Clear(); ActionButton("Back to Discover", Library); Heading("Sources for " + item.Title);
             if (streams == null || streams.Count == 0) {
                 Heading("No streams available for this item.");

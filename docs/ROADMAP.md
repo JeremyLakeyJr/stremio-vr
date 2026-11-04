@@ -28,7 +28,8 @@ performance, and product polish. Each phase should end with evidence in
 - [x] Add bounded timeouts to native catalog and stream requests.
 - [x] Validate provider server URLs before authentication requests and clear
   stale sessions after invalid reconfiguration.
-- [ ] Add cancellation controls to native catalog and stream requests.
+- [x] Add UI cancellation controls that invalidate in-flight native catalog,
+  search, and stream results.
 - [x] Add retry controls to native catalog and stream failure states.
 - [x] Add retry controls to provider search failure states.
 - [x] Add user-visible error states to native catalog, search, pagination, and

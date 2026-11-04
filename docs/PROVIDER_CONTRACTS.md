@@ -11,7 +11,9 @@ except authentication, which returns `false`.
 Native provider and Mellon requests use a bounded 15-second timeout. Timeout
 and transport failures follow the same empty-result or failed-auth behavior;
 retry and user-visible error reporting are not yet part of the adapter
-contract.
+contract. The Quest UI can cancel a catalog, search, or stream view; this
+invalidates the in-flight result and prevents it from replacing the current
+page, while the underlying request completes under its timeout.
 
 ## Shared output model
 
