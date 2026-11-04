@@ -27,7 +27,9 @@ Adapters map provider responses to:
 
 ## Stremio add-ons
 
-The configured URL is normalized to `/manifest.json`.
+The configured URL must be an absolute HTTP(S) URL (the `stremio://` prefix is
+also accepted and converted to HTTPS) and is normalized to `/manifest.json`.
+Failed authentication clears any previously loaded manifest.
 
 ### Manifest
 

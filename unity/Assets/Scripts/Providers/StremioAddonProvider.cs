@@ -30,12 +30,27 @@ namespace StremioVR.Providers
 
         public async Task<bool> AuthenticateAsync(string manifestUrl, string usernameOrToken = null, string secret = null)
         {
-            if (string.IsNullOrEmpty(manifestUrl)) return false;
+            _manifest = null;
+            _manifestUrl = null;
+            _baseUrl = null;
+            if (string.IsNullOrWhiteSpace(manifestUrl)) return false;
 
-            string normalized = manifestUrl.Trim().Replace("stremio://", "https://");
+            string normalized = manifestUrl.Trim();
+            if (normalized.StartsWith("stremio://", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = "https://" + normalized.Substring("stremio://".Length);
+            }
             if (!normalized.EndsWith("/manifest.json", StringComparison.OrdinalIgnoreCase))
             {
                 normalized = normalized.TrimEnd('/') + "/manifest.json";
+            }
+
+            if (!Uri.TryCreate(normalized, UriKind.Absolute, out var manifestUri) ||
+                (manifestUri.Scheme != Uri.UriSchemeHttp && manifestUri.Scheme != Uri.UriSchemeHttps) ||
+                string.IsNullOrEmpty(manifestUri.Host))
+            {
+                Debug.LogWarning("[StremioAddonProvider] Manifest URL must be an HTTP(S) URL");
+                return false;
             }
 
             _manifestUrl = normalized;
