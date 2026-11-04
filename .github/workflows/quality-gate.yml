@@ -30,6 +30,7 @@ jobs:
         run: |
           npm run check
           npm run check:solo
+          npm run check:repository
 
   core:
     name: Rust core tests
@@ -61,4 +62,3 @@ jobs:
 
       - name: Run Docker smoke test
         run: npm run docker-smoke
-

@@ -10,6 +10,7 @@ exception.
 - [ ] Confirm `npm ci` succeeds with the committed lockfile.
 - [ ] Confirm no secrets, private asset archives, generated `Library/` content,
       APKs, or local configuration files are tracked.
+- [ ] `npm run check:repository` passes.
 - [ ] Record Node, Rust, Unity, Android SDK/NDK, and OpenXR versions.
 
 ## Automated gates
@@ -56,4 +57,3 @@ exception.
 - [ ] Record first-install and first-launch results.
 - [ ] Review crash, server, provider, and notification diagnostics.
 - [ ] Capture regressions as roadmap items with reproduction evidence.
-
