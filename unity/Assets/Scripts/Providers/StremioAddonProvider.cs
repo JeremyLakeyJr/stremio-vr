@@ -159,6 +159,8 @@ namespace StremioVR.Providers
 
                         result.Add(new ResolvedStream
                         {
+                            ProviderId = ProviderId,
+                            ItemId = itemId,
                             Title = !string.IsNullOrEmpty(s.name) && !string.IsNullOrEmpty(s.title)
                                 ? $"{s.name} - {s.title}"
                                 : (s.title ?? s.name ?? "Stream"),

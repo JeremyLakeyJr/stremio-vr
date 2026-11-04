@@ -426,6 +426,10 @@ export const dashboard = `<!doctype html>
       <label for="cfgTailscaleUrl">Tailscale MagicDNS / IP URL</label>
       <input id="cfgTailscaleUrl" placeholder="http://movie-night.your-tailnet.ts.net:3000">
       <div class="field-hint">Tailscale address for private, end-to-end encrypted mesh networking.</div>
+
+      <label for="cfgWebhookUrl">Discord / Slack / Apprise Notification Webhook URL</label>
+      <input id="cfgWebhookUrl" placeholder="https://discord.com/api/webhooks/... or https://hooks.slack.com/...">
+      <div class="field-hint">Post now-playing titles and room join links automatically to your Discord server or Slack channel.</div>
     </section>
 
     <!-- 4. SUBTITLES & MISC -->
@@ -519,6 +523,7 @@ export const dashboard = `<!doctype html>
         document.getElementById('cfgTunnelToken').value = serverConfig.tunnelToken || '';
         document.getElementById('cfgTunnelUrl').value = serverConfig.tunnelUrl || '';
         document.getElementById('cfgTailscaleUrl').value = serverConfig.tailscaleUrl || '';
+        document.getElementById('cfgWebhookUrl').value = serverConfig.webhookUrl || '';
         document.getElementById('cfgMaxHeight').value = serverConfig.maxHeight || 1080;
         document.getElementById('cfgMaxFps').value = serverConfig.maxFps || 60;
         document.getElementById('cfgOpenSubtitlesKey').value = serverConfig.openSubtitlesApiKey || '';
@@ -694,6 +699,7 @@ export const dashboard = `<!doctype html>
       tunnelToken: document.getElementById('cfgTunnelToken').value.trim(),
       tunnelUrl: document.getElementById('cfgTunnelUrl').value.trim(),
       tailscaleUrl: document.getElementById('cfgTailscaleUrl').value.trim(),
+      webhookUrl: document.getElementById('cfgWebhookUrl').value.trim(),
       maxHeight: parseInt(document.getElementById('cfgMaxHeight').value, 10),
       maxFps: parseInt(document.getElementById('cfgMaxFps').value, 10),
       openSubtitlesApiKey: document.getElementById('cfgOpenSubtitlesKey').value.trim()

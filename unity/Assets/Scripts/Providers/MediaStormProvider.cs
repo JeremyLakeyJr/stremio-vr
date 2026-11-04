@@ -217,6 +217,8 @@ namespace StremioVR.Providers
 
                 streams.Add(new ResolvedStream
                 {
+                    ProviderId = ProviderId,
+                    ItemId = itemId,
                     Title = displayTitle,
                     StreamUrl = stream.Url,
                     SourceCodec = stream.Codec?.ToLowerInvariant() ?? "h264",

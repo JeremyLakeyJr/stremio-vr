@@ -13,6 +13,7 @@ namespace StremioVR.Providers
         public string DisplayName { get; private set; }
         public ProviderType Type => ProviderType.Silo;
         public bool IsAuthenticated => !string.IsNullOrEmpty(_token) && !string.IsNullOrEmpty(_serverUrl);
+        public string Token => _token;
 
         private string _serverUrl;
         private string _token;
@@ -226,6 +227,8 @@ namespace StremioVR.Providers
 
                 streams.Add(new ResolvedStream
                 {
+                    ProviderId = ProviderId,
+                    ItemId = itemId,
                     Title = displayTitle,
                     StreamUrl = stream.Url,
                     SourceCodec = stream.Codec?.ToLowerInvariant() ?? "h264",

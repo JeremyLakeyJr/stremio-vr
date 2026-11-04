@@ -15,6 +15,7 @@ namespace StremioVR
         public const string RayPitch = "rayPitch";
         public const string MenuButtonOption = "menuButtonOption";
         public const string SprintEnabled = "sprintEnabled";
+        public const string TeleportMode = "teleportMode";
 
         // Display & Video
         public const string Ambient = "ambient";
@@ -22,6 +23,15 @@ namespace StremioVR
         public const string BrowserRes = "browserRes";
         public const string WebFps = "webFps";
         public const string SubtitlesEnabled = "subtitlesEnabled";
+        public const string EnvMode = "envMode";
+        public const string StereoMode = "stereoMode";
+        public const string SwapEyes = "swapEyes";
+        public const string HdrMode = "hdrMode";
+        public const string ScreenBrightness = "screenBrightness";
+        public const string ScreenContrast = "screenContrast";
+        public const string ScreenSaturation = "screenSaturation";
+        public const string ScreenCurvature = "screenCurvature";
+        public const string BedMode = "bedMode";
 
         // Onboarding & State
         public const string HasOnboarded = "hasOnboarded";
@@ -36,11 +46,15 @@ namespace StremioVR
         public const string JellyfinUrl = "jellyfinUrl";
         public const string JellyfinUser = "jellyfinUser";
         public const string JellyfinPass = "jellyfinPass";
+        public const string JellyfinToken = "jellyfinToken";
+        public const string JellyfinUserId = "jellyfinUserId";
+        public const string RemuxUrl = "remuxUrl";
         public const string MediaStormUrl = "mediastormUrl";
         public const string MediaStormKey = "mediastormKey";
         public const string SiloUrl = "siloUrl";
         public const string SiloUser = "siloUser";
         public const string SiloPass = "siloPass";
+        public const string SiloToken = "siloToken";
         public const string MellonUrl = "mellonUrl";
         public const string MellonToken = "mellonToken";
     }

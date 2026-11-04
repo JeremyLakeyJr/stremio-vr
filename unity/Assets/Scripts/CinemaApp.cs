@@ -38,8 +38,24 @@ public sealed class CinemaApp : MonoBehaviour {
         try { settings = JObject.Parse(File.ReadAllText(SettingsPath)); } catch { settings = new JObject(); }
         profile = settings["profile"] as JObject ?? new JObject { ["name"] = "Guest", ["skin"] = "#b98059", ["color"] = "#7958ff", ["head"] = "round", ["body"] = "regular", ["hair"] = "none", ["outfit"] = "casual", ["accessory"] = "none" };
         room = gameObject.AddComponent<RoomClient>(); library = gameObject.AddComponent<MediaLibrary>();
-        gameObject.AddComponent<MediaProviderRegistry>();
+        var provReg = gameObject.AddComponent<MediaProviderRegistry>();
         gameObject.AddComponent<WatchProgressSync>();
+        string jUrl = (string)settings[SettingsKeys.JellyfinUrl];
+        string jUid = (string)settings[SettingsKeys.JellyfinUserId];
+        string jTok = (string)settings[SettingsKeys.JellyfinToken];
+        if (!string.IsNullOrEmpty(jUrl) && !string.IsNullOrEmpty(jTok) && !string.IsNullOrEmpty(jUid)) {
+            provReg.Jellyfin?.RestoreSession(jUrl, jUid, jTok);
+        }
+        string msUrl = (string)settings[SettingsKeys.MediaStormUrl];
+        string msKey = (string)settings[SettingsKeys.MediaStormKey];
+        if (!string.IsNullOrEmpty(msUrl) && !string.IsNullOrEmpty(msKey)) {
+            provReg.MediaStorm?.RestoreSession(msUrl, msKey);
+        }
+        string sUrl = (string)settings[SettingsKeys.SiloUrl];
+        string sTok = (string)settings[SettingsKeys.SiloToken];
+        if (!string.IsNullOrEmpty(sUrl) && !string.IsNullOrEmpty(sTok)) {
+            provReg.Silo?.RestoreSession(sUrl, sTok);
+        }
         account = gameObject.AddComponent<StremioAccount>(); account.Status += ShowStatus; account.AddonsImported += ImportAccountAddons;
         account.HistoryLoaded += () => { if (pageTitle != null && pageTitle.text == "Watch history") HistoryPage(); };
         account.Changed += () => {
@@ -70,12 +86,28 @@ public sealed class CinemaApp : MonoBehaviour {
         motion.SnapAngle = (float?)settings[SettingsKeys.SnapAngle] ?? 45f;
         motion.HandOriented = (bool?)settings[SettingsKeys.HandOriented] ?? false;
         motion.SprintEnabled = (bool?)settings[SettingsKeys.SprintEnabled] ?? true;
+        motion.TeleportMode = (bool?)settings[SettingsKeys.TeleportMode] ?? false;
         motion.MenuVisible=()=>placement!=null && placement.Active; motion.Status+=ShowStatus; motion.Initialize();
         localBody.AvatarHeightChanged += h => motion.SetAvatarHeight(h);
         ApplyBrowserRes((string)settings[SettingsKeys.BrowserRes] ?? "1080p");
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
         ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings[SettingsKeys.Ambient]??true; ambient.Strength=(float?)settings[SettingsKeys.AmbientStrength]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
+        int savedEnv = Mathf.Clamp((int?)settings[SettingsKeys.EnvMode] ?? 0, 0, 2);
+        world.SetEnvironmentMode((WorldManager.EnvironmentMode)savedEnv);
+        int savedStereo = Mathf.Clamp((int?)settings[SettingsKeys.StereoMode] ?? 0, 0, 2);
+        bool savedSwap = (bool?)settings[SettingsKeys.SwapEyes] ?? false;
+        world.SetStereoMode(savedStereo, savedSwap);
+        float savedBr = (float?)settings[SettingsKeys.ScreenBrightness] ?? 1.0f;
+        float savedCo = (float?)settings[SettingsKeys.ScreenContrast] ?? 1.0f;
+        float savedSa = (float?)settings[SettingsKeys.ScreenSaturation] ?? 1.0f;
+        world.SetPictureAdjustments(savedBr, savedCo, savedSa);
+        int savedHdr = Mathf.Clamp((int?)settings[SettingsKeys.HdrMode] ?? 0, 0, 3);
+        world.SetHdrMode(savedHdr);
+        bool savedBed = (bool?)settings[SettingsKeys.BedMode] ?? false;
+        world.SetBedMode(savedBed);
+        float savedCurv = (float?)settings[SettingsKeys.ScreenCurvature] ?? 0f;
+        if (savedCurv > 0) world.SetCurvature(savedCurv);
         browser=gameObject.AddComponent<WebCinema>(); browser.Room=room; browser.Playback=playback; browser.World=world; browser.Ambient=ambient; browser.Status+=ShowStatus; browser.Initialize();
         games=gameObject.AddComponent<TabletopGames>();games.Initialize(room,world);games.Status+=ShowStatus;
         placement=gameObject.AddComponent<RoomPlacement>();placement.Room=room;placement.Head=head;placement.Status+=ShowStatus;
@@ -174,10 +206,11 @@ public sealed class CinemaApp : MonoBehaviour {
         content = new GameObject("Content", typeof(RectTransform), typeof(PageFade)).GetComponent<RectTransform>(); content.SetParent(scrollGo.transform, false); Place(content, 0, 0, 930, 620);
         var scroll = scrollGo.GetComponent<ScrollRect>(); scroll.viewport = scrollGo.GetComponent<RectTransform>(); scroll.content = content; scroll.horizontal = false;
         pointer = new GameObject("Controller ray").AddComponent<LineRenderer>(); pointer.positionCount = 2; pointer.startWidth = 0.003f; pointer.endWidth = 0.001f; pointer.material = new Material(Shader.Find("Unlit/Color")); pointer.material.color = new Color(0.1f, 0.9f, 0.65f);
+        var kb = go.AddComponent<VRKeyboard>(); kb.Initialize(panel, font);
     }
 
     public void Recenter() { panel.position = head.position + head.forward * 1.8f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
-    void Clear() { scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
+    void Clear() { VRKeyboard.Instance?.Hide(); scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
 
     void Heading(string text) { Label(text, content, 0, row, 920, 45, 24); row += 55; Resize(); }
 
@@ -216,6 +249,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Web screen controls",BrowserControls);
         streamInput = Field("Direct video URL", "", null);
         ActionButton("Load video", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
+        ActionButton("👓 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
         ActionButton("Audio & subtitles",AudioSettings);
         ActionButton("Play / pause", () => playback.Toggle());
         ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
@@ -226,6 +260,11 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Leave room / return to solo", () => room.Leave());
         if (!room.IsSolo && room.Connected) {
             Heading("Room: " + (room.RoomId ?? ""));
+            ActionButton("📱 Open Host Dashboard & Invite QR", () => {
+                string dashUrl = room.ApiEndpoint ?? "http://localhost:3000";
+                browser.Open(dashUrl);
+                panelMotion.Show(false);
+            });
             ActionButton("Choose a seat / sofa", SeatsPage);
             Heading("Send Reaction (Floating Emojis)");
             ActionButton("🍿 Popcorn", () => SendReaction("🍿"));
@@ -282,6 +321,106 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Back to my room",Home);
     }
 
+    void CinemaControlsPage() {
+        Clear(); pageTitle.text = "Cinema Display & Controls";
+        Heading("Fluid, Bigscreen & DeoVR Experience");
+
+        // Environment Mode Row
+        Heading("Environment Mode (Fluid / Bigscreen)");
+        Plate(content, 0, row, actionWidth, 54, new Color(0.08f, 0.09f, 0.15f));
+        Button((world.CurrentEnvMode == WorldManager.EnvironmentMode.Cinema ? "● " : "") + "🛋 Cinema Room", content, 5, row + 4, 300, () => {
+            world.SetEnvironmentMode(WorldManager.EnvironmentMode.Cinema);
+            settings[SettingsKeys.EnvMode] = 0; Save(); CinemaControlsPage();
+        });
+        Button((world.CurrentEnvMode == WorldManager.EnvironmentMode.Void ? "● " : "") + "🌑 The Void", content, 310, row + 4, 300, () => {
+            world.SetEnvironmentMode(WorldManager.EnvironmentMode.Void);
+            settings[SettingsKeys.EnvMode] = 1; Save(); CinemaControlsPage();
+        });
+        Button((world.CurrentEnvMode == WorldManager.EnvironmentMode.Passthrough ? "● " : "") + "🥽 Passthrough", content, 615, row + 4, 300, () => {
+            world.SetEnvironmentMode(WorldManager.EnvironmentMode.Passthrough);
+            settings[SettingsKeys.EnvMode] = 2; Save(); CinemaControlsPage();
+        });
+        row += 62;
+
+        // Stereo 3D Mode Row
+        Heading("Stereoscopic 3D (DeoVR / Bigscreen)");
+        Plate(content, 0, row, actionWidth, 54, new Color(0.08f, 0.09f, 0.15f));
+        Button((world.StereoMode == 0 ? "● " : "") + "2D Mono", content, 5, row + 4, 225, () => {
+            world.SetStereoMode(0, world.SwapEyes);
+            settings[SettingsKeys.StereoMode] = 0; Save(); CinemaControlsPage();
+        });
+        Button((world.StereoMode == 1 ? "● " : "") + "3D Side-by-Side", content, 235, row + 4, 225, () => {
+            world.SetStereoMode(1, world.SwapEyes);
+            settings[SettingsKeys.StereoMode] = 1; Save(); CinemaControlsPage();
+        });
+        Button((world.StereoMode == 2 ? "● " : "") + "3D Over-Under", content, 465, row + 4, 225, () => {
+            world.SetStereoMode(2, world.SwapEyes);
+            settings[SettingsKeys.StereoMode] = 2; Save(); CinemaControlsPage();
+        });
+        Button((world.SwapEyes ? "● " : "") + "Invert Eyes", content, 695, row + 4, 220, () => {
+            world.SetStereoMode(world.StereoMode, !world.SwapEyes);
+            settings[SettingsKeys.SwapEyes] = world.SwapEyes; Save(); CinemaControlsPage();
+        });
+        row += 62;
+
+        // HDR Tone-Mapping Row
+        Heading("HDR Video Tone-Mapping (BT.2020 / PQ / HLG)");
+        Plate(content, 0, row, actionWidth, 54, new Color(0.08f, 0.09f, 0.15f));
+        Button((world.HdrMode == 0 ? "● " : "") + "SDR Standard", content, 5, row + 4, 225, () => {
+            world.SetHdrMode(0); settings[SettingsKeys.HdrMode] = 0; Save(); CinemaControlsPage();
+        });
+        Button((world.HdrMode == 1 ? "● " : "") + "HLG (Broadcast)", content, 235, row + 4, 225, () => {
+            world.SetHdrMode(1); settings[SettingsKeys.HdrMode] = 1; Save(); CinemaControlsPage();
+        });
+        Button((world.HdrMode == 2 ? "● " : "") + "HDR10 (PQ/ACES)", content, 465, row + 4, 225, () => {
+            world.SetHdrMode(2); settings[SettingsKeys.HdrMode] = 2; Save(); CinemaControlsPage();
+        });
+        Button((world.HdrMode == 3 ? "● " : "") + "Gamut Boost", content, 695, row + 4, 220, () => {
+            world.SetHdrMode(3); settings[SettingsKeys.HdrMode] = 3; Save(); CinemaControlsPage();
+        });
+        row += 62;
+
+        // Bed Mode & Curvature
+        Heading("Viewing Position & Curvature (Fluid / DeoVR)");
+        ActionButton("Bed Mode (Ceiling Projection): " + (world.BedMode ? "Active (Ceiling)" : "Standard (Wall)"), () => {
+            world.SetBedMode(!world.BedMode);
+            settings[SettingsKeys.BedMode] = world.BedMode; Save(); CinemaControlsPage();
+        });
+        SpeedControl("Screen Curvature", world.CustomCurvature, 0f, 90f, 15f, val => {
+            world.SetCurvature(val);
+            settings[SettingsKeys.ScreenCurvature] = val; Save();
+        }, "°", CinemaControlsPage);
+
+        // Picture Tuning
+        Heading("Picture Tuning (DeoVR Calibration)");
+        SpeedControl("Brightness", world.Brightness, 0.4f, 1.8f, 0.1f, val => {
+            world.SetPictureAdjustments(val, world.Contrast, world.Saturation);
+            settings[SettingsKeys.ScreenBrightness] = val; Save();
+        }, "x", CinemaControlsPage);
+        SpeedControl("Contrast", world.Contrast, 0.6f, 1.8f, 0.1f, val => {
+            world.SetPictureAdjustments(world.Brightness, val, world.Saturation);
+            settings[SettingsKeys.ScreenContrast] = val; Save();
+        }, "x", CinemaControlsPage);
+        SpeedControl("Saturation", world.Saturation, 0.0f, 2.0f, 0.1f, val => {
+            world.SetPictureAdjustments(world.Brightness, world.Contrast, val);
+            settings[SettingsKeys.ScreenSaturation] = val; Save();
+        }, "x", CinemaControlsPage);
+
+        // Quick playback transport
+        Heading("Quick Transport");
+        Plate(content, 0, row, actionWidth, 54, new Color(0.12f, 0.15f, 0.22f));
+        Button("⏮ -30s", content, 10, row + 4, 170, () => playback.Seek(-30));
+        Button("⏪ -10s", content, 190, row + 4, 170, () => playback.Seek(-10));
+        Button("⏯ Play/Pause", content, 370, row + 4, 180, () => playback.Toggle());
+        Button("⏩ +10s", content, 560, row + 4, 170, () => playback.Seek(10));
+        Button("⏭ +30s", content, 740, row + 4, 170, () => playback.Seek(30));
+        row += 64;
+
+        ActionButton("Audio & Subtitle Tracks", AudioSettings);
+        ActionButton("Return to My Room", Home);
+        Resize();
+    }
+
     void AudioSettings() {
         Clear(); pageTitle.text = "Audio & subtitles";
         Heading("Audio tracks");
@@ -296,6 +435,10 @@ public sealed class CinemaApp : MonoBehaviour {
                 playback.Subtitles.Toggle();
                 AudioSettings();
             });
+            string trackLabel = playback.Subtitles.AvailableTracks.Count > 0 
+                ? (playback.Subtitles.ActiveTrackIndex >= 0 ? playback.Subtitles.AvailableTracks[playback.Subtitles.ActiveTrackIndex].Language : "None selected")
+                : (string.IsNullOrEmpty(playback.Subtitles.CurrentSubtitleUrl) ? "No tracks" : "1 active track");
+            ActionButton("Choose subtitle track (" + trackLabel + ")", SubtitleTracksPage);
             ActionButton("Sync offset -0.5s", () => { playback.Subtitles.AdjustOffset(-0.5); AudioSettings(); });
             ActionButton("Sync offset +0.5s", () => { playback.Subtitles.AdjustOffset(0.5); AudioSettings(); });
             ActionButton("Reset subtitle offset", () => { playback.Subtitles.ResetOffset(); AudioSettings(); });
@@ -304,22 +447,52 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading("If a source uses unsupported AC-3/DTS audio, choose an AAC source or configure a compatible transcoding service. Voice volume is separate.");
     }
 
+    void SubtitleTracksPage() {
+        Clear(); pageTitle.text = "Subtitle Tracks";
+        Heading("Select Subtitle Track");
+        if (playback.Subtitles == null || playback.Subtitles.AvailableTracks.Count == 0) {
+            if (!string.IsNullOrEmpty(playback.Subtitles?.CurrentSubtitleUrl)) {
+                ActionButton("● Current Active Track", () => SubtitleTracksPage());
+                ActionButton("Turn Off Subtitles", () => { playback.Subtitles.Clear(); SubtitleTracksPage(); });
+            } else {
+                Heading("No subtitle tracks available for this stream.");
+            }
+        } else {
+            ActionButton(playback.Subtitles.ActiveTrackIndex < 0 ? "● Off (Disable Subtitles)" : "Off (Disable Subtitles)", () => {
+                playback.Subtitles.SelectTrack(-1);
+                SubtitleTracksPage();
+            });
+            for (int i = 0; i < playback.Subtitles.AvailableTracks.Count; i++) {
+                int trackIdx = i;
+                var track = playback.Subtitles.AvailableTracks[i];
+                string activeDot = playback.Subtitles.ActiveTrackIndex == trackIdx ? "● " : "";
+                ActionButton(activeDot + track.Language, () => {
+                    playback.Subtitles.SelectTrack(trackIdx, room.ApiEndpoint);
+                    SubtitleTracksPage();
+                });
+            }
+        }
+        ActionButton("Back to Audio & Subtitles", AudioSettings);
+    }
+
     void BrowserControls() {
         Clear(); pageTitle.text="Web browser";
         Heading(room.IsSolo?"Your private browser — account session stays on this headset":"Shared server browser — everyone in the room sees and hears it");
         ActionButton(browser.Active?"Return to native player":"Open browser on the screen",()=>{browser.Toggle();BrowserControls();});
         ActionButton("Hide menu / interact with the screen",()=>panelMotion.Show(false));
         Heading("Quick Media Web Wrappers");
-        Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
-        Button("🎬 Stremio Web", content, 10, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
-        Button("🍿 Jellyfin Web", content, 235, row + 8, 215, () => {
+        Plate(content, 0, row, actionWidth, 126, new Color(0.12f, 0.15f, 0.22f));
+        Button("🎬 Stremio Web", content, 10, row + 8, 290, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+        Button("🍿 Jellyfin Web", content, 315, row + 8, 290, () => {
             string j = (string)settings[SettingsKeys.JellyfinUrl];
             if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
             else { ShowStatus("Configure Jellyfin URL in the Streaming Hub first"); serverHubTab = 3; ServersHubPage(); }
         });
-        Button("🌌 Nuvio Web", content, 460, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
-        Button("📺 YouTube", content, 685, row + 8, 215, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
-        row += 70;
+        Button("🌌 Nuvio Web", content, 620, row + 8, 290, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+        Button("📺 YouTube", content, 10, row + 66, 290, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
+        Button("🅿️ Plex Web", content, 315, row + 66, 290, () => { browser.Open("https://app.plex.tv/desktop"); panelMotion.Show(false); });
+        Button("🎮 Twitch", content, 620, row + 66, 290, () => { browser.Open("https://www.twitch.tv/"); panelMotion.Show(false); });
+        row += 136;
         var address=Field("Web address", "https://web.stremio.com/",null);
         ActionButton("Go to address",()=>browser.Navigate(address.text));
         ActionButton("New tab",()=>{browser.NewTab(address.text);ShowStatus("Tab opened. Refresh tabs to see it.");});
@@ -334,7 +507,7 @@ public sealed class CinemaApp : MonoBehaviour {
 
     void AddonsPage() {
         pageTitle.text = "Catalogs"; Clear(); Heading("Manage catalogs and add-ons");
-        ActionButton("Add official and community add-ons", () => Application.OpenURL("https://stremio-addons.netlify.app/"));
+        ActionButton("Add official and community add-ons (stremio-addons.net)", () => Application.OpenURL("https://stremio-addons.net/"));
         var field = Field("Add-on manifest URL", "https://", null);
         ActionButton("Install add-on", () => {
             string url = field.text.Trim();
@@ -384,6 +557,46 @@ public sealed class CinemaApp : MonoBehaviour {
             return;
         }
 
+        var searchField = Field("Search across all providers (Stremio, Jellyfin, Silo, etc.)", "", null);
+        ActionButton("🔍 Search All Providers", async () => {
+            string q = searchField.text?.Trim();
+            if (string.IsNullOrEmpty(q)) return;
+            ShowStatus("Searching all providers for \"" + q + "\"…");
+            var results = reg != null ? await reg.SearchAllProvidersAsync(q) : new List<MediaItem>();
+            library.SearchAllAddons(q, stremioMetas => {
+                if (stremioMetas != null) {
+                    foreach (var sm in stremioMetas) {
+                        if (sm is JObject obj) {
+                            results.Add(new MediaItem {
+                                ProviderId = "stremio",
+                                ItemId = (string)obj["id"],
+                                Title = (string)obj["name"] ?? "Untitled",
+                                Type = (string)obj["type"] ?? "movie",
+                                PosterUrl = (string)obj["poster"]
+                            });
+                        }
+                    }
+                }
+                Clear(); pageTitle.text = "Search: " + q;
+                ActionButton("Back to Discover", Library);
+                Heading("Search Results for \"" + q + "\" (" + results.Count + " found)");
+                if (results.Count == 0) Heading("No results found on any connected provider.");
+                else MultiProviderPosterGrid(results);
+            });
+        });
+
+        ActionButton("🕒 Unified Continue Watching (Cross-Provider)", async () => {
+            if (reg != null) {
+                ShowStatus("Fetching in-progress media…");
+                var items = await reg.GetUnifiedContinueWatchingAsync();
+                Clear(); pageTitle.text = "Continue Watching";
+                ActionButton("Back to Discover", Library);
+                Heading("Continue Watching Across Providers (" + items.Count + " in progress)");
+                if (items.Count == 0) Heading("No active watch progress found on connected servers.");
+                else MultiProviderPosterGrid(items);
+            }
+        });
+
         ActionButton("⚡ Servers & Streaming Hub (Stremio / Nuvio / Jellyfin)", ServersHubPage);
         ActionButton("Manage catalogs", AddonsPage);
         if (library.Addons.Count == 0) {
@@ -432,6 +645,23 @@ public sealed class CinemaApp : MonoBehaviour {
             return;
         }
 
+        var searchInput = Field("Search " + prov.DisplayName + " library...", "", null);
+        ActionButton("🔍 Search " + prov.DisplayName, async () => {
+            string q = searchInput.text?.Trim();
+            if (string.IsNullOrEmpty(q)) return;
+            ShowStatus("Searching " + prov.DisplayName + " for \"" + q + "\"…");
+            List<MediaItem> res = null;
+            if (prov is JellyfinProvider jf) res = await jf.SearchAsync(q);
+            else if (prov is MediaStormProvider ms) res = await ms.SearchAsync(q);
+            else if (prov is SiloProvider silo) res = await silo.SearchAsync(q);
+
+            Clear(); pageTitle.text = prov.DisplayName + ": " + q;
+            ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
+            Heading("Results for \"" + q + "\" (" + (res?.Count ?? 0) + " found)");
+            if (res == null || res.Count == 0) Heading("No titles matched your search.");
+            else ProviderPosterGrid(res, prov);
+        });
+
         ShowStatus("Loading " + prov.DisplayName + " catalogs…");
         var catalogs = await prov.GetCatalogsAsync();
         Heading(prov.DisplayName + " Catalogs");
@@ -443,24 +673,31 @@ public sealed class CinemaApp : MonoBehaviour {
                 Button(currentCat.Name + " (" + currentCat.Type + ")", content, t * 310, row, 298, async () => {
                     ShowStatus("Loading " + currentCat.Name + "…");
                     var items = await prov.GetCatalogItemsAsync(currentCat.CatalogId);
-                    if (generation == pageGeneration) ProviderPosterGrid(items, prov);
+                    if (generation == pageGeneration) ProviderPosterGrid(items, prov, currentCat.CatalogId, 0);
                 });
                 t++;
             }
         }
         if (t > 0) row += 70;
 
-        if (catalogs.Count > 0) {
+        if (catalogs != null && catalogs.Count > 0) {
             Heading("Featured from " + catalogs[0].Name);
             var items = await prov.GetCatalogItemsAsync(catalogs[0].CatalogId);
-            if (generation == pageGeneration) ProviderPosterGrid(items, prov);
+            if (generation == pageGeneration) ProviderPosterGrid(items, prov, catalogs[0].CatalogId, 0);
         } else {
-            Heading("No media items found on " + prov.DisplayName);
+            Heading("No media catalogs found on " + prov.DisplayName);
+            Label("Make sure libraries are configured on your server and credentials are active.", content, 0, row, actionWidth, 40, 19); row += 48;
+            ActionButton("⚡ Open " + prov.DisplayName + " Settings in Hub", () => {
+                if (prov.ProviderId == "jellyfin") serverHubTab = 3;
+                else if (prov.ProviderId == "mediastorm") serverHubTab = 4;
+                else if (prov.ProviderId == "silo") serverHubTab = 4;
+                ServersHubPage();
+            });
             Resize();
         }
     }
 
-    void ProviderPosterGrid(List<MediaItem> items, IMediaProvider prov) {
+    void ProviderPosterGrid(List<MediaItem> items, IMediaProvider prov, string catalogId = null, int skip = 0) {
         int count = 0; float start = row;
         foreach (var item in items) {
             var currentItem = item;
@@ -477,7 +714,52 @@ public sealed class CinemaApp : MonoBehaviour {
             card.GetComponent<Button>().onClick.AddListener(() => ProviderItemDetails(currentItem, prov));
             if (++count >= 60) break;
         }
-        row = start + Mathf.Ceil(count / 4f) * 370; Resize();
+        row = start + Mathf.Ceil(count / 4f) * 370;
+        if (!string.IsNullOrEmpty(catalogId) && count >= 30) {
+            int nextSkip = skip + count;
+            ActionButton("Load more from " + prov.DisplayName + "…", async () => {
+                ShowStatus("Loading more titles…");
+                var moreItems = await prov.GetCatalogItemsAsync(catalogId, nextSkip);
+                if (moreItems != null && moreItems.Count > 0) {
+                    ProviderPosterGrid(moreItems, prov, catalogId, nextSkip);
+                } else {
+                    ShowStatus("Reached end of catalog.");
+                }
+            });
+        }
+        Resize();
+        ShowStatus(count == 0 ? "No media found" : "Select a poster for details and playback.");
+    }
+
+    void MultiProviderPosterGrid(List<MediaItem> items) {
+        var reg = GetComponent<MediaProviderRegistry>();
+        int count = 0; float start = row;
+        foreach (var item in items) {
+            var currentItem = item;
+            var prov = reg != null ? reg.GetProvider(currentItem.ProviderId) : null;
+            string provBadge = prov != null ? ("[" + prov.DisplayName + "] ") : "";
+            string title = provBadge + (item.Title ?? "Untitled");
+            float x = (count % 4) * 232, y = start + (count / 4) * 370;
+            var card = new GameObject("Title: " + title, typeof(RectTransform), typeof(Image), typeof(Button));
+            card.transform.SetParent(content, false); Place(card.GetComponent<RectTransform>(), x, y, 216, 350);
+            card.GetComponent<Button>().transition = Selectable.Transition.None; card.GetComponent<Image>().color = new Color(0.11f, 0.09f, 0.18f); card.AddComponent<UiMotion>().Card = true;
+            var poster = new GameObject("Poster", typeof(RectTransform), typeof(RawImage), typeof(PosterImage));
+            poster.transform.SetParent(card.transform, false); Place(poster.GetComponent<RectTransform>(), 6, 6, 204, 288);
+            poster.GetComponent<RawImage>().color = new Color(0.2f, 0.17f, 0.28f); poster.GetComponent<RawImage>().raycastTarget = false;
+            poster.GetComponent<PosterImage>().Load(item.PosterUrl);
+            Label(title, card.transform, 10, 300, 196, 44, 18);
+            card.GetComponent<Button>().onClick.AddListener(() => {
+                if (currentItem.ProviderId == "stremio") {
+                    Streams(currentItem.Type ?? "movie", currentItem.ItemId, currentItem.Title);
+                } else {
+                    var targetProv = prov ?? (reg != null ? reg.Jellyfin : null);
+                    if (targetProv != null) ProviderItemDetails(currentItem, targetProv);
+                }
+            });
+            if (++count >= 60) break;
+        }
+        row = start + Mathf.Ceil(count / 4f) * 370;
+        Resize();
         ShowStatus(count == 0 ? "No media found" : "Select a poster for details and playback.");
     }
 
@@ -544,13 +826,41 @@ public sealed class CinemaApp : MonoBehaviour {
             });
         });
     }
+    ResolvedStream CreateStremioResolvedStream(JObject stream, string url, string itemId, string title) {
+        var res = new ResolvedStream {
+            ProviderId = "stremio",
+            ItemId = itemId,
+            Title = title,
+            StreamUrl = url,
+            RequiresServerProxy = false
+        };
+        if (stream["subtitles"] is JArray subs && subs.Count > 0) {
+            res.SubtitleTracks = new List<SubtitleTrackInfo>();
+            foreach (var sub in subs) {
+                if (sub["url"] != null) {
+                    string lang = (string)sub["lang"] ?? (string)sub["id"] ?? "Subtitle";
+                    res.SubtitleTracks.Add(new SubtitleTrackInfo { Language = lang, Url = (string)sub["url"] });
+                }
+            }
+            if (res.SubtitleTracks.Count > 0) res.SubtitleUrl = res.SubtitleTracks[0].Url;
+        }
+        if (stream["behaviorHints"] is JObject hints) {
+            if (hints["videoCodec"] != null) res.SourceCodec = (string)hints["videoCodec"];
+            if (hints["proxyHeaders"]?["request"] is JObject reqHeaders) {
+                res.Headers = new Dictionary<string, string>();
+                foreach (var prop in reqHeaders.Properties()) res.Headers[prop.Name] = (string)prop.Value;
+            }
+        }
+        return res;
+    }
+
     void Streams(string type, string id, string title, double start=0) {
         Clear(); ActionButton("Back to library", Library); Heading("Sources: " + title); ShowStatus("Finding streams…"); int generation = pageGeneration;
         library.Streams(type, id, streams => {
             if (generation != pageGeneration) return;
             foreach (var token in streams) { var stream = (JObject)token;
                 if(room.IsSolo && stream["externalUrl"]!=null){string website=(string)stream["externalUrl"];ActionButton("Open website: "+((string)stream["name"]??"Source"),()=>{try{browser.Open(MediaLibrary.Http(website));panelMotion.Show(false);}catch(Exception error){ShowStatus(error.Message);}});continue;}
-                ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings[SettingsKeys.StreamingService], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; playback.Load(url, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
+                ActionButton((string)stream["name"] ?? (string)stream["title"] ?? "Stream", () => { try { library.ResolveStream(stream, (string)settings[SettingsKeys.StreamingService], url => { watching=new JObject { ["_id"]=id,["name"]=title,["type"]=type,["state"]=new JObject() }; watchingUrl=url; var resStream = CreateStremioResolvedStream(stream, url, id, title); playback.Load(resStream, title, start); }); } catch (Exception error) { ShowStatus(error.Message); } }); }
             ShowStatus(streams.Count == 0 ? "No streams. Install a stream-provider add-on." : "Choose a source, then use Room → Play.");
         });
     }
@@ -564,6 +874,32 @@ public sealed class CinemaApp : MonoBehaviour {
         Clear(); pageTitle.text="Watch history";
         Button(historyLocal?"Source: this headset":"Source: Stremio account",content,0,row,450,()=>{historyLocal=!historyLocal;HistoryPage();});
         Button(historyContinue?"Continue watching":"All watched titles",content,470,row,450,()=>{historyContinue=!historyContinue;HistoryPage();}); row+=70;
+        ActionButton("🌐 Cross-Provider Continue Watching (Jellyfin / Silo / MediaStorm)", async () => {
+            var reg = GetComponent<MediaProviderRegistry>();
+            if (reg != null) {
+                ShowStatus("Loading resume items across providers...");
+                var resumeItems = await reg.GetUnifiedContinueWatchingAsync();
+                Clear();
+                pageTitle.text = "Unified Watch Progress";
+                ActionButton("Back to Watch History", HistoryPage);
+                Heading("Active In-Progress Media Across All Servers");
+                if (resumeItems == null || resumeItems.Count == 0) {
+                    Heading("No active in-progress media on any connected provider.");
+                } else {
+                    foreach (var rItem in resumeItems) {
+                        var cur = rItem;
+                        var p = reg.GetProvider(cur.ProviderId);
+                        string pName = p != null ? p.DisplayName : cur.ProviderId;
+                        double seconds = cur.ResumePositionTicks > 0 ? (cur.ResumePositionTicks / 10000000.0) : 0;
+                        string timeStr = seconds > 0 ? ("resume at " + TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss")) : "in progress";
+                        ActionButton("[" + pName + "] " + cur.Title + "  ·  " + timeStr, () => {
+                            if (p != null) ProviderItemDetails(cur, p);
+                        });
+                    }
+                }
+                Resize();
+            }
+        });
         if(!historyLocal) { if(!account.SignedIn) { ActionButton("Sign in to view Stremio history",AccountPage); return; } ActionButton("Refresh Stremio history",account.RefreshHistory); }
         var entries=historyLocal?(settings[SettingsKeys.RecentHistory] as JArray??new JArray()):account.History;
         int count=0;
@@ -589,7 +925,8 @@ public sealed class CinemaApp : MonoBehaviour {
 
     void Comfort() {
         Clear(); pageTitle.text="Settings";
-        ActionButton("Movie Night source / AGPLv3",()=>Application.OpenURL("https://github.com/JeremyLakeyJr/stremio-vr"));
+        ActionButton("Media Quest VR GitHub & Releases", () => Application.OpenURL("https://github.com/oOflyeyesOo/Media-VR"));
+        ActionButton("Upstream Movie Night Source (AGPLv3)", () => Application.OpenURL("https://github.com/JeremyLakeyJr/stremio-vr"));
         Heading("Movement & turning");
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings[SettingsKeys.MoveSpeed]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings[SettingsKeys.TurnSpeed]=value;Save();},"°/s");
@@ -600,6 +937,7 @@ public sealed class CinemaApp : MonoBehaviour {
                 settings[SettingsKeys.SnapAngle] = motion.SnapAngle; Save(); Comfort();
             });
         }
+        ActionButton("Locomotion style: " + (motion.TeleportMode ? "Instant Teleport" : "Smooth Joystick Walk"), () => { motion.TeleportMode = !motion.TeleportMode; settings[SettingsKeys.TeleportMode] = motion.TeleportMode; Save(); Comfort(); });
         ActionButton("Movement direction: " + (motion.HandOriented ? "Left Hand / Controller-oriented" : "Head / Gaze-oriented"), () => { motion.HandOriented = !motion.HandOriented; settings[SettingsKeys.HandOriented] = motion.HandOriented; Save(); Comfort(); });
         ActionButton("Left stick sprint: " + (motion.SprintEnabled ? "Enabled" : "Disabled"), () => { motion.SprintEnabled = !motion.SprintEnabled; settings[SettingsKeys.SprintEnabled] = motion.SprintEnabled; Save(); Comfort(); });
 
@@ -612,6 +950,9 @@ public sealed class CinemaApp : MonoBehaviour {
             Save();
             Comfort();
         });
+
+        Heading("Cinema Display & Environments (Fluid / Bigscreen / DeoVR)");
+        ActionButton("👓 Open Cinema & 3D Controls (Void, Passthrough, 3D, Bed Mode)", CinemaControlsPage);
 
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
@@ -666,6 +1007,11 @@ public sealed class CinemaApp : MonoBehaviour {
         Field("Search name, collection or creator", query, value => AvatarLibrary(value, 0));
         var matches = OpenAvatarCatalog.Entries.Where(a => ((string)a["name"] + " " + a["collection"] + " " + a["creator"]).IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
         Heading(matches.Count + " avatars · downloads require internet");
+        ActionButton("🗑 Clear downloaded avatar disk cache", () => {
+            OpenAvatarCatalog.ClearCache();
+            ShowStatus("Avatar disk cache cleared.");
+            AvatarLibrary(query, offset);
+        });
         foreach (var entry in matches.Skip(offset).Take(10)) { var selected = entry; ActionButton(OpenAvatarCatalog.Credit(entry), () => AvatarDetails(selected, query, offset)); }
         if (offset > 0) ActionButton("Previous page", () => AvatarLibrary(query, Math.Max(0, offset - 10)));
         if (offset + 10 < matches.Count) ActionButton("Next page", () => AvatarLibrary(query, offset + 10));
@@ -690,14 +1036,16 @@ public sealed class CinemaApp : MonoBehaviour {
     void ActionButton(string text, Action click) { Button(text, content, 0, row, actionWidth, click); row += 62; Resize(); }
 
     InputField Field(string placeholder, string current, Action<string> changed) {
-        var go = new GameObject("Field", typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 920, 52);
+        var go = new GameObject("Field", typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 850, 52);
         go.GetComponent<Image>().color = new Color(0.1f, 0.08f, 0.16f);
-        var text = new GameObject("Text", typeof(RectTransform), typeof(Text)); text.transform.SetParent(go.transform, false); Place(text.GetComponent<RectTransform>(), 12, 0, 896, 52);
+        var text = new GameObject("Text", typeof(RectTransform), typeof(Text)); text.transform.SetParent(go.transform, false); Place(text.GetComponent<RectTransform>(), 12, 0, 826, 52);
         var label = text.GetComponent<Text>(); label.font = font; label.fontSize = 20; label.color = Color.white; label.alignment = TextAnchor.MiddleLeft;
-        var placeholderGo = new GameObject("Placeholder", typeof(RectTransform), typeof(Text)); placeholderGo.transform.SetParent(go.transform, false); Place(placeholderGo.GetComponent<RectTransform>(), 12, 0, 896, 52);
+        var placeholderGo = new GameObject("Placeholder", typeof(RectTransform), typeof(Text)); placeholderGo.transform.SetParent(go.transform, false); Place(placeholderGo.GetComponent<RectTransform>(), 12, 0, 826, 52);
         var ph = placeholderGo.GetComponent<Text>(); ph.font = font; ph.fontSize = 20; ph.color = new Color(0.5f, 0.45f, 0.65f); ph.text = placeholder; ph.alignment = TextAnchor.MiddleLeft;
         var field = go.GetComponent<InputField>(); field.textComponent = label; field.placeholder = ph; field.text = current ?? "";
-        field.onEndEdit.AddListener(result => changed?.Invoke(result)); row += 65; Resize(); return field;
+        field.onEndEdit.AddListener(result => changed?.Invoke(result));
+        Button("⌨️", content, 860, row, 60, () => VRKeyboard.Instance?.Attach(field));
+        row += 65; Resize(); return field;
     }
 
     InputField PasswordField(string placeholder, string current, Action<string> changed) {
@@ -885,7 +1233,7 @@ public sealed class CinemaApp : MonoBehaviour {
             var passInput = PasswordField("Account Password", "", null);
             ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
         }
-        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
         ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
     }
@@ -934,16 +1282,18 @@ public sealed class CinemaApp : MonoBehaviour {
 
         if (serverHubTab == 0) {
             Heading("🚀 One-Click Web Streamers");
-            Plate(content, 0, row, actionWidth, 60, new Color(0.12f, 0.15f, 0.22f));
-            Button("🌌 Nuvio Web", content, 10, row + 8, 215, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
-            Button("🎬 Stremio Web", content, 235, row + 8, 215, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
-            Button("🍿 Jellyfin Web", content, 460, row + 8, 215, () => {
+            Plate(content, 0, row, actionWidth, 126, new Color(0.12f, 0.15f, 0.22f));
+            Button("🌌 Nuvio Web", content, 10, row + 8, 290, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+            Button("🎬 Stremio Web", content, 315, row + 8, 290, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+            Button("🍿 Jellyfin Web", content, 620, row + 8, 290, () => {
                 string j = (string)settings[SettingsKeys.JellyfinUrl];
                 if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
                 else { ShowStatus("Configure your Jellyfin URL in the Jellyfin tab first"); serverHubTab = 3; ServersHubPage(); }
             });
-            Button("📺 YouTube", content, 685, row + 8, 215, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
-            row += 72;
+            Button("📺 YouTube", content, 10, row + 66, 290, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
+            Button("🅿️ Plex Web", content, 315, row + 66, 290, () => { browser.Open("https://app.plex.tv/desktop"); panelMotion.Show(false); });
+            Button("🎮 Twitch", content, 620, row + 66, 290, () => { browser.Open("https://www.twitch.tv/"); panelMotion.Show(false); });
+            row += 136;
 
             Heading("Active Server Status");
             string sStatus = account.SignedIn ? "🟢 Stremio: Signed in (" + (account.DisplayName ?? "Account") + ")" : "⚪ Stremio: Not paired";
@@ -1043,10 +1393,34 @@ public sealed class CinemaApp : MonoBehaviour {
                     ServersHubPage();
                 }
             });
+            if (jConn) {
+                ActionButton("Disconnect Jellyfin", () => {
+                    reg.Jellyfin.RestoreSession("", "", "");
+                    settings[SettingsKeys.JellyfinToken] = "";
+                    settings[SettingsKeys.JellyfinUserId] = "";
+                    Save();
+                    ShowStatus("Disconnected from Jellyfin.");
+                    ServersHubPage();
+                });
+            }
             ActionButton("🍿 Open Jellyfin Web Player", () => {
                 string j = (string)settings[SettingsKeys.JellyfinUrl];
                 if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
                 else { ShowStatus("Enter your Jellyfin URL above first"); }
+            });
+
+            Heading("lostb1t / Standalone Remux Server");
+            Label("Remux aggregates Stremio, WebDAV, and Debrid streams into a fast direct-play HTTP / HLS server.", content, 0, row, actionWidth, 35, 18); row += 40;
+            string rUrl = (string)settings[SettingsKeys.RemuxUrl] ?? "";
+            var rUrlInput = Field("Remux Server URL (e.g. http://192.168.1.166:3000)", rUrl, v => { settings[SettingsKeys.RemuxUrl] = v; Save(); });
+            ActionButton("Test / Open Remux Web UI", () => {
+                string r = rUrlInput.text?.Trim();
+                if (!string.IsNullOrEmpty(r)) {
+                    browser.Open(r);
+                    panelMotion.Show(false);
+                } else {
+                    ShowStatus("Enter Remux Server URL first");
+                }
             });
         }
         else if (serverHubTab == 4) {
@@ -1065,6 +1439,15 @@ public sealed class CinemaApp : MonoBehaviour {
                     ServersHubPage();
                 }
             });
+            if (msConn) {
+                ActionButton("Disconnect MediaStorm", () => {
+                    reg.MediaStorm.RestoreSession("", "");
+                    settings[SettingsKeys.MediaStormKey] = "";
+                    Save();
+                    ShowStatus("Disconnected from MediaStorm.");
+                    ServersHubPage();
+                });
+            }
 
             Heading("🚀 Silo High-Performance Backend");
             string siloStatus = siloConn ? "🟢 Connected" : "⚪ Standby";
@@ -1083,6 +1466,15 @@ public sealed class CinemaApp : MonoBehaviour {
                     ServersHubPage();
                 }
             });
+            if (siloConn) {
+                ActionButton("Disconnect Silo", () => {
+                    reg.Silo.RestoreSession("", "");
+                    settings[SettingsKeys.SiloToken] = "";
+                    Save();
+                    ShowStatus("Disconnected from Silo.");
+                    ServersHubPage();
+                });
+            }
         }
         else if (serverHubTab == 5) {
             Heading("🖥 Virtual Web Screen Resolution & 4K Options");
@@ -1097,7 +1489,7 @@ public sealed class CinemaApp : MonoBehaviour {
             Heading("Active Resolution: " + browser.WebWidth + "×" + browser.WebHeight);
         }
 
-        ActionButton("⚡ Servers & Streaming Hub (Nuvio / Jellyfin / Silo)", ServersHubPage);
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
         ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
         Resize();

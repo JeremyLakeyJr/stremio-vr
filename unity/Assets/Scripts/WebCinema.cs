@@ -12,7 +12,7 @@ public sealed class WebCinema : MonoBehaviour {
  public bool Active { get; private set; }
  public int WebWidth { get; private set; } = 1920;
  public int WebHeight { get; private set; } = 1080;
- byte[] pixels; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame;
+ byte[] pixels; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame; int consecutiveSlowFrames;
  AndroidJavaObject rtc; Texture2D yPlane,uPlane,vPlane; RenderTexture videoTexture; Material converter; JArray remoteTabs=new JArray(); string ice="[]"; bool remoteMode,watching; float nextPointer,nextScroll,lastVolume=-1;
  public void Initialize(){Room.Message+=OnMessage;}
  public void SetResolution(int width, int height) {
@@ -76,7 +76,24 @@ public sealed class WebCinema : MonoBehaviour {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
   if(remoteMode){try{ReceiveFrame();}catch(Exception e){Status?.Invoke("Browser frame failed: "+e.GetType().Name);Release();}return;}
   float targetFps = WebWidth >= 3840 ? 24f : 30f; if(Time.unscaledTime<nextFrame)return; nextFrame=Time.unscaledTime+1f/targetFps;
-  try { var bytes=web?.Call<sbyte[]>("takeFrame"); if(bytes!=null && bytes.Length==WebWidth*WebHeight*4) {Buffer.BlockCopy(bytes,0,pixels,0,bytes.Length);texture.LoadRawTextureData(pixels);texture.Apply(false); if(!receivedFrame){receivedFrame=true;Debug.Log("[WebScreen] Hardware frame received: "+WebWidth+"x"+WebHeight+" RGBA");}} } catch(Exception e) { Status?.Invoke("Web screen stopped: "+e.GetType().Name);Close(); }
+  try {
+    var bytes=web?.Call<sbyte[]>("takeFrame");
+    if(bytes!=null && bytes.Length==WebWidth*WebHeight*4) {
+      var sw = System.Diagnostics.Stopwatch.StartNew();
+      Buffer.BlockCopy(bytes,0,pixels,0,bytes.Length);
+      texture.LoadRawTextureData(pixels);
+      texture.Apply(false);
+      sw.Stop();
+      if(WebWidth >= 3840 && sw.ElapsedMilliseconds > 25) {
+        if(++consecutiveSlowFrames >= 3) {
+          consecutiveSlowFrames = 0;
+          SetResolution(2560, 1440);
+          Status?.Invoke("4K display throttled to 1440p Quad HD for thermal & VR performance.");
+        }
+      } else { consecutiveSlowFrames = 0; }
+      if(!receivedFrame){receivedFrame=true;Debug.Log("[WebScreen] Hardware frame received: "+WebWidth+"x"+WebHeight+" RGBA");}
+    }
+   } catch(Exception e) { Status?.Invoke("Web screen stopped: "+e.GetType().Name);Close(); }
  }
  public bool Point(Ray ray,bool held,float scroll,out Vector3 point) {
   point=Vector3.zero; if(!Active||!screen||!Room.IsHost)return false;

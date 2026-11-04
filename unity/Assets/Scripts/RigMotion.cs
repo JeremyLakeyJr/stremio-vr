@@ -14,6 +14,8 @@ public sealed class RigMotion : MonoBehaviour {
  public float SnapAngle = 45f;
  public bool HandOriented = false;
  public bool SprintEnabled = true;
+ public bool TeleportMode = false;
+ Vector3 teleportTarget; bool teleportAiming;
  public float SprintMultiplier = 1.75f;
  public bool Seated => seatedSeat>=0;
  public float ViewPitch => Mathf.DeltaAngle(0,Tracking.localEulerAngles.x);
@@ -130,8 +132,21 @@ public sealed class RigMotion : MonoBehaviour {
   controller.height = height;
   controller.center = new Vector3(localHead.x, height * 0.5f, localHead.z);
   
-  verticalVelocity = controller.isGrounded ? -2.5f : Mathf.Max(-10f, verticalVelocity - 9.81f * Time.deltaTime);
-  controller.Move(((forward * stick.y + rightward * stick.x) * activeSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
+  if (TeleportMode) {
+   if (stick.y > 0.5f) {
+    teleportAiming = true;
+    teleportTarget = Rig.position + forward * (stick.y * 3f);
+    if (Physics.Raycast(teleportTarget + Vector3.up * 2f, Vector3.down, out var hit, 5f)) {
+     teleportTarget = hit.point;
+    }
+   } else if (teleportAiming && stick.magnitude < 0.2f) {
+    teleportAiming = false;
+    Teleport(teleportTarget, false);
+   }
+  } else {
+   verticalVelocity = controller.isGrounded ? -2.5f : Mathf.Max(-10f, verticalVelocity - 9.81f * Time.deltaTime);
+   controller.Move(((forward * stick.y + rightward * stick.x) * activeSpeed + Vector3.up * verticalVelocity) * Time.deltaTime);
+  }
   if(Head.position.y < -3) Teleport(World.Data.Spawn, false);
  }
  void OnDestroy() { if(Room!=null) Room.Message-=Message; }

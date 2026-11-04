@@ -15,6 +15,7 @@ public sealed class StremioAccount : MonoBehaviour {
  public string LinkCode { get; private set; }
  public string LinkUrl { get; private set; }
  public string DisplayName { get; private set; }
+ public bool IsLinking => !string.IsNullOrEmpty(LinkCode);
  string authKey; int generation; bool syncing;
  public void Resume() {
   try { authKey=Vault("load"); } catch { Status?.Invoke("Saved sign-in could not be read. Please sign in again."); }
@@ -60,10 +61,12 @@ public sealed class StremioAccount : MonoBehaviour {
    yield return new WaitForSecondsRealtime(5);
    if(run!=generation) yield break;
    JObject result=null;
+   Status?.Invoke("Waiting for approval on link.stremio.com • " + DateTime.Now.ToString("HH:mm:ss"));
    yield return Request("https://link.stremio.com/api/v2/read?type=Read&code="+Uri.EscapeDataString(LinkCode),null,data=>result=data as JObject,true);
    if(run!=generation) yield break;
    string key=(string)result?["authKey"]; if(string.IsNullOrEmpty(key)) continue;
-   authKey=key; LinkCode=null; LinkUrl=null;
+   authKey=key; LinkCode=null; LinkUrl=null; Changed?.Invoke();
+   Status?.Invoke("Link approved! Signing in…");
    try { Vault("save",authKey); } catch { Status?.Invoke("Signed in for this session; secure storage was unavailable."); }
    yield return LoadAccount(run); yield break;
   }

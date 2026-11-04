@@ -5,7 +5,9 @@ import {
   sanitizeUpstreamHeaders,
   formatUpstreamHeaders,
   buildTranscodeArgs,
-  detectMediaCapabilities
+  detectMediaCapabilities,
+  BITRATE_LADDER,
+  getQualityProfile
 } from '../server/hwaccel.js';
 import { createServer } from '../server/index.js';
 import { once } from 'node:events';
@@ -239,4 +241,18 @@ test('hosting: tailscale magicdns domain is accepted when configured in env', as
     if (oldTsUrl) process.env.TAILSCALE_URL = oldTsUrl;
     else delete process.env.TAILSCALE_URL;
   }
+});
+
+test('hwaccel: BITRATE_LADDER and getQualityProfile scale correctly', () => {
+  assert.equal(getQualityProfile('4k').height, 2160);
+  assert.equal(getQualityProfile('1080p').bitrate, '10M');
+  assert.equal(getQualityProfile('720p').fps, 30);
+  assert.equal(getQualityProfile('unknown'), null);
+
+  const args = buildTranscodeArgs({
+    input: 'http://127.0.0.1:3000/media.mkv',
+    qualityProfile: '720p',
+    outputDir: '/tmp/test'
+  });
+  assert.ok(args.includes('4000k'));
 });

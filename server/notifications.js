@@ -1,5 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
+import { getConfig } from './config.js';
 
 /**
  * Formats a notification payload depending on target service (Discord, Slack, or Generic/Apprise).
@@ -71,7 +72,9 @@ export function formatNotificationPayload({ event, title, roomId, inviteUrl, cli
  * Fails silently so webhook network issues never impact room performance.
  */
 export async function sendNotification({ event, title, roomId, inviteUrl, clientCount }) {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL ||
+  const cfg = typeof getConfig === 'function' ? getConfig() : null;
+  const webhookUrl = cfg?.webhookUrl ||
+                     process.env.DISCORD_WEBHOOK_URL ||
                      process.env.SLACK_WEBHOOK_URL ||
                      process.env.APPRISE_URL ||
                      process.env.NOTIFICATION_WEBHOOK_URL;

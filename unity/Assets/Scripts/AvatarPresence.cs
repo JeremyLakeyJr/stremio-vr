@@ -56,7 +56,9 @@ public sealed class AvatarPresence : MonoBehaviour {
         if (type == "reaction") {
             string fromId = (string)message["playerId"];
             string emoji = (string)message["emoji"];
-            if (!string.IsNullOrEmpty(emoji)) ShowReaction(fromId, emoji);
+            if (!string.IsNullOrEmpty(emoji) && (Room == null || fromId != Room.PlayerId)) {
+                ShowReaction(fromId, emoji);
+            }
         }
     }
     public void ShowReaction(string playerId, string emoji) {

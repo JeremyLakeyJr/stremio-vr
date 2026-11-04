@@ -123,12 +123,28 @@ export function formatUpstreamHeaders(upstreamHeaders = {}) {
   return lines.length > 0 ? ['-headers', lines.join('')] : [];
 }
 
+export const BITRATE_LADDER = {
+  '4k': { height: 2160, fps: 60, bitrate: '25M', bufsize: '40M' },
+  '1440p': { height: 1440, fps: 60, bitrate: '16M', bufsize: '25M' },
+  '1080p': { height: 1080, fps: 60, bitrate: '10M', bufsize: '16M' },
+  '720p': { height: 720, fps: 30, bitrate: '4000k', bufsize: '8M' },
+  '480p': { height: 480, fps: 30, bitrate: '1500k', bufsize: '3M' }
+};
+
+export function getQualityProfile(profileName) {
+  if (profileName && BITRATE_LADDER[String(profileName).toLowerCase()]) {
+    return BITRATE_LADDER[String(profileName).toLowerCase()];
+  }
+  return null;
+}
+
 export function buildTranscodeArgs({
   input,
   startTimeSeconds = 0,
   capabilities = {},
   sourceCodec = null,
   audioTrackIndex = null,
+  qualityProfile = null,
   upstreamHeaders = {},
   outputDir,
   threads = 2
@@ -140,30 +156,32 @@ export function buildTranscodeArgs({
   let videoArgs;
   let hwInitArgs = [];
 
+  const qp = getQualityProfile(qualityProfile);
+  const targetBitrate = qp ? qp.bitrate : (capabilities.videoBitrate || (capabilities.hwAccel ? '15M' : '3500k'));
+  const targetHeight = qp ? qp.height : (capabilities.maxHeight || (capabilities.hwAccel ? 1080 : 720));
+  const targetFps = qp ? qp.fps : (capabilities.maxFps || (capabilities.hwAccel ? 60 : 30));
+
   if (canDirectCopy) {
     videoArgs = ['-c:v', 'copy'];
   } else if (capabilities.hwAccel && capabilities.backend) {
     hwInitArgs = capabilities.backend.initArgs || [];
     videoArgs = [
-      '-vf', capabilities.backend.scaleFilter(capabilities.maxHeight || 1080),
-      '-r', String(capabilities.maxFps || 60),
-      ...capabilities.backend.encodeArgs(capabilities.videoBitrate || '15M')
+      '-vf', capabilities.backend.scaleFilter(targetHeight),
+      '-r', String(targetFps),
+      ...capabilities.backend.encodeArgs(targetBitrate)
     ];
   } else {
     // CPU Fallback (720p / 30fps default cap)
-    const maxHeight = capabilities.maxHeight || 720;
-    const maxFps = capabilities.maxFps || 30;
-    const bitrate = capabilities.videoBitrate || '3500k';
     videoArgs = [
-      '-vf', `scale=w='min(1280,iw)':h='min(${maxHeight},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`,
-      '-r', String(maxFps),
+      '-vf', `scale=w='min(1280,iw)':h='min(${targetHeight},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`,
+      '-r', String(targetFps),
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-profile:v', 'main',
       '-pix_fmt', 'yuv420p',
       '-crf', '21',
-      '-maxrate', bitrate,
-      '-bufsize', '10M',
+      '-maxrate', targetBitrate,
+      '-bufsize', qp?.bufsize || '10M',
       '-g', '60',
       '-keyint_min', '60',
       '-sc_threshold', '0'

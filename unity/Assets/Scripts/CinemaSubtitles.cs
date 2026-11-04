@@ -1,3 +1,4 @@
+using StremioVR.Providers;
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -20,6 +21,8 @@ namespace StremioVR
         public double OffsetSeconds { get; set; } = 0;
         public string CurrentSubtitleUrl { get; private set; }
         public int CueCount => _cues.Count;
+        public List<SubtitleTrackInfo> AvailableTracks { get; private set; } = new List<SubtitleTrackInfo>();
+        public int ActiveTrackIndex { get; private set; } = -1;
 
         private CinemaPlayback _playback;
         private GameObject _screen;
@@ -118,6 +121,32 @@ namespace StremioVR
             {
                 _textMesh.text = "";
             }
+        }
+
+        public void SetAvailableTracks(List<SubtitleTrackInfo> tracks)
+        {
+            AvailableTracks = tracks ?? new List<SubtitleTrackInfo>();
+            ActiveTrackIndex = -1;
+            if (AvailableTracks.Count > 0 && !string.IsNullOrEmpty(CurrentSubtitleUrl))
+            {
+                for (int i = 0; i < AvailableTracks.Count; i++)
+                {
+                    if (AvailableTracks[i].Url == CurrentSubtitleUrl) { ActiveTrackIndex = i; break; }
+                }
+            }
+        }
+
+        public void SelectTrack(int index, string apiEndpoint = "")
+        {
+            if (index < 0 || index >= AvailableTracks.Count)
+            {
+                ActiveTrackIndex = -1;
+                Clear();
+                return;
+            }
+            ActiveTrackIndex = index;
+            Enabled = true;
+            LoadSubtitles(AvailableTracks[index].Url, apiEndpoint);
         }
 
         public void Clear()

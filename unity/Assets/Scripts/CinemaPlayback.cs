@@ -15,11 +15,13 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public ushort AudioTrack { get; private set; }
     public CinemaSubtitles Subtitles { get; private set; }
     public int ServerAudioTrackIndex { get; private set; } = 0;
+    public string ActiveProviderId { get; private set; }
+    public string ActiveItemId { get; private set; }
     public string AudioInfo => Video.audioTrackCount > 0 ? "Track " + (AudioTrack + 1) + " of " + Video.audioTrackCount : "No alternate audio tracks";
     public double Position => Video.time + ((double?)playback?["mediaStart"] ?? 0);
     public double Duration => ((string)playback?["url"] ?? "").StartsWith("/media/") ? ((double?)playback?["duration"] ?? 0) : Video.length;
     public bool Suspended { get; set; }
-    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek; double soloPosition;
+    Renderer screenRenderer; Vector3 screenSize; JObject playback; float nextSync, nextDiagnostic; bool preparing,soloSeek,wasPaused; double soloPosition;
     public void Initialize(RoomClient room, Renderer screen) {
         Room = room; Room.Message += OnMessage;
         Video = gameObject.AddComponent<VideoPlayer>(); Video.playOnAwake = false; Video.isLooping = false;
@@ -27,7 +29,10 @@ public sealed class CinemaPlayback : MonoBehaviour {
         Video.errorReceived += (source, message) => { preparing = false; Status?.Invoke("Video playback error: " + message); };
         Video.prepareCompleted += source => {
             if(soloSeek){Video.time=Math.Min(soloPosition,Video.length>0?Video.length:soloPosition);soloSeek=false;}
-            preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]); };
+            preparing = false; ApplyAudio(); Apply(); Status?.Invoke("Ready: " + (string)playback?["title"]);
+            wasPaused = (bool?)playback?["paused"] ?? false;
+            WatchProgressSync.Instance?.OnPlaybackStarted(ActiveProviderId, ActiveItemId, (string)playback?["title"], Position, Duration);
+        };
         Subtitles = gameObject.AddComponent<CinemaSubtitles>();
         Subtitles.Initialize(this, screen ? screen.gameObject : null);
         SetScreen(screen);
@@ -35,7 +40,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
     public void SetScreen(Renderer screen) { screenRenderer = screen; screenSize = screen ? screen.transform.localScale : Vector3.one; Subtitles?.SetScreen(screen ? screen.gameObject : null); ApplyScreen(); }
     void ApplyScreen() { if (screenRenderer) { Video.targetMaterialRenderer = screenRenderer; Video.targetMaterialProperty = "_MainTex"; } }
     void OnMessage(JObject message) {
-        if ((string)message["type"] == "disconnected") { playback = null; Video.Stop(); preparing = false; return; }
+        if ((string)message["type"] == "disconnected") { WatchProgressSync.Instance?.OnPlaybackStopped(Position); playback = null; Video.Stop(); preparing = false; return; }
         if (message["type"]?.ToString() != "state") return;
         var next = message["playback"] as JObject; if (next == null) return;
         bool changed = (string)playback?["url"] != (string)next["url"] || (!Video.isPrepared && !preparing && (long?)playback?["revision"] != (long?)next["revision"]);
@@ -49,6 +54,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
                 Subtitles?.Clear();
             }
         } else if (string.IsNullOrEmpty((string)next["url"])) {
+            WatchProgressSync.Instance?.OnPlaybackStopped(Position);
             Video.Stop(); Subtitles?.Clear();
         } else Apply();
     }
@@ -60,15 +66,23 @@ public sealed class CinemaPlayback : MonoBehaviour {
     void Update() {
         if (Suspended || playback == null || preparing || !Video.isPrepared) return;
         bool paused = (bool)playback["paused"];
+        if (paused != wasPaused) {
+            wasPaused = paused;
+            if (paused) WatchProgressSync.Instance?.OnPlaybackPaused(Position);
+            else WatchProgressSync.Instance?.OnPlaybackResumed(Position);
+        }
+        WatchProgressSync.Instance?.OnPlaybackPositionUpdated(Position);
         double desired = (double)playback["position"] + (paused ? 0 : Math.Max(0, Room.ServerTime - (double)playback["updatedAt"]) / 1000);
         desired = Math.Max(0, desired - ((double?)playback["mediaStart"] ?? 0));
         if (Video.length > 0 && !((string)playback["url"]).StartsWith("/media/")) desired = Math.Min(desired, Video.length);
         double delta = desired - Video.time;
         if (paused) { if (Video.isPlaying) Video.Pause(); if (Math.Abs(delta) > 0.3) Video.time = desired; return; }
         if (!Video.isPlaying) Video.Play();
-        if (Math.Abs(delta) > 3) Video.time = desired;
-        else if (Math.Abs(delta) > 0.15 && Time.unscaledTime > nextSync) {
-            Video.time = desired; nextSync = Time.unscaledTime + 2.5f;
+        if (Math.Abs(delta) > 2.5) {
+            Video.time = desired;
+        } else if (Math.Abs(delta) > 0.6 && Time.unscaledTime > nextSync) {
+            Video.time = desired;
+            nextSync = Time.unscaledTime + 4.0f;
         }
         if (Video.canSetPlaybackSpeed) Video.playbackSpeed = 1;
         if (screenRenderer && Video.texture && (Video.texture.width != (int)screenSize.x || Video.texture.height != (int)screenSize.y)) {
@@ -128,10 +142,15 @@ public sealed class CinemaPlayback : MonoBehaviour {
     }
     public void NextServerAudioTrack() => SelectServerAudioTrack((ServerAudioTrackIndex + 1) % 8);
     public void Load(string url, string title, double position=0) {
+        ActiveProviderId = "direct"; ActiveItemId = url;
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
         try { SourceUrl=MediaLibrary.Http(url); Room.Send(new JObject { ["type"] = "playback", ["url"] = SourceUrl, ["title"] = title, ["position"] = Math.Max(0,position) }); } catch (Exception error) { Status?.Invoke(error.Message); }
     }
     public void Load(ResolvedStream stream, string title, double position=0) {
+        ActiveProviderId = stream?.ProviderId; ActiveItemId = stream?.ItemId;
+        if (stream?.SubtitleTracks != null && stream.SubtitleTracks.Count > 0) {
+            Subtitles?.SetAvailableTracks(stream.SubtitleTracks);
+        }
         if (!Room.IsHost) { Status?.Invoke("Create a room or ask the host to choose media"); return; }
         if (stream == null || string.IsNullOrEmpty(stream.StreamUrl)) { Status?.Invoke("Invalid stream selection"); return; }
         try {
@@ -163,6 +182,6 @@ public sealed class CinemaPlayback : MonoBehaviour {
         if (!Room.IsHost) { Status?.Invoke("Only the host controls playback"); return; }
         Room.Send(new JObject { ["type"] = "playback", ["paused"] = paused, ["position"] = position, ["seek"] = seek });
     }
-    void OnDestroy() { if (Room != null) Room.Message -= OnMessage; }
+    void OnDestroy() { WatchProgressSync.Instance?.OnPlaybackStopped(Position); if (Room != null) Room.Message -= OnMessage; }
 }
 }

@@ -180,6 +180,19 @@ namespace StremioVR.Providers
             var results = new List<MediaItem>();
             if (string.IsNullOrWhiteSpace(query)) return results;
 
+            if (Jellyfin != null && Jellyfin.IsAuthenticated)
+            {
+                try
+                {
+                    var jfItems = await Jellyfin.SearchAsync(query);
+                    if (jfItems != null) results.AddRange(jfItems);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[MediaProviderRegistry] Jellyfin search failed: {e.Message}");
+                }
+            }
+
             if (MediaStorm != null && MediaStorm.IsAuthenticated)
             {
                 try

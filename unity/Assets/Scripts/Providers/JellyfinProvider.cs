@@ -13,6 +13,8 @@ namespace StremioVR.Providers
         public string DisplayName { get; private set; }
         public ProviderType Type => ProviderType.Jellyfin;
         public bool IsAuthenticated => !string.IsNullOrEmpty(_accessToken) && !string.IsNullOrEmpty(_userId);
+        public string AccessToken => _accessToken;
+        public string UserId => _userId;
 
         private string _serverUrl;
         private string _accessToken;
@@ -141,6 +143,30 @@ namespace StremioVR.Providers
             return result;
         }
 
+        public async Task<List<MediaItem>> SearchAsync(string query)
+        {
+            var result = new List<MediaItem>();
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(query)) return result;
+
+            string url = $"{_serverUrl}/Users/{_userId}/Items" +
+                         $"?searchTerm={UnityWebRequest.EscapeURL(query)}" +
+                         $"&IncludeItemTypes=Movie,Series,Episode" +
+                         $"&Recursive=true&Limit=40";
+
+            string json = await GetJsonAsync(url);
+            if (string.IsNullOrEmpty(json)) return result;
+
+            var envelope = JsonUtility.FromJson<ItemsEnvelope>(json);
+            if (envelope?.Items == null) return result;
+
+            foreach (var dto in envelope.Items)
+            {
+                result.Add(MapToMediaItem(dto));
+            }
+
+            return result;
+        }
+
         public async Task<List<ResolvedStream>> GetStreamsAsync(string itemId)
         {
             var streams = new List<ResolvedStream>();
@@ -161,11 +187,29 @@ namespace StremioVR.Providers
                     ? source.Path
                     : $"{_serverUrl}/Videos/{itemId}/stream?static=true&MediaSourceId={source.Id}";
 
+                var subTracks = new List<SubtitleTrackInfo>();
+                if (source.MediaStreams != null)
+                {
+                    foreach (var ms in source.MediaStreams)
+                    {
+                        if (ms.Type == "Subtitle")
+                        {
+                            string lang = !string.IsNullOrEmpty(ms.DisplayTitle) ? ms.DisplayTitle : (!string.IsNullOrEmpty(ms.Language) ? ms.Language : "Subtitle " + ms.Index);
+                            string subUrl = $"{_serverUrl}/Videos/{itemId}/{source.Id}/Subtitles/{ms.Index}/Stream.vtt?api_key={_accessToken}";
+                            subTracks.Add(new SubtitleTrackInfo { Language = lang, Url = subUrl });
+                        }
+                    }
+                }
+
                 streams.Add(new ResolvedStream
                 {
+                    ProviderId = ProviderId,
+                    ItemId = itemId,
                     Title = $"[{DisplayName}] {source.Name} ({videoCodec?.ToUpperInvariant() ?? "DIRECT"})",
                     StreamUrl = streamUrl,
                     SourceCodec = videoCodec, // Passed to server/hwaccel.js for -c:v copy check
+                    SubtitleTracks = subTracks.Count > 0 ? subTracks : null,
+                    SubtitleUrl = subTracks.Count > 0 ? subTracks[0].Url : null,
                     RequiresServerProxy = true,
                     Headers = new Dictionary<string, string>
                     {
@@ -262,6 +306,6 @@ namespace StremioVR.Providers
             public bool IsRemote;
             public MediaStreamDto[] MediaStreams;
         }
-        [Serializable] private class MediaStreamDto { public string Type; public string Codec; }
+        [Serializable] private class MediaStreamDto { public string Type; public string Codec; public int Index; public string DisplayTitle; public string Language; }
     }
 }

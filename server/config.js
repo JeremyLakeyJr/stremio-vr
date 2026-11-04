@@ -20,6 +20,7 @@ const defaultConfig = {
   siloToken: process.env.SILO_TOKEN || '',
   remuxUrl: process.env.REMUX_URL || '',
   openSubtitlesApiKey: process.env.OPENSUBTITLES_API_KEY || '',
+  webhookUrl: process.env.DISCORD_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL || process.env.NOTIFICATION_WEBHOOK_URL || process.env.APPRISE_URL || '',
   maxHeight: parseInt(process.env.MEDIA_MAX_HEIGHT || '1080', 10),
   maxFps: parseInt(process.env.MEDIA_MAX_FPS || '60', 10),
   hwAccelEnabled: process.env.MEDIA_DISABLE_REMUX !== 'true',
@@ -73,7 +74,8 @@ export function getConfig() {
     remuxUrl: process.env.REMUX_URL || currentConfig.remuxUrl || '',
     tunnelToken: process.env.TUNNEL_TOKEN || currentConfig.tunnelToken || '',
     tunnelUrl: process.env.TUNNEL_URL || currentConfig.tunnelUrl || '',
-    tailscaleUrl: process.env.TAILSCALE_URL || currentConfig.tailscaleUrl || ''
+    tailscaleUrl: process.env.TAILSCALE_URL || currentConfig.tailscaleUrl || '',
+    webhookUrl: process.env.DISCORD_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL || process.env.NOTIFICATION_WEBHOOK_URL || process.env.APPRISE_URL || currentConfig.webhookUrl || ''
   };
 }
 
@@ -84,6 +86,7 @@ export function getPublicConfig() {
   if (cfg.mediastormKey) cfg.mediastormKey = maskToken(cfg.mediastormKey);
   if (cfg.siloToken) cfg.siloToken = maskToken(cfg.siloToken);
   if (cfg.openSubtitlesApiKey) cfg.openSubtitlesApiKey = maskToken(cfg.openSubtitlesApiKey);
+  if (cfg.webhookUrl) cfg.webhookUrl = maskToken(cfg.webhookUrl);
   return cfg;
 }
 

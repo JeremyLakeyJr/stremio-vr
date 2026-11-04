@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -10,6 +11,13 @@ namespace StremioVR.Providers
         Silo,
         MediaStorm,
         Nuvio // Mellon sync + Stremio addons + local JS plugins
+    }
+
+    [Serializable]
+    public class SubtitleTrackInfo
+    {
+        public string Language;
+        public string Url;
     }
 
     public class MediaCatalog
@@ -33,11 +41,14 @@ namespace StremioVR.Providers
 
     public class ResolvedStream
     {
+        public string ProviderId;
+        public string ItemId;
         public string Title; // e.g., "1080p HEVC Direct" or "AIOStreams RD+"
         public string StreamUrl; // Upstream URL sent to server
         public string SourceCodec; // e.g., "h264" or "hevc"
         public int? AudioTrackIndex; // Optional audio stream selection for server transcoder
         public string SubtitleUrl; // Optional subtitle stream URL
+        public List<SubtitleTrackInfo> SubtitleTracks; // Available subtitle tracks
         public Dictionary<string, string> Headers; // Upstream auth headers (X-Emby-Token, etc.)
         public bool RequiresServerProxy;
     }
