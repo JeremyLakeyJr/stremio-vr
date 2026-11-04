@@ -62,11 +62,11 @@ namespace StremioVR.Providers
             }
             else if (providerId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
-                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(itemId, positionSeconds, false);
+                ReportProviderPlayback("mediastorm", itemId, positionSeconds, false);
             }
             else if (providerId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
-                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(itemId, positionSeconds, false);
+                ReportProviderPlayback("silo", itemId, positionSeconds, false);
             }
         }
 
@@ -88,11 +88,11 @@ namespace StremioVR.Providers
             }
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
-                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+                ReportProviderPlayback("mediastorm", _activeItemId, positionSeconds, true);
             }
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
-                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+                ReportProviderPlayback("silo", _activeItemId, positionSeconds, true);
             }
         }
 
@@ -108,11 +108,11 @@ namespace StremioVR.Providers
             }
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
-                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, false);
+                ReportProviderPlayback("mediastorm", _activeItemId, positionSeconds, false);
             }
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
-                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, false);
+                ReportProviderPlayback("silo", _activeItemId, positionSeconds, false);
             }
         }
 
@@ -127,11 +127,11 @@ namespace StremioVR.Providers
             }
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
-                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+                ReportProviderPlayback("mediastorm", _activeItemId, positionSeconds, true);
             }
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
-                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, positionSeconds, true);
+                ReportProviderPlayback("silo", _activeItemId, positionSeconds, true);
             }
 
             _activeItemId = null;
@@ -147,11 +147,11 @@ namespace StremioVR.Providers
             }
             else if (_activeProviderId == "mediastorm" && MediaProviderRegistry.Instance?.MediaStorm != null)
             {
-                _ = MediaProviderRegistry.Instance.MediaStorm.ReportPlaybackAsync(_activeItemId, _lastReportedPosition, false);
+                ReportProviderPlayback("mediastorm", _activeItemId, _lastReportedPosition, false);
             }
             else if (_activeProviderId == "silo" && MediaProviderRegistry.Instance?.Silo != null)
             {
-                _ = MediaProviderRegistry.Instance.Silo.ReportPlaybackAsync(_activeItemId, _lastReportedPosition, false);
+                ReportProviderPlayback("silo", _activeItemId, _lastReportedPosition, false);
             }
         }
 
@@ -162,6 +162,28 @@ namespace StremioVR.Providers
             long ticks = (long)(seconds * TimeSpan.TicksPerSecond);
             PlayerPrefs.SetString(key, ticks.ToString());
             PlayerPrefs.Save();
+        }
+
+        private async void ReportProviderPlayback(string providerId, string itemId, double positionSeconds, bool isPaused)
+        {
+            try
+            {
+                var registry = MediaProviderRegistry.Instance;
+                if (registry == null) return;
+
+                if (providerId == "mediastorm" && registry.MediaStorm != null)
+                {
+                    await registry.MediaStorm.ReportPlaybackAsync(itemId, positionSeconds, isPaused);
+                }
+                else if (providerId == "silo" && registry.Silo != null)
+                {
+                    await registry.Silo.ReportPlaybackAsync(itemId, positionSeconds, isPaused);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[WatchProgressSync] {providerId} progress report failed: {ex.Message}");
+            }
         }
 
         public double GetLocalResumePositionSeconds(string providerId, string itemId)
