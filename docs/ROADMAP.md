@@ -59,8 +59,11 @@ performance, and product polish. Each phase should end with evidence in
 ## Phase 5 — Delivery and operations
 
 - [ ] Add reproducible Unity CI builds with the required Unity and Android
-  toolchain versions.
-- [ ] Publish signed APK artifacts with version metadata and checksums.
+  toolchain versions. Server, solo, Rust, and Docker quality gates are
+  automated in `.github/workflows/quality-gate.yml`; Unity still requires
+  licensed editor secrets and the authorized private-home asset.
+- [ ] Publish signed APK artifacts with version metadata and checksums. The
+  Unity workflow now publishes SHA-256 checksums; signing remains pending.
 - [ ] Add a release checklist covering Unity, Node, Rust, Docker, provider
   contracts, Quest smoke tests, and rollback notes.
 - [ ] Add server health and notification delivery metrics without recording

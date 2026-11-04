@@ -52,8 +52,19 @@ jobs:
           name: movie-night.apk
           path: unity/Builds/*.apk
 
+      - name: Generate APK checksums
+        run: sha256sum unity/Builds/*.apk > unity/Builds/SHA256SUMS
+
+      - name: Upload APK checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: movie-night.apk.sha256
+          path: unity/Builds/SHA256SUMS
+
       - name: Attach APK to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: unity/Builds/*.apk
+          files: |
+            unity/Builds/*.apk
+            unity/Builds/SHA256SUMS
