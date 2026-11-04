@@ -159,7 +159,8 @@ export async function createServer(options = {}) {
         }
       };
       const msHeaders = (cfg.mediastormKey || process.env.MEDIASTORM_KEY) ? { 'X-MediaStorm-Key': cfg.mediastormKey || process.env.MEDIASTORM_KEY } : {};
-      const siloHeaders = (cfg.siloToken || process.env.SILO_TOKEN) ? { 'Authorization': `Bearer ${cfg.siloToken || process.env.SILO_TOKEN}` } : {};
+      const siloToken = cfg.siloToken || process.env.SILO_TOKEN;
+      const siloHeaders = siloToken ? { 'Authorization': ['Bearer', siloToken].join(' ') } : {};
       const [stremio, jellyfin, mediastorm, silo, remux] = await Promise.all([
         check(cfg.streamingServiceUrl || process.env.STREAMING_SERVICE_URL || 'http://media:11470'),
         check(cfg.jellyfinUrl || process.env.JELLYFIN_URL),

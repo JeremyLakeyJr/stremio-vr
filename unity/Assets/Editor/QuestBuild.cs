@@ -36,7 +36,7 @@ public static class QuestBuild {
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
         PlayerSettings.colorSpace = ColorSpace.Linear;
         var player = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
-        var input = player.FindProperty("activeInputHandler"); if (input != null) { input.intValue = 2; player.ApplyModifiedPropertiesWithoutUndo(); }
+        var input = player.FindProperty("activeInputHandler"); if (input != null) { input.intValue = 0; player.ApplyModifiedPropertiesWithoutUndo(); }
         var general = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
         if (general == null) {
             if (!EditorBuildSettings.TryGetConfigObject(XRGeneralSettings.k_SettingsKey, out XRGeneralSettingsPerBuildTarget perTarget)) {
@@ -87,4 +87,3 @@ public static class QuestBuild {
     }
 }
 }
-
