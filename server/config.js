@@ -59,6 +59,9 @@ export async function saveConfig(updates = {}) {
     await writeFile(CONFIG_PATH, JSON.stringify(currentConfig, null, 2), 'utf8');
   } catch (err) {
     console.error('[Config] Could not write config to', CONFIG_PATH, err.message);
+    const failure = new Error(`Could not persist configuration: ${err.message}`);
+    failure.code = 'CONFIG_WRITE_FAILED';
+    throw failure;
   }
   return currentConfig;
 }

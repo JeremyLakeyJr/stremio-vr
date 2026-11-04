@@ -271,7 +271,8 @@ export async function createServer(options = {}) {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ ok: true, config: getPublicConfig() }));
       } catch (err) {
-        res.writeHead(400); res.end(JSON.stringify({ error: err.message }));
+        const status = err.code === 'CONFIG_WRITE_FAILED' ? 500 : 400;
+        res.writeHead(status); res.end(JSON.stringify({ error: err.message }));
       }
       return;
     }
