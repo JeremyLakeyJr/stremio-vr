@@ -162,6 +162,13 @@ test('api: /api/providers reports all configured provider fixtures online', asyn
     assert.ok(mediaStormRequests.every(request => request.authorization === undefined));
     assert.ok(authorizationRequests.every(request => request.authorization === 'Bearer fixture-silo-token'));
     assert.ok(authorizationRequests.every(request => request.mediaStormKey === undefined));
+    const unauthenticatedRequests = received.filter(request =>
+      !request.mediaStormKey && !request.authorization
+    );
+    assert.ok(unauthenticatedRequests.some(request => request.path === '/'));
+    assert.ok(unauthenticatedRequests.every(request =>
+      request.mediaStormKey === undefined && request.authorization === undefined
+    ));
   } finally {
     await saveConfig({ streamingServiceUrl: originalStreamingServiceUrl });
     for (const key of Object.keys(environment)) {
