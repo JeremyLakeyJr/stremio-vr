@@ -682,6 +682,7 @@ public sealed class CinemaApp : MonoBehaviour {
             Debug.LogWarning("[CinemaApp] Provider catalog load failed: " + error.Message);
             Heading("Unable to load " + prov.DisplayName + " catalogs");
             Label("Check the provider connection and credentials, then try again.", content, 0, row, actionWidth, 40, 19);
+            ActionButton("Retry " + prov.DisplayName + " catalogs", () => RenderProviderView(prov));
             ShowStatus("Catalog load failed. Check the provider connection and try again.");
             Resize();
             return;
@@ -720,6 +721,7 @@ public sealed class CinemaApp : MonoBehaviour {
             catch (Exception error)
             {
                 Debug.LogWarning("[CinemaApp] Featured catalog load failed: " + error.Message);
+                ActionButton("Retry featured titles", () => RenderProviderView(prov));
                 ShowStatus("Featured titles could not be loaded. Try another catalog.");
             }
         } else {
@@ -825,6 +827,7 @@ public sealed class CinemaApp : MonoBehaviour {
             catch (Exception error)
             {
                 Debug.LogWarning("[CinemaApp] Provider stream resolution failed: " + error.Message);
+                ActionButton("Retry stream lookup", () => ProviderItemDetails(item, prov));
                 ShowStatus("Stream lookup failed. Check the provider connection and try again.");
                 return;
             }

@@ -28,8 +28,8 @@ performance, and product polish. Each phase should end with evidence in
 - [x] Add bounded timeouts to native catalog and stream requests.
 - [x] Validate provider server URLs before authentication requests and clear
   stale sessions after invalid reconfiguration.
-- [ ] Add cancellation and retry controls to native catalog and stream
-  requests.
+- [ ] Add cancellation controls to native catalog and stream requests.
+- [x] Add retry controls to native catalog and stream failure states.
 - [x] Add user-visible error states to native catalog, search, pagination, and
   stream requests.
 - [x] Add user-facing validation and failure feedback to Mellon/Nuvio sync.
