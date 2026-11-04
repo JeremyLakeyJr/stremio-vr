@@ -30,6 +30,7 @@ performance, and product polish. Each phase should end with evidence in
   stale sessions after invalid reconfiguration.
 - [ ] Add cancellation controls to native catalog and stream requests.
 - [x] Add retry controls to native catalog and stream failure states.
+- [x] Add retry controls to provider search failure states.
 - [x] Add user-visible error states to native catalog, search, pagination, and
   stream requests.
 - [x] Add user-facing validation and failure feedback to Mellon/Nuvio sync.

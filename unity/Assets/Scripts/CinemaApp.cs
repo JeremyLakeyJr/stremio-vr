@@ -646,29 +646,10 @@ public sealed class CinemaApp : MonoBehaviour {
         }
 
         var searchInput = Field("Search " + prov.DisplayName + " library...", "", null);
-        ActionButton("🔍 Search " + prov.DisplayName, async () => {
+        ActionButton("🔍 Search " + prov.DisplayName, () => {
             string q = searchInput.text?.Trim();
             if (string.IsNullOrEmpty(q)) return;
-            ShowStatus("Searching " + prov.DisplayName + " for \"" + q + "\"…");
-            List<MediaItem> res = null;
-            try
-            {
-                if (prov is JellyfinProvider jf) res = await jf.SearchAsync(q);
-                else if (prov is MediaStormProvider ms) res = await ms.SearchAsync(q);
-                else if (prov is SiloProvider silo) res = await silo.SearchAsync(q);
-            }
-            catch (Exception error)
-            {
-                Debug.LogWarning("[CinemaApp] Provider search failed: " + error.Message);
-                ShowStatus("Search failed. Check the provider connection and try again.");
-                return;
-            }
-
-            Clear(); pageTitle.text = prov.DisplayName + ": " + q;
-            ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
-            Heading("Results for \"" + q + "\" (" + (res?.Count ?? 0) + " found)");
-            if (res == null || res.Count == 0) Heading("No titles matched your search.");
-            else ProviderPosterGrid(res, prov);
+            SearchProvider(prov, q);
         });
 
         ShowStatus("Loading " + prov.DisplayName + " catalogs…");
@@ -735,6 +716,36 @@ public sealed class CinemaApp : MonoBehaviour {
             });
             Resize();
         }
+    }
+
+    async void SearchProvider(IMediaProvider prov, string query) {
+        ShowStatus("Searching " + prov.DisplayName + " for \"" + query + "\"…");
+        List<MediaItem> res = null;
+        try
+        {
+            if (prov is JellyfinProvider jf) res = await jf.SearchAsync(query);
+            else if (prov is MediaStormProvider ms) res = await ms.SearchAsync(query);
+            else if (prov is SiloProvider silo) res = await silo.SearchAsync(query);
+        }
+        catch (Exception error)
+        {
+            Debug.LogWarning("[CinemaApp] Provider search failed: " + error.Message);
+            Clear();
+            pageTitle.text = prov.DisplayName + ": " + query;
+            ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
+            Heading("Unable to search " + prov.DisplayName);
+            Label("Check the provider connection and credentials, then try again.", content, 0, row, actionWidth, 40, 19);
+            ActionButton("Retry search", () => SearchProvider(prov, query));
+            ShowStatus("Search failed. Check the provider connection and try again.");
+            Resize();
+            return;
+        }
+
+        Clear(); pageTitle.text = prov.DisplayName + ": " + query;
+        ActionButton("Back to " + prov.DisplayName, () => RenderProviderView(prov));
+        Heading("Results for \"" + query + "\" (" + (res?.Count ?? 0) + " found)");
+        if (res == null || res.Count == 0) Heading("No titles matched your search.");
+        else ProviderPosterGrid(res, prov);
     }
 
     void ProviderPosterGrid(List<MediaItem> items, IMediaProvider prov, string catalogId = null, int skip = 0) {
