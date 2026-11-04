@@ -23,7 +23,7 @@ performance, and product polish. Each phase should end with evidence in
 
 - [ ] Add contract tests for Jellyfin, MediaStorm, Silo, Remux, and Mellon
   authentication, catalogs, stream resolution, subtitles, and progress sync.
-- [ ] Verify credential headers are sent only to their intended upstream and
+- [x] Verify credential headers are sent only to their intended upstream and
   never enter room state, logs, screenshots, or diagnostics.
 - [x] Add bounded timeouts to native catalog and stream requests.
 - [x] Validate provider server URLs before authentication requests and clear
@@ -47,7 +47,7 @@ performance, and product polish. Each phase should end with evidence in
 - [ ] Establish budgets for frame time, memory, texture memory, startup time,
   and stream latency; fail release checks when budgets regress.
 - [ ] Reduce shader and asset import warnings that translate into runtime cost.
-- [ ] Test 4K quality profiles against thermal throttling and network bitrate
+- [x] Test 4K quality profiles against thermal throttling and network bitrate
   limits; provide a safe automatic fallback.
 - [ ] Verify long-session cleanup for posters, browser textures, subtitles,
   provider results, and disconnected rooms.
@@ -56,13 +56,13 @@ performance, and product polish. Each phase should end with evidence in
 
 - [ ] Improve first-run onboarding for server connection, provider setup,
   account pairing, and headset permissions.
-- [ ] Add consistent loading, cancellation, retry, and empty-state UI across
+- [x] Add consistent loading, cancellation, retry, and empty-state UI across
   all provider catalog views.
 - [ ] Improve virtual keyboard focus, password entry, accessibility labels,
   and controller/desktop parity.
 - [ ] Make room reconnect, host departure, and provider disconnect recovery
   explicit and non-destructive.
-- [ ] Add a compact in-app diagnostics screen that can copy redacted logs and
+- [x] Add a compact in-app diagnostics screen that can copy redacted logs and
   build/version information.
 
 ## Phase 5 — Delivery and operations

@@ -34,6 +34,7 @@ public sealed class CinemaApp : MonoBehaviour {
     string SettingsPath => Path.Combine(Application.persistentDataPath, "profile.json");
 
     void Awake() {
+        Application.logMessageReceived += HandleDiagnosticLog;
         Application.targetFrameRate = 72; font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         try { settings = JObject.Parse(File.ReadAllText(SettingsPath)); } catch { settings = new JObject(); }
         profile = settings["profile"] as JObject ?? new JObject { ["name"] = "Guest", ["skin"] = "#b98059", ["color"] = "#7958ff", ["head"] = "round", ["body"] = "regular", ["hair"] = "none", ["outfit"] = "casual", ["accessory"] = "none" };
@@ -1045,6 +1046,7 @@ public sealed class CinemaApp : MonoBehaviour {
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings[SettingsKeys.Ambient]=ambient.Enabled;Save();Comfort();});
         ActionButton("Ambient strength: "+Mathf.RoundToInt(ambient.Strength*100)+"%",()=>{ambient.Strength=ambient.Strength>=2?0.25f:Mathf.Min(2,ambient.Strength+0.25f);settings[SettingsKeys.AmbientStrength]=ambient.Strength;Save();Comfort();});
+        ActionButton("📋 System Diagnostics & App Logs", DiagnosticsPage);
         Heading("Hide the menu: left stick walks, right stick turns.");
         ActionButton("Stand up / return to aisle",motion.Stand);
         ActionButton("Calibrate reclined view (look where you want the screen)",()=> { motion.CalibrateReclined(); Recenter(); Comfort(); });
@@ -1117,7 +1119,71 @@ public sealed class CinemaApp : MonoBehaviour {
     void UpdateProfile() { localBody.Apply(profile); Save(); if (room.Connected && room.State != null) room.Send(new JObject { ["type"] = "profile", ["profile"] = profile }); }
     void SaveAddons() { var urls = new JArray(); foreach (var addon in library.Addons) urls.Add(MediaLibrary.ResourceUrl((string)addon["endpoint"], "manifest.json")); settings["addons"] = urls; Save(); }
     void Save() { try { File.WriteAllText(SettingsPath, settings.ToString()); } catch { } }
-    void ShowStatus(string message) { status.text = message; }
+        private static readonly List<string> diagnosticLogs = new List<string>();
+
+    void HandleDiagnosticLog(string logString, string stackTrace, LogType type) {
+        if (string.IsNullOrEmpty(logString)) return;
+        string sanitized = System.Text.RegularExpressions.Regex.Replace(logString, @"(?i)(api[_-]?key|token|password|auth|secret)=([^&\s]+)", "$1=***");
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"(?i)bearer\s+[A-Za-z0-9_\-\.]+", "Bearer ***");
+        string entry = $"[{DateTime.UtcNow:HH:mm:ss}] [{type}] {sanitized}";
+        lock (diagnosticLogs) {
+            if (diagnosticLogs.Count >= 30) diagnosticLogs.RemoveAt(0);
+            diagnosticLogs.Add(entry);
+        }
+    }
+
+    void DiagnosticsPage() {
+        Clear(); pageTitle.text = "System Diagnostics";
+        Heading("Hardware & Environment");
+        string xrDevice = UnityEngine.XR.XRSettings.isDeviceActive ? UnityEngine.XR.XRSettings.loadedDeviceName : "Desktop/Flat";
+        string info = $"App: v{Application.version} (Unity {Application.unityVersion})\n" +
+                     $"Device: {SystemInfo.deviceModel} ({SystemInfo.operatingSystem})\n" +
+                     $"GPU: {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsDeviceType}, {SystemInfo.graphicsMemorySize} MB)\n" +
+                     $"XR Subsystem: {xrDevice} | Target FPS: {Application.targetFrameRate}";
+        Label(info, content, 0, row, actionWidth, 90, 18);
+        row += 95;
+
+        Heading("Network & Media Providers");
+        var reg = GetComponent<MediaProviderRegistry>();
+        string jStatus = (reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated) ? "🟢 Jellyfin Connected" : "⚪ Jellyfin Disconnected";
+        string msStatus = (reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated) ? "🟢 MediaStorm Connected" : "⚪ MediaStorm Standby";
+        string sStatus = (reg?.Silo != null && reg.Silo.IsAuthenticated) ? "🟢 Silo Connected" : "⚪ Silo Standby";
+        string strStatus = account.SignedIn ? "🟢 Stremio Paired (" + (account.DisplayName ?? "Account") + ")" : "⚪ Stremio Not Paired";
+        string roomStatus = room.IsSolo ? "Solo Mode (Local Apartment)" : "Connected Room: " + (room.RoomId ?? "None");
+        Label($"{roomStatus}\n{strStatus} | {jStatus}\n{msStatus} | {sStatus}", content, 0, row, actionWidth, 75, 18);
+        row += 80;
+
+        Heading("Recent Redacted Logs");
+        string logsText;
+        lock (diagnosticLogs) {
+            logsText = diagnosticLogs.Count > 0 ? string.Join("\n", diagnosticLogs.TakeLast(8)) : "No log events recorded.";
+        }
+        Plate(content, 0, row, actionWidth, 160, new Color(0.05f, 0.05f, 0.08f));
+        Label(logsText, content, 10, row + 5, actionWidth - 20, 150, 15);
+        row += 165;
+
+        ActionButton("📋 Copy Diagnostics & Logs to Clipboard", () => {
+            string fullReport = $"Media Quest VR Diagnostics\n--------------------------\n{info}\n{roomStatus}\n{strStatus}\n{jStatus}\n{msStatus}\n{sStatus}\n\nRecent Logs:\n{logsText}";
+            GUIUtility.systemCopyBuffer = fullReport;
+            ShowStatus("Diagnostics report copied to clipboard!");
+        });
+        ActionButton("Back to Settings", Comfort);
+        Resize();
+    }
+
+    void OnDestroy() {
+        Application.logMessageReceived -= HandleDiagnosticLog;
+    }
+
+    void ShowStatus(string message) {
+        status.text = message;
+        if (!string.IsNullOrEmpty(message)) {
+            lock (diagnosticLogs) {
+                if (diagnosticLogs.Count >= 30) diagnosticLogs.RemoveAt(0);
+                diagnosticLogs.Add($"[{DateTime.UtcNow:HH:mm:ss}] {message}");
+            }
+        }
+    }
     void ActionButton(string text, Action click) { Button(text, content, 0, row, actionWidth, click); row += 62; Resize(); }
 
     InputField Field(string placeholder, string current, Action<string> changed) {
