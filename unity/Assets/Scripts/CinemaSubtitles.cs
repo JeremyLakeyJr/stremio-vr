@@ -236,11 +236,11 @@ namespace StremioVR
             string[] parts = ts.Split(':');
             if (parts.Length == 3)
             {
-                return double.Parse(parts[0]) * 3600 + double.Parse(parts[1]) * 60 + double.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
+                return double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture) * 3600 + double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) * 60 + double.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
             }
             if (parts.Length == 2)
             {
-                return double.Parse(parts[0]) * 60 + double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                return double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture) * 60 + double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
             }
             return 0;
         }

@@ -272,7 +272,16 @@ namespace StremioVR.Providers
             return tcs.Task;
         }
 
-        private static string NormalizeUrl(string url) => url?.Trim().TrimEnd('/') ?? "";
+        private static string NormalizeUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "";
+            url = url.Trim().TrimEnd('/');
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "http://" + url;
+            }
+            return url;
+        }
 
         private static bool IsHttpUrl(string url)
         {

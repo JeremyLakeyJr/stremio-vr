@@ -24,7 +24,7 @@ public static class QuestBuild {
         Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/XR");
         PlayerSettings.companyName = "StremioVR"; PlayerSettings.productName = "Movie Night";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.jeremylakey.stremiovr");
-PlayerSettings.bundleVersion = "0.2.4"; PlayerSettings.Android.bundleVersionCode = 10;
+PlayerSettings.bundleVersion = "0.2.5"; PlayerSettings.Android.bundleVersionCode = 11;
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;

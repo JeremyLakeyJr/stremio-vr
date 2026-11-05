@@ -25,7 +25,7 @@ public sealed class WebCinema : MonoBehaviour {
  public void SetVolume(float val) {
    if (Playback != null) Playback.SetVolume(val);
    lastVolume = Mathf.Clamp01(val);
-   if (desktop) { if (remoteMode) desktop.Rtc("receiver-volume", new JObject{["value"]=lastVolume}); return; }
+   if (desktop) { if (remoteMode) desktop.Rtc("receiver-volume", new JObject{["value"]=lastVolume}); else desktop.Browser("volume", lastVolume); return; }
    if (remoteMode && rtc != null) rtc.Call("volume", lastVolume);
    else if (web != null) web.Call("volume", lastVolume);
  }
@@ -79,7 +79,7 @@ public sealed class WebCinema : MonoBehaviour {
    if(pixels==null || pixels.Length!=WebWidth*WebHeight*4) pixels=new byte[WebWidth*WebHeight*4];
    texture=new Texture2D(WebWidth,WebHeight,TextureFormat.RGBA32,false); texture.wrapMode=TextureWrapMode.Clamp;
    using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer")) using(var activity=player.GetStatic<AndroidJavaObject>("currentActivity")) web=new AndroidJavaObject("com.stremiovr.CinemaWebView",activity,gameObject.name,WebWidth,WebHeight);
-   Active=true; Playback.Suspended=true; Playback.Video.Pause(); Playback.Video.renderMode=VideoRenderMode.APIOnly; Attach();
+   Active=true; Playback.Suspended=true; Playback.Video.Pause(); Playback.Video.renderMode=VideoRenderMode.APIOnly; Attach(); if(Playback!=null){lastVolume=Playback.Volume;web.Call("volume",lastVolume);}
   } catch(Exception e) { Close(); Status?.Invoke("Unable to open web screen: "+e.Message); }
 #else
   Status?.Invoke("The in-world web screen is available in the Android APK.");
@@ -95,7 +95,7 @@ public sealed class WebCinema : MonoBehaviour {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
   if(desktop){
     if(screen.sharedMaterial.mainTexture!=desktop.Frame&&desktop.Frame)Attach();
-    if(remoteMode&&Math.Abs(lastVolume-Playback.Volume)>0.01f){lastVolume=Playback.Volume;desktop.Rtc("receiver-volume",new JObject{["value"]=lastVolume});}
+    if(Math.Abs(lastVolume-Playback.Volume)>0.01f){lastVolume=Playback.Volume;if(remoteMode)desktop.Rtc("receiver-volume",new JObject{["value"]=lastVolume});else desktop.Browser("volume",lastVolume);}
     return;
   }
   if(Playback != null && Math.Abs(lastVolume - Playback.Volume) > 0.01f) {

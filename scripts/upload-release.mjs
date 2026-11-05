@@ -27,48 +27,38 @@ const headers = {
   Accept: 'application/vnd.github+json'
 };
 
-const RELEASE_TAG = 'v0.2.4';
-const RELEASE_NAME = 'Movie Night VR v0.2.4 — 3D SBS/OU, HDR Tone-Mapping, In-VR Keyboard & Provider Hardening';
+const RELEASE_TAG = 'v0.2.5';
+const RELEASE_NAME = 'Movie Night VR v0.2.5 — Visual Parabolic Teleport, Web Audio Persistence, Void Safeguards & Provider URL Resilience';
 
-const RELEASE_BODY = `## Movie Night VR v0.2.4 • Meta Quest Release
+const RELEASE_BODY = `## Movie Night VR v0.2.5 • Meta Quest Release
 
-### 🥽 Stereoscopic 3D Decoding & Cinema Display (DeoVR / Bigscreen Parity)
-- **Stereoscopic 3D Modes**: Native in-shader Single-Pass Instanced XR split supporting:
-  - **2D Mono**
-  - **3D Side-by-Side (SBS)**
-  - **3D Over-Under (OU)**
-  - **Left / Right Eye Inversion**
-- **In-Shader HDR Video Tone-Mapping**: Custom ACES filmic tone-mapping for Rec.2020 wide color gamut, HDR10 PQ (ST2084), and HLG broadcast — completely resolving washed-out 4K HDR playback on Meta Quest.
-- **DeoVR Real-Time Picture Calibration**: Dynamic in-shader Brightness ($0.4\\times - 1.8\\times$), Contrast ($0.6\\times - 1.8\\times$), and Saturation ($0.0\\times - 2.0\\times$) tuning directly from the Cinema Controls dock.
+### 🎯 Locomotion & Visual Parabolic Teleportation ("Teleport Stick")
+- **Dual Locomotion & Dedicated Teleport Stick**: Teleport can now be triggered in *any* locomotion mode by flicking/pushing the **Right Thumbstick Forward** (\`turn.y > 0.55\`), preserving smooth joystick walking on the left stick without forcing users into a teleport-only mode.
+- **Surface Normal Validation**: Parabolic raycasts strictly enforce surface steepness checks ($\\mathbf{n} \\cdot \\mathbf{u} > 0.55$, slope $\\le 56^\\circ$). Raycasts hitting vertical walls, ceilings, or obstacles are rejected.
+- **Directional & Dynamic Color Feedback**:
+  - **Valid Ground Target**: Arc and circular pad glow vibrant emerald/cyan (\`#26D973\`), showing a directional arrow indicating your post-teleport facing angle.
+  - **Invalid Target (Walls/Ceilings/Void)**: Arc glows crimson red (\`#F24033\`), the target marker is hidden, and releasing the stick safely cancels without relocating the player.
+- **Right-Hand Ray Aiming**: Automatically routes aiming through \`RightHand\` when the right thumbstick is pushed, matching native VR pointer standards.
 
-### 🌌 Fluid & Bigscreen Environments & Spatial Comfort
-- **Environment Modes**: 1-click toggle between:
-  - **🛋 Cinema Apartment** (Full 3D physical lounge with dynamic ambient lighting)
-  - **🌑 The Void** (Pure OLED black background for maximum contrast and zero distractions)
-  - **🥽 Mixed Reality Passthrough** (Float the giant virtual cinema screen directly in your physical living room)
-- **Bed Mode (Ceiling Projection)**: 1-click snap angling the screen $75^\\circ$ toward the ceiling for comfortable viewing while lying down.
-- **Curved IMAX Screen Wrap**: Smooth $0^\\circ \\to 90^\\circ$ cylindrical curvature slider for an IMAX-style curved display.
-- **Cinema Controls Quick Dock**: Dedicated in-playback transport bar ($\\pm 10$s, $\\pm 30$s, Play/Pause) and track selectors.
+### 🌌 Void & Passthrough Endless Falling Safeguards
+- **Zero-Gravity Drift & Falling Loop Protection**: In **The Void** or **MR Passthrough** modes, virtual room colliders are intentionally hidden. Added a firm ground clamp enforcing $y \\ge 0$ and zeroing vertical velocity, eliminating the infinite falling/respawn loop.
 
-### ⌨️ In-VR Spatial QWERTY Virtual Keyboard
-- Custom in-world spatial keyboard (\`VRKeyboard.cs\`) attached to all text inputs via a ⌨️ launcher button.
-- Full support for laser ray beam selection and direct hand-tracking poke/pinch input.
-- Includes QWERTY letters, shift, numbers, symbols, backspace, clear, space, and done buttons.
+### 🔊 Web Browser Wrapper Audio Controls
+- **Persistent Media Volume Injection**: Fixed volume controls in the web browser wrapper (Stremio Web, Jellyfin Web, YouTube).
+- **Prototype Interception & MutationObserver**: Intercepts \`HTMLMediaElement.prototype.play\` and monitors DOM mutations, immediately binding volume and mute states to dynamically spawned video tags and embedded player \`<iframe>\` frames.
+- **State Re-application**: Volume is re-applied automatically on page finish, tab switching, and web screen toggle.
+- **Desktop Runtime Volume Bridge**: Wired local browser volume to \`desktop.Browser("volume", val)\` on PC VR.
 
-### 🎬 Multi-Provider Streaming Ecosystem & Hardening
-- **Universal Provider Hub**: Full integration with **Stremio**, **Jellyfin**, **MediaStorm**, **Silo**, **lostb1t / Remux**, and **Nuvio / Mellon** sync.
-- **Global Cross-Provider Search**: Unified search across all connected catalogs with provider badges and 1-click stream resolution.
-- **Unified Continue Watching**: Aggregated watch history and resume positions across all backends.
-- **Robustness & Bounded Timeouts**: Added 10–15s timeouts, URL validation, and async generation guards preventing stale loads from clobbering UI during rapid navigation.
-- **Graceful Error & Retry UI**: Added user-facing error states, cancellation controls, and retry buttons on all provider views.
+### 💬 Subtitle Lifecycle & Format Hardening
+- **Lazy TextMesh Creation**: Fixed \`CinemaSubtitles.cs\` where late screen attachment resulted in null subtitle objects.
+- **Single-Digit Hour Normalization**: Fixed \`server/subtitles.js\` regex to normalize irregular SubRip cues (\`0:01:05,200\` $\\to$ \`00:01:05.200\`).
+- **Culture Invariant Parsing**: Enforced \`CultureInfo.InvariantCulture\` across all timecode split conversions.
 
-### 📋 In-App System Diagnostics & Telemetry
-- Dedicated **Diagnostics Page** in Settings displaying hardware model, OS, GPU details, XR subsystem, target FPS, room status, and provider connectivity.
-- Redacted circular log buffer (credential/token masked) with a 1-click **Copy Diagnostics to Clipboard** button.
+### 🌐 Media Provider Resilience
+- **Automatic Protocol Scheme Detection**: Server URLs entered without a scheme (e.g. \`192.168.1.100:8096\` or local domain names) automatically prepend \`http://\`, preventing silent \`Uri.TryCreate\` failures across **Jellyfin**, **MediaStorm**, and **Silo**.
 
-### ⚡ Transcoder Bitrate Ladder & Server Webhooks
-- **Transcoder Quality Ladder**: Added \`4K\`, \`1440p\`, \`1080p\`, \`720p\`, and \`480p\` quality ladder profiles to \`server/hwaccel.js\`.
-- **Discord & Slack Webhooks**: Multi-service webhook notifications for room join/leave and playback events configurable directly from the server dashboard.
+### ♟ Tabletop Games
+- **Hand Controller Grabbing in Solo**: Enabled direct hand-controller piece grabbing and physical table interaction in offline solo mode.
 
 ---
 

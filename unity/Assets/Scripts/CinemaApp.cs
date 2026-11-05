@@ -83,7 +83,7 @@ public sealed class CinemaApp : MonoBehaviour {
         localBody=gameObject.AddComponent<LocalBody>(); localBody.Head=head; localBody.Left=left; localBody.Right=right; localBody.Room=room; localBody.Apply(profile);
         world = gameObject.AddComponent<WorldManager>(); world.Initialize(room);
         motion = gameObject.AddComponent<RigMotion>(); motion.Rig=rig; motion.Tracking=tracking; motion.Head=head; motion.Room=room; motion.World=world;
-        motion.LeftHand = localBody.Left;
+        motion.LeftHand = localBody.Left; motion.RightHand = localBody.Right;
         motion.MoveSpeed=(float?)settings[SettingsKeys.MoveSpeed]??1.5f;
         motion.TurnSpeed=(float?)settings[SettingsKeys.TurnSpeed]??60;
         motion.RayPitch=(float?)settings[SettingsKeys.RayPitch]??45;

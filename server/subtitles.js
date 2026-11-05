@@ -20,10 +20,18 @@ export function srtToVtt(srtContent) {
 
   const normalized = srtContent.replace(/\r\n|\r/g, '\n');
   const vttCues = normalized
-    // Convert 00:00:00,000 --> 00:00:00,000 to 00:00:00.000 --> 00:00:00.000
-    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
-    // Handle short timecodes 00:00,000
-    .replace(/(\d{2}:\d{2}),(\d{3})/g, '00:$1.$2');
+    // Convert 00:00:00,000 (or 0:00:00,000) to 00:00:00.000
+    .replace(/(\b\d{1,2}:\d{2}:\d{2}),(\d{3})/g, (match, time, ms) => {
+      const parts = time.split(':');
+      if (parts[0].length === 1) parts[0] = '0' + parts[0];
+      return parts.join(':') + '.' + ms;
+    })
+    // Handle short timecodes 00:00,000 (or 0:00,000)
+    .replace(/(\b\d{1,2}:\d{2}),(\d{3})/g, (match, time, ms) => {
+      const parts = time.split(':');
+      if (parts[0].length === 1) parts[0] = '0' + parts[0];
+      return '00:' + parts.join(':') + '.' + ms;
+    });
 
   return `WEBVTT\n\n${vttCues.trim()}\n`;
 }
