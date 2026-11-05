@@ -26,14 +26,14 @@ export async function hostingInfo(file = process.env.TUNNEL_LINK_FILE, tunnelMgr
   }
 
   try {
-    const data = JSON.parse(await readFile(file, 'utf8'));
+    const data = JSON.parse(await readFile(process.env.TUNNEL_EXTERNAL_LINK_FILE || file, 'utf8'));
     if (data.url && data.url !== 'https://api.trycloudflare.com') {
       const isFresh = Number.isFinite(data.updatedAt) && Date.now() - data.updatedAt < 20000 && data.updatedAt <= Date.now() + 5000;
       const isTryCloudflare = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(data.url);
       const isSafeHttps = /^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/.*)?$/i.test(data.url);
       const isNamedTunnel = data.mode === 'named' || Boolean(cfg.tunnelToken || process.env.TUNNEL_TOKEN);
 
-      if (data.connected || isFresh) {
+      if (isFresh) {
         if (isTryCloudflare || (isNamedTunnel && isSafeHttps)) {
           const isOnline = data.running !== false && (Boolean(data.connected) || isFresh);
           return {

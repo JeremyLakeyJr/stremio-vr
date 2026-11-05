@@ -1,9 +1,13 @@
 {
   "name": "movie-night-desktop-runtime",
-  "version": "0.1.9",
+  "version": "0.2.5",
   "private": true,
   "license": "AGPL-3.0-only",
   "main": "main.cjs",
-  "dependencies": { "ws": "8.22.0" },
-  "devDependencies": { "electron": "45.2.1" }
+  "dependencies": {
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "electron": "45.2.1"
+  }
 }

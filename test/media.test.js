@@ -26,7 +26,7 @@ test('HLS rewrites nested playlists, maps and segment URLs and rejects encryptio
   assert.throws(() => rewritePlaylist('#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key"', 'https://example.com', () => ''), /licensed/);
 });
 
-async function fixture(t) {
+async function fixture(t, token = null) {
   const dir = await mkdtemp(join(tmpdir(), 'movie-night-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'source.mkv');
@@ -39,6 +39,7 @@ async function fixture(t) {
   }
   const data = await readFile(file);
   const source = http.createServer(async (req, res) => {
+    if (token && req.headers['x-emby-token'] !== token) { res.writeHead(401); res.end(); return; }
     if (/^\/source(?:\.m3u8|\d+\.ts)$/.test(req.url)) {
       const body = await readFile(join(dir, req.url.slice(1))); res.setHeader('Content-Type', req.url.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t'); res.end(body); return;
     }
@@ -86,4 +87,25 @@ test('real peers receive one server stream; guests cannot start jobs; seek repla
   pending = receive(guest, 'state', s => s.playback.mediaStart === 2); host.send(JSON.stringify({ type: 'playback', seek: true, position: 2 })); const sought = await pending;
   assert.notEqual(sought.playback.url, state.playback.url); assert.equal(sought.playback.position, 2);
   assert.equal((await fetch(base + state.playback.url)).status, 404);
+});
+
+
+test('provider authentication survives seek and audio changes without entering room state', async t => {
+  const token = 'private-provider-token';
+  const input = await fixture(t, token); if (!input) return t.skip('ffmpeg unavailable');
+  const app = await createServer({ mediaOptions: { allowedHosts: [new URL(input.url).host] }, capabilities: {hwAccel:false,maxHeight:720,maxFps:30} });
+  app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening'); t.after(() => app.close());
+  const ws = new WebSocket(`ws://127.0.0.1:${app.server.address().port}/ws`); await once(ws, 'open');
+  let pending = receive(ws, 'joined'); ws.send(JSON.stringify({type:'create'})); await pending;
+  const states = []; ws.on('message', raw => { const msg = JSON.parse(raw); if(msg.type === 'state') states.push(raw.toString()); });
+  pending = receive(ws, 'state', s => s.playback.url.startsWith('/media/'));
+  ws.send(JSON.stringify({type:'playback',url:input.url,upstreamHeaders:{'X-Emby-Token':token},sourceCodec:'h264',audioTrackIndex:0}));
+  const first = await pending;
+  pending = receive(ws, 'state', s => s.playback.mediaStart === 2);
+  ws.send(JSON.stringify({type:'playback',seek:true,position:2,audioTrackIndex:0}));
+  const second = await pending;
+  assert.notEqual(first.playback.url, second.playback.url);
+  assert.ok(states.every(state => !state.includes(token) && !state.includes('upstreamHeaders')));
+  pending = receive(ws, 'error'); ws.send(JSON.stringify({type:'playback',seek:true,position:3,audioTrackIndex:-1}));
+  assert.match((await pending).message, /Invalid audio track/);
 });

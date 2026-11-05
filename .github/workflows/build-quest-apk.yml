@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build Quest APK (Android / ARM64)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,6 +26,7 @@ jobs:
         run: |
           npm ci --omit=dev
           npm run build:solo
+          python3 scripts/import-private-home.py
 
       - name: Free Runner Disk Space
         uses: jlumbroso/free-disk-space@main
@@ -43,14 +46,15 @@ jobs:
         with:
           projectPath: unity
           targetPlatform: Android
-          buildMethod: StremioVR.Editor.QuestBuild.Build
-          versioning: Semantic
+          buildMethod: StremioVR.Editor.QuestBuild.BuildRelease
+          versioning: None
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: movie-night.apk
           path: unity/Builds/*.apk
+          if-no-files-found: error
 
       - name: Generate APK checksums
         run: sha256sum unity/Builds/*.apk > unity/Builds/SHA256SUMS

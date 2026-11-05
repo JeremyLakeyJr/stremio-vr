@@ -8,7 +8,7 @@ import { Rooms } from './rooms.js';
 import { runCore } from './core.js';
 import { MediaServer } from './media.js';
 import { hostingInfo, dashboard } from './hosting.js';
-import { detectMediaCapabilities } from './hwaccel.js';
+import { detectMediaCapabilities, sanitizeUpstreamHeaders } from './hwaccel.js';
 import { fetchSubtitles, searchOpenSubtitles } from './subtitles.js';
 import { sendNotification } from './notifications.js';
 import { loadConfig, getConfig, saveConfig, getPublicConfig } from './config.js';
@@ -59,16 +59,20 @@ export async function createServer(options = {}) {
       if (message.url !== undefined || message.seek === true) {
         const source = message.url ?? old?.source;
         if (!source) throw new Error('Choose a video first');
-        const record = { source, owner: player.id, pending: true }; streams.set(room.id, record);
+        // Keep provider credentials private, including when a seek replaces the job.
+        const previousOptions = message.url === undefined ? old?.transcodeOptions : null;
+        const transcodeOptions = {
+          sourceCodec: message.sourceCodec ?? previousOptions?.sourceCodec,
+          audioTrackIndex: message.audioTrackIndex ?? previousOptions?.audioTrackIndex,
+          upstreamHeaders: sanitizeUpstreamHeaders(message.upstreamHeaders ?? previousOptions?.upstreamHeaders)
+        };
+        if (transcodeOptions.audioTrackIndex != null && (!Number.isInteger(transcodeOptions.audioTrackIndex) || transcodeOptions.audioTrackIndex < 0 || transcodeOptions.audioTrackIndex > 255)) throw new Error('Invalid audio track');
+        const record = { source, owner: player.id, pending: true, transcodeOptions }; streams.set(room.id, record);
         await media.stop(old?.job);
         if (streams.get(room.id) !== record || !rooms.rooms.has(room.id)) return;
         room.mediaStatus = 'Server is preparing video and AAC audio.'; room.playback.paused = true; rooms.state(room);
         try {
-          const job = await media.start(source, pos || 0, job => { record.job = job; }, {
-            sourceCodec: message.sourceCodec,
-            audioTrackIndex: message.audioTrackIndex,
-            upstreamHeaders: message.upstreamHeaders
-          });
+          const job = await media.start(source, pos || 0, job => { record.job = job; }, transcodeOptions);
           if (streams.get(room.id) !== record || !rooms.rooms.has(room.id) || room.host !== player.id || player.ws !== ws) {
             await media.stop(job);
             if (streams.get(room.id) === record) { streams.delete(room.id); room.mediaStatus = 'Stream preparation cancelled after the host disconnected'; rooms.state(room); }

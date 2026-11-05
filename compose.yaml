@@ -15,8 +15,9 @@ services:
       MEDIASTORM_KEY: ${MEDIASTORM_KEY:-}
       SILO_URL: ${SILO_URL:-}
       SILO_TOKEN: ${SILO_TOKEN:-}
-      SOURCE_URL: ${SOURCE_URL:-https://github.com/oOflyeyesOo/Media-VR}
+      SOURCE_URL: ${SOURCE_URL:-https://github.com/JeremyLakeyJr/stremio-vr}
       TUNNEL_LINK_FILE: /share/link.json
+      TUNNEL_EXTERNAL_LINK_FILE: /share/tunnel/link.json
       ICE_SERVERS: ${ICE_SERVERS:-[{"urls":"stun:stun.cloudflare.com:3478"}]}
       TURN_URLS: ${TURN_URLS:-}
       TURN_SECRET: ${TURN_SECRET:-}

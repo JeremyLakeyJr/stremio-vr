@@ -17,7 +17,7 @@ namespace StremioVR {
 public sealed class DesktopBridge:MonoBehaviour {
  static DesktopBridge instance;
  public static DesktopBridge Get(){if(!instance){var go=new GameObject("Desktop runtime");DontDestroyOnLoad(go);instance=go.AddComponent<DesktopBridge>();}return instance;}
- public event Action<JObject> Message;public bool Ready {get;private set;}public bool Failed {get;private set;}public bool VaultReady=>vault.ContainsKey("stremio")&&vault.ContainsKey("browser-profile-master");
+ public event Action<JObject> Message;public bool Ready {get;private set;}public bool Failed {get;private set;}public bool VaultReady=>vault.ContainsKey("stremio")&&vault.ContainsKey("browser-profile-master")&&vault.ContainsKey(ProviderSettings.VaultName);
  public Texture2D Frame {get;private set;}public JArray Tabs {get;private set;}=new JArray();
  readonly Dictionary<string,string> vault=new Dictionary<string,string>();bool encrypted;
  readonly ConcurrentQueue<JObject> incoming=new ConcurrentQueue<JObject>();readonly Queue<JObject> pending=new Queue<JObject>();readonly SemaphoreSlim sends=new SemaphoreSlim(1,1);
@@ -46,7 +46,7 @@ public sealed class DesktopBridge:MonoBehaviour {
  public string BrowserProfileKey(string authority){if(!VaultReady)throw new Exception("Desktop browser is still starting. Try again shortly.");string secret=LoadSecret("browser-profile-master");if(string.IsNullOrEmpty(secret)){var bytes=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(bytes);secret=Convert.ToBase64String(bytes);try{SaveSecret("browser-profile-master",secret);}catch{Message?.Invoke(new JObject{["kind"]="status",["message"]="No OS keyring: browser room sign-in will last for this app session."});}}using(var hmac=new HMACSHA256(Convert.FromBase64String(secret)))return BitConverter.ToString(hmac.ComputeHash(Encoding.UTF8.GetBytes(authority))).Replace("-","").ToLowerInvariant();}
  unsafe void Update(){
   for(int i=0;i<64&&incoming.TryDequeue(out var data);i++){
-   string kind=(string)data["kind"];if(kind=="ready"){Ready=true;foreach(string name in new[]{"stremio","browser-profile-master"})Send(new JObject{["op"]="vault",["method"]="load",["name"]=name});while(pending.Count>0)Send(pending.Dequeue());}
+   string kind=(string)data["kind"];if(kind=="ready"){Ready=true;foreach(string name in new[]{"stremio","browser-profile-master",ProviderSettings.VaultName})Send(new JObject{["op"]="vault",["method"]="load",["name"]=name});while(pending.Count>0)Send(pending.Dequeue());}
    if(kind=="vault"){vault[(string)data["name"]]=(string)data["value"];encrypted=(bool?)data["available"]==true;}
    if(kind=="browser-tabs")Tabs=(JArray)data["tabs"];Message?.Invoke(data);
   }

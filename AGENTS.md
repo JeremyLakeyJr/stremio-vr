@@ -1,7 +1,7 @@
-# AGENTS.md — Media Quest VR (Multi-Provider Fork of stremio-vr)
+# AGENTS.md — Movie Night VR
 
 ## Project Overview
-This project extends `stremio-vr` (Movie Night) to support multiple self-hosted and debrid media backends (**Stremio**, **Jellyfin**, **Remux** (`lostb1t/remux`), **MediaStorm**, **Silo**, and **Nuvio / Mellon** sync) alongside **GPU Hardware Acceleration**, **Smart Remuxing (-c:v copy)**, and **Cloudflare Named/Paid Tunnels**.
+Movie Night includes the Media-VR provider integration and supports Quest, Windows OpenXR and Linux OpenVR. It supports multiple self-hosted and debrid media backends (**Stremio**, **Jellyfin**, **Remux** (`lostb1t/remux`), **MediaStorm**, **Silo**, and **Nuvio / Mellon** sync) alongside **GPU Hardware Acceleration**, **Smart Remuxing (-c:v copy)**, and **Cloudflare Named/Paid Tunnels**.
 
 ## Module Boundaries & Ownership
 1. `server/` & `src/network/sync.ts` (Node.js 22+ Room Server & Transcoder):

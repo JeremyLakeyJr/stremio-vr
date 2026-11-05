@@ -22,7 +22,7 @@ Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), st
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
 - **Talk and play:** WebRTC voice with echo cancellation, customizable R6 avatars, and shared tabletop games.
 
-[Download Movie Night VR](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Provider contracts](docs/PROVIDER_CONTRACTS.md)
+[Download Movie Night VR](https://github.com/JeremyLakeyJr/stremio-vr/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Provider contracts](docs/PROVIDER_CONTRACTS.md)
 
 **Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout, boards, and continue watching queue save on the headset.
 
@@ -714,3 +714,21 @@ Open the menu with the left controller menu button (PC also supports A/X or keyb
 Point with the controller and press trigger to select; use the right stick to scroll. Hovering highlights and gently lifts controls; selection gives a quiet spatial click and a short controller pulse. **Comfort → Menu feedback** lets you disable sounds/haptics or enable reduced menu motion. No gaze dwell selection is used.
 
 **My room** provides quick access to browsing, Discover, playback, room arrangement and inviting friends. Playback and server connection settings have separate pages.
+
+### Compatibility after the Media-VR merge
+
+Use the pinned **Unity 6000.0.66f2** editor and checked-in package versions for
+Quest and PC builds. Unity 6000.6 fails to compile the pinned Linux OpenVR provider.
+`npm run build:apk` discovers the pinned editor on Windows, Linux, or macOS; set
+`UNITY_PATH` for a custom installation. It imports the Home assets, builds a release
+APK, and returns a nonzero exit status when a build step fails. GitHub release builds
+use the same release method. Active CI workflows live only in `.github/workflows`.
+
+Provider credentials migrate out of `profile.json` into Android Keystore or the
+PC operating-system vault when the app starts. If secure storage is unavailable,
+credentials remain in memory for that session. Solo direct videos work without a
+server; provider streams requiring HTTP authentication headers need a room server.
+
+Docker keeps its external tunnel status at `/share/tunnel/link.json`, separate from
+the dashboard-managed tunnel status and configuration volume. The invite page reads
+the external status when no dashboard-managed named tunnel is active.

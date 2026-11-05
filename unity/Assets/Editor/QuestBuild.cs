@@ -80,9 +80,12 @@ PlayerSettings.bundleVersion = "0.2.5"; PlayerSettings.Android.bundleVersionCode
         Debug.Log("Quest configuration saved. Restart Unity if requested for input-system changes.");
     }
     [MenuItem("Movie Night/Build Quest APK")]
-    public static void Build() {
+    public static void Build() => BuildWithOptions(BuildOptions.Development);
+    [MenuItem("Movie Night/Build Quest Release APK")]
+    public static void BuildRelease() => BuildWithOptions(BuildOptions.None);
+    static void BuildWithOptions(BuildOptions options) {
         R6Import.Prepare(); ChessImport.Prepare(); HomeWorldBuild.Prepare(); if(!AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Worlds/Home.prefab")) throw new BuildFailedException("Import Open Concept Home first with scripts/import-private-home.py; Home is required."); Configure(); Directory.CreateDirectory("Builds");
-        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { "Assets/Scenes/Cinema.unity" }, locationPathName = "Builds/movie-night.apk", target = BuildTarget.Android, options = BuildOptions.Development });
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { "Assets/Scenes/Cinema.unity" }, locationPathName = "Builds/movie-night.apk", target = BuildTarget.Android, options = options });
         if (report.summary.result != BuildResult.Succeeded) throw new BuildFailedException("APK build failed: " + report.summary.result);
     }
 }
