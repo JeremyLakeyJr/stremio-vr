@@ -21,6 +21,11 @@
 
 `npm test`: 24 tests covering room isolation, host authority, timeline progression, invalid playback, reconnect identity, session replacement, host handoff, room cleanup/capacity, profile validation, full-range rotations, voice validation/isolation/throttling, signaling isolation, real WebSocket playback, invalid JSON recovery, Origin checks, and flood closure.
 
+For each candidate APK, use the [Quest smoke checklist](./QUEST_SMOKE_CHECKLIST.md)
+and record measured device evidence. The checklist is intentionally separate
+from source-level tests because headset, network, audio, thermal, and
+two-device behavior cannot be inferred from a passing server suite.
+
 `npm run check`: JavaScript syntax validation. `npm run test:core`: six Rust tests. Twenty-two Unity EditMode checks pass, including mirror reflection geometry, covering URL safety and R6 asset/pose integrity. The APK is built with the installed Unity editor.
 
 Quest 3 test evidence: app verified in both eyes and controls, video and room tone; the peer received hundreds of microphone frames. Playback logs recorded approximately 0–30 ms timeline drift during the local test and a paused seek settled at 10.00 seconds. This is one physical headset with a Node peer, not two-headset validation. USB interruption disconnected the client and stopped capture; debugging was subsequently restored.

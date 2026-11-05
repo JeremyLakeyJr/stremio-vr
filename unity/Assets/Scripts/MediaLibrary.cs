@@ -49,6 +49,40 @@ public sealed class MediaLibrary : MonoBehaviour {
     public void Catalog(JObject addon, JObject catalog, Action<JArray> loaded) {
         StartCoroutine(Request(ResourceUrl((string)addon["endpoint"], "catalog/" + Escape((string)catalog["type"]) + "/" + Escape((string)catalog["id"]) + ".json"), data => loaded(data["metas"] as JArray ?? new JArray())));
     }
+    public void SearchCatalog(JObject addon, JObject catalog, string query, Action<JArray> loaded) {
+        string extra = string.IsNullOrEmpty(query) ? "" : ("/search=" + Escape(query));
+        StartCoroutine(Request(ResourceUrl((string)addon["endpoint"], "catalog/" + Escape((string)catalog["type"]) + "/" + Escape((string)catalog["id"]) + extra + ".json"), data => loaded(data["metas"] as JArray ?? new JArray())));
+    }
+    public void SearchAllAddons(string query, Action<JArray> loaded) {
+        StartCoroutine(SearchAllAddonsCoroutine(query, loaded));
+    }
+    IEnumerator SearchAllAddonsCoroutine(string query, Action<JArray> loaded) {
+        var aggregated = new JArray();
+        if (string.IsNullOrWhiteSpace(query)) { loaded(aggregated); yield break; }
+        foreach (var addon in Addons.ToArray()) {
+            foreach (var catToken in addon["catalogs"] as JArray ?? new JArray()) {
+                var cat = (JObject)catToken;
+                bool supportsSearch = false;
+                if (cat["extraSupported"] is JArray extraSup) {
+                    foreach (var s in extraSup) if ((string)s == "search") supportsSearch = true;
+                }
+                if (cat["extra"] is JArray extraArr) {
+                    foreach (var e in extraArr) if ((string)e["name"] == "search") supportsSearch = true;
+                }
+                if ((string)addon["id"] == "com.linvo.cinemeta") supportsSearch = true;
+
+                if (supportsSearch) {
+                    string url = ResourceUrl((string)addon["endpoint"], "catalog/" + Escape((string)cat["type"]) + "/" + Escape((string)cat["id"]) + "/search=" + Escape(query) + ".json");
+                    yield return Request(url, data => {
+                        if (data["metas"] is JArray metas) {
+                            foreach (var m in metas) aggregated.Add(m.DeepClone());
+                        }
+                    });
+                }
+            }
+        }
+        loaded(aggregated);
+    }
     public void Episodes(JObject addon, string type, string id, Action<JArray> loaded) {
         StartCoroutine(Request(ResourceUrl((string)addon["endpoint"], "meta/" + Escape(type) + "/" + Escape(id) + ".json"), data => loaded(data["meta"]?["videos"] as JArray ?? new JArray())));
     }

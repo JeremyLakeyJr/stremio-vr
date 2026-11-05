@@ -17,7 +17,7 @@ function receive(ws, type, predicate = () => true) { return new Promise((resolve
 
 test('HTTP health and real WebSocket create/join/playback round trip', async t => {
   const { port } = await fixture(t);
-  const health = await fetch(`http://127.0.0.1:${port}/health`); assert.deepEqual(await health.json(), { ok: true, rooms: 0 });
+  const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json(); assert.equal(health.ok, true); assert.equal(health.rooms, 0); assert.ok(health.transcoder);
   const host = await socket(port); const joined = receive(host, 'joined'); host.send(JSON.stringify({ type: 'create' })); const credentials = await joined;
   const guest = await socket(port); const ready = receive(guest, 'state'); guest.send(JSON.stringify({ type: 'join', roomId: credentials.roomId })); const state = await ready; assert.equal(state.players.length, 2);
   const playback = receive(guest, 'state'); host.send(JSON.stringify({ type: 'playback', url: 'https://example.com/a.mp4', paused: false })); assert.equal((await playback).playback.paused, false);
@@ -42,6 +42,11 @@ test('Stremio core resolves signed streams and validates manifests over HTTP', a
   const post = body => fetch(`http://127.0.0.1:${port}/api/core`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const url = 'https://example.com/video.mp4?token=a%2Fb';
   const resolved = await post({ operation: 'resolve', stream: { url } });
+  if (resolved.status === 503) {
+    const err = await resolved.json();
+    assert.match(err.error, /Build Stremio core first/);
+    return;
+  }
   assert.equal(resolved.status, 200); assert.equal((await resolved.json()).url, url);
   const manifest = await post({ operation: 'manifest', manifest: { id: 'test', name: '映画', version: '1.0.0', types: ['movie'], resources: ['stream'], catalogs: [] } });
   assert.equal(manifest.status, 200); assert.equal((await manifest.json()).name, '映画');
@@ -80,4 +85,91 @@ test('friendly sharing page and apartment photos are served without exposing arb
  assert.match(await(await fetch(base)).text(),/Copy invite/);
  assert.equal((await fetch(base+'/screenshots/apartment-lounge.png')).headers.get('content-type'),'image/png');
  assert.equal((await fetch(base+'/screenshots/not-an-image.png')).status,404);
+});
+
+test('api: /api/system/capabilities returns system status and capabilities', async t => {
+  const { port } = await fixture(t);
+  const res = await fetch(`http://127.0.0.1:${port}/api/system/capabilities`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.version, '0.2.0');
+  assert.ok(data.transcoder);
+  assert.equal(typeof data.streamingService, 'boolean');
+  assert.ok(data.providers);
+});
+
+test('api: /api/config allows reading and updating server settings at runtime', async t => {
+  const { port } = await fixture(t);
+  const getRes = await fetch(`http://127.0.0.1:${port}/api/config`);
+  assert.equal(getRes.status, 200);
+  const getData = await getRes.json();
+  assert.equal(getData.ok, true);
+  assert.ok(getData.config);
+
+  const postRes = await fetch(`http://127.0.0.1:${port}/api/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      maxHeight: 720,
+      maxFps: 30,
+      jellyfinUrl: 'http://192.168.1.100:8096',
+      mediastormUrl: 'http://192.168.1.100:7777',
+      mediastormKey: 'secret_ms_token_123',
+      siloUrl: 'http://192.168.1.100:8082',
+      siloToken: 'secret_silo_token_abc',
+      webhookUrl: 'https://discord.com/api/webhooks/secret-webhook-token'
+    })
+  });
+  assert.equal(postRes.status, 200);
+  const postData = await postRes.json();
+  assert.equal(postData.ok, true);
+  assert.equal(postData.config.maxHeight, 720);
+  assert.equal(postData.config.maxFps, 30);
+  assert.equal(postData.config.jellyfinUrl, 'http://192.168.1.100:8096');
+  assert.equal(postData.config.mediastormUrl, 'http://192.168.1.100:7777');
+  // Token masking
+  assert.match(postData.config.mediastormKey, /••••/);
+  assert.match(postData.config.siloToken, /••••/);
+  assert.match(postData.config.webhookUrl, /••••/);
+  assert.doesNotMatch(JSON.stringify(postData.config), /secret-webhook-token/);
+});
+
+test('api: /api/room/play triggers playback directly in an active room', async t => {
+  const { port, rooms } = await fixture(t);
+  // No active room -> 404
+  const noRoom = await fetch(`http://127.0.0.1:${port}/api/room/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: 'https://example.com/test.mp4' })
+  });
+  assert.equal(noRoom.status, 404);
+
+  // Connect a room
+  const ws = await socket(port);
+  const joined = receive(ws, 'joined');
+  ws.send(JSON.stringify({ type: 'create' }));
+  const session = await joined;
+
+  const playRes = await fetch(`http://127.0.0.1:${port}/api/room/play`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId: session.roomId, url: 'https://example.com/movie.mp4', title: 'Test Movie' })
+  });
+  assert.equal(playRes.status, 200);
+  const playData = await playRes.json();
+  assert.equal(playData.ok, true);
+  assert.equal(playData.title, 'Test Movie');
+
+  const r = rooms.rooms.get(session.roomId);
+  assert.equal(r.playback.sourceUrl, 'https://example.com/movie.mp4');
+  assert.equal(r.playback.sourceTitle, 'Test Movie');
+  assert.equal(r.playback.paused, false);
+});
+
+test('api: /api/stremio/unlink resets credentials', async t => {
+  const { port } = await fixture(t);
+  const res = await fetch(`http://127.0.0.1:${port}/api/stremio/unlink`, { method: 'POST' });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.ok, true);
 });

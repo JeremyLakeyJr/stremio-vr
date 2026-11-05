@@ -53,10 +53,50 @@ public sealed class AvatarPresence : MonoBehaviour {
             foreach (var id in new List<string>(avatars.Keys)) if (!ids.Contains(id)) { avatars[id].Dispose(); avatars.Remove(id); }
         }
         if (type == "pose" && avatars.TryGetValue((string)message["playerId"], out var target)) { target.Pose((JObject)message["pose"]); target.Seated((bool?)message["seated"] ?? false); }
+        if (type == "reaction") {
+            string fromId = (string)message["playerId"];
+            string emoji = (string)message["emoji"];
+            if (!string.IsNullOrEmpty(emoji) && (Room == null || fromId != Room.PlayerId)) {
+                ShowReaction(fromId, emoji);
+            }
+        }
+    }
+    public void ShowReaction(string playerId, string emoji) {
+        Transform anchor = Head;
+        if (playerId != null && Room != null && playerId != Room.PlayerId && avatars.TryGetValue(playerId, out var av)) {
+            anchor = av.HeadTransform;
+        }
+        if (anchor != null) {
+            SpawnFloatingEmoji(anchor.position + Vector3.up * 0.45f, emoji);
+        }
+    }
+    void SpawnFloatingEmoji(Vector3 position, string emoji) {
+        var go = new GameObject("EmojiReaction", typeof(TextMesh));
+        go.transform.position = position;
+        go.transform.localScale = Vector3.one * 0.02f;
+        var tm = go.GetComponent<TextMesh>();
+        tm.text = emoji;
+        tm.fontSize = 64;
+        tm.alignment = TextAlignment.Center;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.color = Color.white;
+        StartCoroutine(AnimateEmoji(go));
+    }
+    System.Collections.IEnumerator AnimateEmoji(GameObject go) {
+        float elapsed = 0;
+        Vector3 start = go.transform.position;
+        while (elapsed < 2.5f && go != null) {
+            elapsed += Time.deltaTime;
+            go.transform.position = start + Vector3.up * (elapsed * 0.35f);
+            if (Head != null) go.transform.rotation = Quaternion.LookRotation(go.transform.position - Head.position);
+            yield return null;
+        }
+        if (go != null) Destroy(go);
     }
     void OnDestroy() { if (Room != null) Room.Message -= OnMessage; foreach (var avatar in avatars.Values) avatar.Dispose(); }
     sealed class Avatar {
         public string Appearance; readonly GameObject root; readonly Transform head, left, right; readonly AvatarModel model;
+        public Transform HeadTransform => head;
         readonly Dictionary<Transform, Vector3> positions = new Dictionary<Transform, Vector3>(); readonly Dictionary<Transform, Quaternion> rotations = new Dictionary<Transform, Quaternion>();
         public Avatar(Transform parent, JObject profile, Vector3 seat) {
             Appearance = profile.ToString(); root = new GameObject((string)profile["name"]); root.transform.SetParent(parent);
@@ -64,12 +104,12 @@ public sealed class AvatarPresence : MonoBehaviour {
             head = new GameObject("Tracked head").transform; head.SetParent(root.transform); head.position = seat + Vector3.up * 1.65f;
             left = new GameObject("Tracked left hand").transform; left.SetParent(root.transform); left.position = seat + new Vector3(-0.45f, 1.15f, 0.25f);
             right = new GameObject("Tracked right hand").transform; right.SetParent(root.transform); right.position = seat + new Vector3(0.45f, 1.15f, 0.25f);
-            model.SetPose(head.position, head.rotation, left.position, right.position);
+            model.SetPose(head.position, head.rotation, left.position, left.rotation, right.position, right.rotation);
         }
         public void Seated(bool value) { model.SetSeated(value); }
         public void Pose(JObject pose) { Set(head, pose["head"]); Set(left, pose["left"]); Set(right, pose["right"]); }
         void Set(Transform target, JToken data) { if (data == null) return; var p = data["position"]; var r = data["rotation"]; positions[target] = new Vector3((float)p[0], (float)p[1], (float)p[2]); rotations[target] = Quaternion.Euler((float)r[0], (float)r[1], (float)r[2]); }
-        public void Update() { float t = 1 - Mathf.Exp(-15 * Time.deltaTime); foreach (var pair in positions) { pair.Key.position = Vector3.Lerp(pair.Key.position, pair.Value, t); pair.Key.rotation = Quaternion.Slerp(pair.Key.rotation, rotations[pair.Key], t); } model.SetPose(head.position, head.rotation, left.position, right.position); }
+        public void Update() { float t = 1 - Mathf.Exp(-15 * Time.deltaTime); foreach (var pair in positions) { pair.Key.position = Vector3.Lerp(pair.Key.position, pair.Value, t); pair.Key.rotation = Quaternion.Slerp(pair.Key.rotation, rotations[pair.Key], t); } model.SetPose(head.position, head.rotation, left.position, left.rotation, right.position, right.rotation); }
         public void Dispose() { Object.Destroy(root); }
     }
 }

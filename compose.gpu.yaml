@@ -1,0 +1,13 @@
+services:
+  cinema:
+    # Linux Intel/AMD VAAPI / QSV device passthrough
+    devices:
+      - /dev/dri:/dev/dri
+    # NVIDIA GPU passthrough (Docker Desktop / Linux nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, video]

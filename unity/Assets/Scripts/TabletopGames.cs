@@ -135,7 +135,7 @@ public sealed class TabletopGames : MonoBehaviour {
   }
   if(!best)return false;var board=boards.Find(b=>b.Game=="chess");var state=Room.State?["games"]?["chess"] as JObject;
   if(board==null||state==null)return false;int turn=(int)state["turn"];string piece=(string)state["board"]?[best.Cell];
-  if((string)state["players"]?[turn]!=Room.PlayerId||string.IsNullOrEmpty(piece)||char.IsUpper(piece[0])!=(turn==0)){Status?.Invoke("Join a seat and pick up your own piece on your turn.");return false;}
+  if((!Room.IsSolo&&(string)state["players"]?[turn]!=Room.PlayerId)||string.IsNullOrEmpty(piece)||char.IsUpper(piece[0])!=(turn==0)){Status?.Invoke("Join a seat and pick up your own piece on your turn.");return false;}
   Select("chess",best.Cell);grabBoard=board;grabbed=best.transform;grabCell=best.Cell;grabHand=handIndex;originalPosition=grabbed.localPosition;originalRotation=grabbed.localRotation;grabOffset=Quaternion.Inverse(hand.rotation)*(grabbed.position-hand.position);return true;
  }
  void Move(JObject state,string game,JObject message){message["type"]="game";message["game"]=game;message["action"]="move";message["revision"]=state["revision"].DeepClone();Room.Send(message);}

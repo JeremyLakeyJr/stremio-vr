@@ -1,0 +1,70 @@
+name: Build Quest APK
+
+on:
+  workflow_dispatch:
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    name: Build Quest APK (Android / ARM64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies and compile solo bundle
+        run: |
+          npm ci --omit=dev
+          npm run build:solo
+
+      - name: Free Runner Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+
+      - name: Build Unity Android APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          projectPath: unity
+          targetPlatform: Android
+          buildMethod: StremioVR.Editor.QuestBuild.Build
+          versioning: Semantic
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: movie-night.apk
+          path: unity/Builds/*.apk
+
+      - name: Generate APK checksums
+        run: sha256sum unity/Builds/*.apk > unity/Builds/SHA256SUMS
+
+      - name: Upload APK checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: movie-night.apk.sha256
+          path: unity/Builds/SHA256SUMS
+
+      - name: Attach APK to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            unity/Builds/*.apk
+            unity/Builds/SHA256SUMS

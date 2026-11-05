@@ -17,6 +17,14 @@ public static class OpenAvatarCatalog {
  static void Ensure(){if(entries!=null)return;var data=Resources.Load<TextAsset>("Avatars/OpenSourceCatalog");entries=((JArray)JObject.Parse(data.text)["entries"]).Cast<JObject>().ToDictionary(a=>(string)a["id"]);}
  public static JObject Find(string id){Ensure();return id!=null&&entries.TryGetValue(id,out var entry)?entry:null;}
  public static string Credit(JObject entry)=>entry==null?"R6":$"{entry["name"]} — {entry["creator"]} · {entry["license"]}";
+ public static void ClearCache() {
+  try {
+   string dir = Path.Combine(Application.persistentDataPath, "avatars");
+   if (Directory.Exists(dir)) {
+    foreach (var file in Directory.GetFiles(dir, "*.vrm")) File.Delete(file);
+   }
+  } catch {}
+ }
  public static string CachePath(string id){using(var hash=System.Security.Cryptography.SHA256.Create()){string key=BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(id))).Replace("-","").ToLowerInvariant();return Path.Combine(Application.persistentDataPath,"avatars",key+".vrm");}}
  public static Task<byte[]> Download(string id){if(downloads.TryGetValue(id,out var pending))return pending;var task=Fetch(id);downloads[id]=task;return RemoveWhenDone(id,task);}
  static async Task<byte[]> RemoveWhenDone(string id,Task<byte[]> task){try{return await task;}finally{downloads.Remove(id);}}

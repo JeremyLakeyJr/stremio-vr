@@ -1,0 +1,44 @@
+# Tailscale Exposure Profile for Movie Night VR
+#
+# Connects Movie Night VR directly to your private Tailscale network (Tailnet).
+# Gives Movie Night its own MagicDNS hostname and automatic HTTPS certs.
+#
+# Usage:
+#   1. Set TS_AUTHKEY in your .env file (get one from https://login.tailscale.com/admin/settings/keys)
+#   2. Optional: Set TS_HOSTNAME (default: movie-night)
+#   3. Run with Tailscale profile:
+#      docker compose -f compose.yaml -f compose.tailscale.yaml up -d
+#
+# To enable public access via Tailscale Funnel (optional, no Cloudflare account needed):
+#   Set TS_EXTRA_ARGS="--funnel=true" in .env
+
+services:
+  # Cinema container shares the Tailscale network namespace
+  cinema:
+    network_mode: service:tailscale
+    ports: !reset [] # Ports are bound directly on the Tailscale container
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: movie-night-tailscale
+    hostname: ${TS_HOSTNAME:-movie-night}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_HOSTNAME=${TS_HOSTNAME:-movie-night}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=${TS_USERSPACE:-true}
+      - TS_EXTRA_ARGS=${TS_EXTRA_ARGS:-}
+      - TS_SERVE_CONFIG=/config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:

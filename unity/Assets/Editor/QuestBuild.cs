@@ -24,7 +24,7 @@ public static class QuestBuild {
         Directory.CreateDirectory("Assets/Scenes"); Directory.CreateDirectory("Assets/XR");
         PlayerSettings.companyName = "StremioVR"; PlayerSettings.productName = "Movie Night";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.jeremylakey.stremiovr");
-        PlayerSettings.bundleVersion = "0.1.9"; PlayerSettings.Android.bundleVersionCode = 10;
+PlayerSettings.bundleVersion = "0.2.5"; PlayerSettings.Android.bundleVersionCode = 11;
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
@@ -36,7 +36,7 @@ public static class QuestBuild {
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
         PlayerSettings.colorSpace = ColorSpace.Linear;
         var player = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
-        var input = player.FindProperty("activeInputHandler"); if (input != null) { input.intValue = 2; player.ApplyModifiedPropertiesWithoutUndo(); }
+        var input = player.FindProperty("activeInputHandler"); if (input != null) { input.intValue = 0; player.ApplyModifiedPropertiesWithoutUndo(); }
         var general = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(BuildTargetGroup.Android);
         if (general == null) {
             if (!EditorBuildSettings.TryGetConfigObject(XRGeneralSettings.k_SettingsKey, out XRGeneralSettingsPerBuildTarget perTarget)) {
@@ -57,14 +57,14 @@ public static class QuestBuild {
         if (quest == null || touch == null) throw new BuildFailedException("Open Android OpenXR settings to initialize Meta Quest and Touch features, then rerun Configure");
         quest.enabled = true; touch.enabled = true;
         var questSettings = new SerializedObject(quest);
-        questSettings.FindProperty("optimizeBufferDiscards").boolValue = false;
+        var discardsProp = questSettings.FindProperty("optimizeBufferDiscards"); if (discardsProp != null) { discardsProp.boolValue = false; }
         questSettings.ApplyModifiedPropertiesWithoutUndo();
         xr.optimizeBufferDiscards = false;
         EditorUtility.SetDirty(general); EditorUtility.SetDirty(general.Manager); EditorUtility.SetDirty(xr); EditorUtility.SetDirty(quest); EditorUtility.SetDirty(touch);
         // Runtime-created materials must survive shader stripping in an APK.
         var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
         var shaders = graphics.FindProperty("m_AlwaysIncludedShaders");
-        foreach (string name in new[] { "VRM10/MToon10", "UniGLTF/UniUnlit", "Standard", "Unlit/Color", "Unlit/Texture", "UI/Default", "StremioVR/Avatar", "StremioVR/World", "StremioVR/ScreenGlow", "MovieNight/Mirror", "MovieNight/EdgeSmooth", "MovieNight/BrowserYuv", "MovieNight/BounceField", "Skybox/Panoramic" }) {
+        foreach (string name in new[] { "VRM10/MToon10", "UniGLTF/UniUnlit", "Standard", "Unlit/Color", "Unlit/Texture", "UI/Default", "StremioVR/Avatar", "StremioVR/World", "StremioVR/ScreenGlow", "StremioVR/CinemaScreen", "MovieNight/Mirror", "MovieNight/EdgeSmooth", "MovieNight/BrowserYuv", "MovieNight/BounceField", "Skybox/Panoramic" }) {
             var shader = Shader.Find(name); if (shader == null) throw new BuildFailedException("Missing shader: " + name);
             bool found = false; for (int i = 0; i < shaders.arraySize; i++) if (shaders.GetArrayElementAtIndex(i).objectReferenceValue == shader) found = true;
             if (!found) { int index = shaders.arraySize; shaders.InsertArrayElementAtIndex(index); shaders.GetArrayElementAtIndex(index).objectReferenceValue = shader; }

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d236b7d11115f2143951f1e14045df39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_LoaderManagerInstance: {fileID: 6271287167147903917}
+  m_Manager: {fileID: 6271287167147903917}
   m_InitManagerOnStart: 1
 --- !u!114 &11400000
 MonoBehaviour:
@@ -26,10 +26,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d2dc886499c26824283350fa532d087d, type: 3}
   m_Name: GeneralSettings
   m_EditorClassIdentifier: 
-  Keys: 0700000001000000
-  Values:
-  - {fileID: -210878254499021670}
-  - {fileID: 5604907847138726942}
+  Keys: 
+  Values: []
+  m_SettingsPerBuildTarget:
+  - buildTarget: 7
+    settings: {fileID: -210878254499021670}
+  - buildTarget: 1
+    settings: {fileID: 5604907847138726942}
 --- !u!114 &557062109443726049
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -59,7 +62,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d236b7d11115f2143951f1e14045df39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_LoaderManagerInstance: {fileID: 557062109443726049}
+  m_Manager: {fileID: 557062109443726049}
   m_InitManagerOnStart: 1
 --- !u!114 &6271287167147903917
 MonoBehaviour:

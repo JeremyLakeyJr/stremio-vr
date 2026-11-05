@@ -38,6 +38,7 @@ public final class CinemaWebView {
     private HandlerThread capture;
     private volatile byte[] frame;
     private volatile boolean closed;
+    private volatile float currentVolume = 1.0f;
     private long lastFrame;
     private boolean restored;
     private int sessionEpoch;
@@ -109,7 +110,7 @@ public final class CinemaWebView {
     private void activate(int index){
         if(closed||index<0||index>=tabs.size())return;
         if(web!=null){remember(null);web.evaluateJavascript("document.querySelectorAll('video,audio').forEach(v=>v.pause())",null);web.onPause();}
-        layout.removeAllViews();activeTab=index;web=tabs.get(index);web.onResume();layout.addView(web,new FrameLayout.LayoutParams(-1,-1));restored=false;restore();publishTabs();
+        layout.removeAllViews();activeTab=index;web=tabs.get(index);web.onResume();layout.addView(web,new FrameLayout.LayoutParams(-1,-1));restored=false;restore();applyVolumeToAll();publishTabs();
     }
     private void addTab(String value){
         if(closed||layout==null)return;if(tabs.size()>=6){status("Six tabs maximum. Close a tab first.");return;}
@@ -118,9 +119,13 @@ public final class CinemaWebView {
             WebSettings settings=web.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setMediaPlaybackRequiresUserGesture(false); settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
             CookieManager.getInstance().setAcceptCookie(true);
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            settings.setDatabaseEnabled(true); settings.setUseWideViewPort(true); settings.setLoadWithOverviewMode(true);
+            String defaultUa = settings.getUserAgentString();
+            if (defaultUa != null) { settings.setUserAgentString(defaultUa.replace("Mobile", "X11").replace("Android", "CrOS")); }
             web.setWebViewClient(new WebViewClient() {
                 @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) { String scheme=request.getUrl().getScheme(); return !("https".equals(scheme)||"http".equals(scheme)); }
-                @Override public void onPageFinished(WebView view,String url) { if(view==web)restore(); publishTabs(); }
+                @Override public void onPageFinished(WebView view,String url) { if(view==web){ restore(); applyVolumeToAll(); } publishTabs(); }
                 @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError error) { if(req.isForMainFrame()) status("Web page failed: "+error.getDescription()); }
             });
             web.setWebChromeClient(new WebChromeClient() {
@@ -143,6 +148,40 @@ public final class CinemaWebView {
     public void text(String value) { activity.runOnUiThread(()-> { if(web==null||closed)return; String quoted=JSONObject.quote(value); web.evaluateJavascript("(()=>{const e=document.activeElement;if(!e||!['INPUT','TEXTAREA'].includes(e.tagName))return;const p=e.tagName==='INPUT'?HTMLInputElement.prototype:HTMLTextAreaElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,"+quoted+");e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()",null); }); }
     public void back() { activity.runOnUiThread(()->{if(web!=null&&!closed&&web.canGoBack())web.goBack();}); }
     public void reload() { activity.runOnUiThread(()->{if(web!=null&&!closed)web.reload();}); }
+    public void volume(float val) {
+        activity.runOnUiThread(() -> {
+            currentVolume = Math.max(0f, Math.min(1f, val));
+            applyVolumeToAll();
+        });
+    }
+
+    private void applyVolumeToAll() {
+        if (web == null || closed) return;
+        final float clamped = currentVolume;
+        final boolean muted = clamped <= 0.001f;
+        String js = "(()=>{ try {" +
+            "window.__cinemaVolume = " + clamped + ";" +
+            "window.__cinemaMuted = " + muted + ";" +
+            "const syncMedia = (targetDoc) => {" +
+            "  if(!targetDoc) return;" +
+            "  try { targetDoc.querySelectorAll('video, audio').forEach(v => { v.volume = window.__cinemaVolume; v.muted = window.__cinemaMuted; }); } catch(e){}" +
+            "  try { targetDoc.querySelectorAll('iframe').forEach(f => { try { syncMedia(f.contentDocument); } catch(e){} }); } catch(e){}" +
+            "};" +
+            "syncMedia(document);" +
+            "if (!window.__cinemaVolumeHooked) {" +
+            "  window.__cinemaVolumeHooked = true;" +
+            "  const origPlay = HTMLMediaElement.prototype.play;" +
+            "  HTMLMediaElement.prototype.play = function() {" +
+            "    this.volume = window.__cinemaVolume;" +
+            "    this.muted = window.__cinemaMuted;" +
+            "    return origPlay.apply(this, arguments);" +
+            "  };" +
+            "  const obs = new MutationObserver(() => syncMedia(document));" +
+            "  obs.observe(document.body || document.documentElement, { childList: true, subtree: true });" +
+            "}" +
+            "} catch(e){} })()";
+        web.evaluateJavascript(js, null);
+    }
     public void shareVideo() { activity.runOnUiThread(()-> { if(web==null||closed)return; web.evaluateJavascript("(()=>{const v=document.querySelector('video');return v?JSON.stringify({url:v.currentSrc,title:document.title,position:v.currentTime,paused:v.paused}):null})()",value->UnityPlayer.UnitySendMessage(receiver,"BrowserVideo",value)); }); }
     public void close() { closed=true; activity.runOnUiThread(()->{sessionHandler.removeCallbacks(rememberLoop);remember(this::release);sessionHandler.postDelayed(this::release,1000);}); }
     private void release() { for(WebView tab:tabs){tab.stopLoading();tab.destroy();}tabs.clear();web=null; if(presentation!=null){presentation.dismiss();presentation=null;} if(display!=null){display.release();display=null;} if(reader!=null){reader.close();reader=null;} if(capture!=null){capture.quitSafely();capture=null;} frame=null; }

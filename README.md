@@ -2,7 +2,7 @@
 
 **Your own VR apartment. A movie. Your friends.**
 
-Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), choose something to watch with Stremio, and enjoy the same movie together. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
+Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), stream your favorite movies and shows across multiple media providers (Stremio, Jellyfin, MediaStorm, Silo, Nuvio/Mellon), and enjoy synchronized playback together in 1080p / 4K. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
 
 ![Open Concept Home lounge in Movie Night](docs/screenshots/apartment-lounge.png)
 
@@ -12,25 +12,32 @@ Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), ch
 
 *In-engine captures of the included apartment. Open Concept Home by TwilightStudio.*
 
-- **Watch together:** one host picks the video; playback is synchronized across the room.
+- **Watch together:** one host picks the video; playback and timeline are synchronized in real-time across the room.
+- **Universal media integration:** stream from **Stremio Add-ons**, **Jellyfin / Remux**, **MediaStorm** (Debrid/Usenet), **Silo**, or direct HTTP(S) sources.
+- **Hardware GPU transcoding & Smart Remux:** auto-detected NVENC, QSV, VAAPI, VideoToolbox, and AMF acceleration. Compatible H.264 streams bypass transcoding via Smart Remux for 0% CPU/GPU overhead.
+- **Remote Access (Cloudflare & Tailscale):** zero-configuration TryCloudflare quick tunnels, named Cloudflare Zero Trust tunnels, or private encrypted Tailscale mesh (`compose.tailscale.yaml`).
+- **Subtitles & audio sync:** automatic SRT to WebVTT conversion, in-memory caching, and on-the-fly timing offset adjustments.
+- **Watch history & progress sync:** native playback synchronization with Jellyfin/Remux, MediaStorm, Silo, and local resume caching. Scrobbling to Trakt/Simkl is handled cleanly server-side by upstream media server plugins without client duplication.
 - **Make it yours:** place extra movie screens and game tables where you want them.
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
-- **Talk and play:** WebRTC voice, customizable avatars, and shared tabletop games.
+- **Talk and play:** WebRTC voice with echo cancellation, customizable R6 avatars, and shared tabletop games.
 
-[Download Movie Night](https://github.com/JeremyLakeyJr/stremio-vr/releases) · [What still needs testing](docs/ACCEPTANCE.md)
+[Download Movie Night VR](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Provider contracts](docs/PROVIDER_CONTRACTS.md)
 
-**Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout and board progress save on the headset.
+**Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout, boards, and continue watching queue save on the headset.
 
-**Playing with friends?** One person runs the Docker server on a computer. Everyone installs the Quest app. The person hosting opens **http://localhost:3000**, clicks **Copy invite**, and sends the link plus the headset's room code to friends. Keep the computer running while you hang out.
+**Playing with friends?** One person runs the Docker server on a computer. Everyone installs the Quest app. The person hosting opens **http://localhost:3000**, scans the QR code or clicks **Copy invite**, and sends the link plus the headset's room code to friends. Keep the computer running while you hang out.
 
-## Goal checklist
+---
+
+## Goal Checklist
 
 Checked items are implemented; separate acceptance tasks below remain open.
 
 - [x] Native Quest app with OpenXR controls and a Stremio-inspired animated menu.
 - [x] Start automatically in server-free solo mode with saved layout and game progress.
 - [x] Play chess/tic-tac-toe against local computer opponents or practice both sides.
-- [x] Fix Alpha 2's stereo startup bug — stererecovery verified.
+- [x] Fix Alpha 2's stereo startup bug — stereorecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
 - [x] Windows OpenXR and Linux SteamVR PC builds, with bundled browser, offline Solo rules and WebRTC voice.
 - [x] Browse 4,274 Open Source Avatars with saved selection, creator credits, VRM loading and peer/mirror support.
@@ -39,74 +46,277 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Let the host add, move, rotate, and remove extra screens and game tables.
 - [x] Synchronize layout for room members and late joiners without resetting games.
 - [x] Support movement speed, smooth turning, seating, and reclined viewing controls.
-- [x] Import Stremio add-ons and watch history; retain native sign-in securely.
+- [x] **Multi-Provider Architecture:** unified client and registry for Stremio, Jellyfin/Remux, MediaStorm, Silo, and Nuvio/Mellon.
+- [x] **GPU Hardware Transcoding:** auto-detection for NVIDIA NVENC, Intel QuickSync (QSV), AMD/Intel VAAPI, Apple VideoToolbox, and AMD AMF.
+- [x] **Smart Remux:** direct stream passthrough (`-c:v copy`) for H.264 video to eliminate transcoding load.
+- [x] **Remote Access & Tunnels:** Cloudflare Zero Trust tunnels (`TUNNEL_TOKEN`), free TryCloudflare quick tunnels, and native Tailscale sidecar profile (`compose.tailscale.yaml`).
+- [x] **Subtitles Pipeline:** on-the-fly SRT to WebVTT conversion, timing offset adjustments (`?offset=±seconds`), and multi-viewer caching.
+- [x] **Watch Progress & Sync:** native backend session reporting (`/Sessions/Playing`, `/api/progress`), server-side scrobbling delegation, and local resume caching.
+- [x] **Webhooks & Room Notifications:** rich Discord embeds, Slack blocks, and Apprise/generic webhook alerts.
+- [x] **Sharing Dashboard:** QR code rendering on the host web page for fast headset and mobile pairing.
+- [x] **Universal Stremio Add-on Protocol:** dynamic manifest installation and stream resolution for Cinemeta, Torrentio, CyberFlix, and anime add-ons.
 - [x] Browse HTTP/HTTPS sites in six host-controlled tabs, managed with the menu button.
-- [x] Restore the first-floor texture by respecting disabled source emission.
 - [x] Use Jacob G’s original chess set with attribution and grip-to-move controls.
 - [x] Remember the in-world web screen's sign-in with encrypted local session backup.
-- [x] Fetch, transcode, and stream video on the server with AAC audio.
 - [x] Replace PCM voice relay with WebRTC/Opus and optional TURN support.
-- [x] Provide a browser page that copies the temporary Cloudflare invite link.
-- [x] Include apartment screenshots and the original Home archive through Git LFS.
-- [x] Resize and curve the main screen and placed monitors, with matching beam geometry and room lighting.
-- [x] Eight ambient color samples per edge with diffusion and display-correct top/bottom sampling.
-- [x] Walking/turning during web playback and beam visibility limited to interactive targets.
-- [x] Shared server browser with host tabs, WebRTC video/audio, and encrypted remembered profiles.
 - [ ] Verify shared-browser quality and audio on two physical Quests across different networks.
-- [x] Verified Alpha 4 looks right in both eyes and its browser/placement/chess controls work.
 - [ ] Verify WebRTC audio with two headsets on different networks, including TURN.
-- [ ] Verify web sign-in survives closing the screen, app restart, and room replacement.
-- [ ] Validate prolonged movie sessions, audio synchronization, and Quest performance.
+- [ ] Validate prolonged movie sessions, audio synchronization, and Quest performance under heavy loads.
 - [ ] Add provider-authorized DRM playback; current player does not support it.
 
-## Play solo — no server setup
+---
 
-Install the [Quest APK](https://github.com/JeremyLakeyJr/stremio-vr/releases/tag/v0.1.9-alpha.1) and launch Movie Night. Solo starts automatically. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games. **My room → Invite friends / join a room → Return to Solo** also leaves multiplayer and restores your saved solo apartment.
+## Multi-Platform Media Providers
 
-Discover, Stremio account/add-on import, watch history, and the web browser connect directly to their online services. Direct HTTP(S) videos play on the headset without a room server. Websites and streamed movies still need internet access. Unsupported codecs, torrent delivery, and sources requiring proxy headers still need an appropriate streaming/transcoding service; solo does not secretly start or connect to Docker. DRM support is unchanged.
+Movie Night VR features a unified provider framework located in `unity/Assets/Scripts/Providers/` and backend media proxy in `server/media.js`.
 
-Games start ready to play against a local computer: you control White/X. In **Games**, switch to **Practice both sides** to control both players. The same chess rules run entirely on-device, including castling, en passant, promotion and game outcomes. Layout, board moves and opponent mode restore after restarting the app. Voice and shared playback become available when you choose to connect to a multiplayer room.
+```mermaid
+flowchart TD
+    subgraph Unity ["Meta Quest / Unity Client"]
+        Reg["MediaProviderRegistry"]
+        JF["JellyfinProvider"]
+        MS["MediaStormProvider"]
+        SI["SiloProvider"]
+        ST["StremioAddonProvider"]
+        NV["NuvioMellonSync"]
+        WP["WatchProgressSync (Jellyfin / MediaStorm / Silo)"]
+        Playback["CinemaPlayback"]
 
-## Quick start: Docker + Quest (multiplayer)
+        Reg --> JF
+        Reg --> MS
+        Reg --> SI
+        Reg --> ST
+        Reg --> NV
+        Playback --> WP
+    end
 
-You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch. Docker runs the room server, Rust core, FFmpeg transcoder, internal Stremio streaming service, and shared Chromium browser. It does **not** build or install the Quest app. Node.js and Rust do not need to be installed on the computer when using Docker.
+    subgraph Server ["Movie Night Docker Server"]
+        Router["Server WebSocket / Router"]
+        Sanitize["CRLF / Null-Byte Sanitizer"]
+        HW["hwaccel.js (GPU Detect & Smart Remux)"]
+        FFmpeg["FFmpeg HLS Transcoder"]
+        Subs["subtitles.js (SRT to VTT + Offset)"]
+        Notif["notifications.js (Discord / Slack)"]
 
-### 1. Get the project and start the server
+        Router --> Sanitize
+        Sanitize --> HW
+        HW --> FFmpeg
+    end
 
-**Prefer a download?** Get the [project ZIP](https://github.com/JeremyLakeyJr/stremio-vr/archive/refs/heads/master.zip), extract it, and start Docker Desktop. On Windows, double-click **Start Movie Night.cmd**. On macOS/Linux, run `./start-movie-night.sh` in the extracted folder. Open **http://localhost:3000** for your invite. Git LFS is only needed if you want the original Home archive to build the Quest app; running the server does not require it.
-
-**Using Git:**
-
-```sh
-git lfs install
-git clone https://github.com/JeremyLakeyJr/stremio-vr.git
-cd stremio-vr
-git lfs pull
-docker compose version
-docker compose up -d --build
-docker compose ps
+    JF -.->|"X-Emby-Token"| Router
+    MS -.->|"X-MediaStorm-Key"| Router
+    SI -.->|"Bearer Token"| Router
+    ST -.->|"Direct / Debrid Stream"| Router
+    FFmpeg -->|"Shared HLS Stream"| Playback
 ```
 
-Install [Git LFS](https://git-lfs.com/) before cloning to retrieve the included Home archive. If you only run Docker, you may use `GIT_LFS_SKIP_SMUDGE=1 git clone ...` and fetch the archive later when building the APK.
+### 1. Jellyfin & Remux (`lostb1t/remux`)
+- **Native API Client:** `JellyfinProvider.cs` authenticates via `/Users/AuthenticateByName` or session tokens.
+- **Catalogs & Views:** maps movie and TV libraries into the VR menu.
+- **Playback Reporting:** `WatchProgressSync.cs` reports live progress ticks to `/Sessions/Playing/Progress` and `/Sessions/Playing/Stopped`.
+- **Configuration:** Set `JELLYFIN_URL` in `.env` (e.g. `http://192.168.1.50:8096`).
 
-Open **http://localhost:3000** after startup. The **Copy invite** button becomes available when the tunnel is ready. Add the room code from your headset to copy a complete invitation.
+### 2. MediaStorm (Debrid & Usenet Streaming)
+- **Adapter Client:** `MediaStormProvider.cs` maps MediaStorm's catalog search, debrid stream resolution, and watch progress endpoints.
+- **Debrid Streaming:** passes authenticated stream URLs with sanitized `X-MediaStorm-Key` upstream headers, supporting Real-Debrid, AllDebrid, Premiumize, and Usenet indexers.
+- **Enriched Stream Details:** parses debrid provider tags (e.g. `[MediaStorm: RD+]`), quality tags (4K, 1080p), file sizes, audio track indices, and remote subtitle URLs.
+- **Playback Sync:** live watch progress is automatically synchronized with MediaStorm's `/api/v1/user/progress` endpoint.
+- **In-VR Setup:** configure your server URL and API key directly in the headset via "Media backends".
+- **Configuration:** Set `MEDIASTORM_URL` and `MEDIASTORM_KEY` in `.env`.
 
-The first build downloads dependencies and compiles the Rust core, so allow several minutes. Wait for `cinema` to become **healthy**, then check it from this computer:
+### 3. Silo (Go High-Performance Media Server)
+- **High-Throughput Streaming:** `SiloProvider.cs` connects to Silo media servers, supporting library browsing, media search, and stream resolution.
+- **Enriched Stream Details:** parses resolution badges (`[Silo: 4K]`, `[Silo: 1080p]`), stream bitrates, subtitle URLs, and audio track indices.
+- **Playback Sync:** live watch progress is automatically synchronized with Silo's `/api/progress` endpoint.
+- **Flexible Authentication:** supports standard username/password login or direct JWT API token authentication.
+- **In-VR Setup:** configure your server URL, username/token, and password directly in the headset via "Media backends".
+- **Configuration:** Set `SILO_URL` and optional `SILO_TOKEN` in `.env`.
+
+### 4. Stremio & Universal Add-on Protocol
+- **Built-in Stremio Core:** pinned Rust `stremio-core` bridge resolves manifests, torrents, and proxy headers.
+- **Universal Addon Provider (`StremioAddonProvider.cs`):** install *any* standard Stremio add-on manifest URL (Cinemeta, Torrentio, CyberFlix, OpenSubtitles v3, Anime Kitsu) directly into the VR client without running a desktop Stremio client.
+- **Device-Link Sign-in:** approve on your phone or PC with a simple device code; add-ons import securely.
+
+### 5. Nuvio & Mellon Add-on Manifest Sync
+- **NuvioMellonSync.cs:** imports Mellon and Nuvio add-on bundles and manifests directly into the VR media library.
+
+---
+
+## Hardware Transcoding & Smart Remux
+
+Movie Night automatically detects host GPU capabilities upon startup:
+
+| Accelerator | Hardware Encoder | Target Systems | Compose Setup |
+| --- | --- | --- | --- |
+| **NVIDIA NVENC** | `h264_nvenc` | GeForce / Quadro / RTX (Linux & Windows) | `compose.gpu.yaml` (nvidia driver) |
+| **Intel QuickSync** | `h264_qsv` | Intel Core CPUs with integrated UHD/Iris Graphics | `compose.gpu.yaml` (`/dev/dri`) |
+| **AMD / Intel VAAPI** | `h264_vaapi` | Linux AMD Radeon & Intel Graphics | `compose.gpu.yaml` (`/dev/dri`) |
+| **Apple VideoToolbox** | `h264_videotoolbox` | macOS Apple Silicon (M1/M2/M3/M4) | Native Node execution |
+| **AMD AMF** | `h264_amf` | Windows AMD Radeon GPUs | Native Node execution |
+| **CPU Fallback** | `libx264` | Any x86_64 or ARM64 host | Default `compose.yaml` (capped at 720p/30fps) |
+
+### Smart Remux (Zero CPU/GPU Load)
+When an upstream source is already encoded in H.264 video with AAC audio (such as standard Web-DL, MP4, or Debrid streams), the transcoder automatically engages **Smart Remux** (`-c:v copy`). This forwards the video stream directly into the shared HLS pipeline without re-encoding, preserving native visual fidelity and consuming near-zero CPU or GPU resources.
+
+To disable remuxing and force re-encoding (e.g., for bandwidth-constrained hosts), set `MEDIA_DISABLE_REMUX=true` in `.env`.
+
+### GPU Docker Deployment
+To enable GPU acceleration in Docker:
+
+```sh
+# For NVIDIA GPUs:
+docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
+
+# For Intel / AMD VAAPI devices on Linux:
+docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
+```
+
+---
+
+## Cloudflare Tunnels: Free vs. Named / Paid
+
+Movie Night includes automated Cloudflare tunnel integration so friends can connect from anywhere without opening ports or configuring router port forwarding.
+
+### 1. Free Quick Tunnels (Zero Setup, No Account Needed)
+- **Default Mode:** if no token is configured, the server starts a temporary TryCloudflare quick tunnel (`https://<random-id>.trycloudflare.com`).
+- **Dashboard & QR Code:** Open `http://localhost:3000` to view the active tunnel URL and a **QR Code** that you can scan with your phone or Meta Quest browser to immediately pair your headset.
+
+### 2. Named / Paid Cloudflare Zero Trust Tunnels (Persistent Domain)
+- **Stable Hostname:** If you have a Cloudflare domain, you can assign a permanent address (e.g. `https://cinema.yourdomain.com`).
+- **Setup:**
+  1. In the Cloudflare Zero Trust Dashboard, create a Cloudflare Tunnel pointing to `http://cinema:3000`.
+  2. Copy the tunnel token.
+  3. In `.env`, add:
+     ```env
+     TUNNEL_TOKEN=eyJhIjoiY...
+     TUNNEL_URL=https://cinema.yourdomain.com
+     ```
+  4. Start Movie Night: `docker compose up -d`. The tunnel will run under your custom domain automatically!
+
+### 3. Private Tailscale Network (Tailnet / MagicDNS)
+If you prefer private peer-to-peer streaming over an encrypted WireGuard mesh rather than public Cloudflare relays:
+- **Tailscale Sidecar Profile:** Run Movie Night with the Tailscale Compose profile:
+  ```sh
+  docker compose -f compose.yaml -f compose.tailscale.yaml up -d
+  ```
+- **Configuration (.env):**
+  ```env
+  TS_AUTHKEY=tskey-auth-...
+  TS_HOSTNAME=movie-night
+  TAILSCALE_URL=https://movie-night.your-tailnet.ts.net
+  ```
+- **Automatic HTTPS:** Tailscale issues automatic Let's Encrypt TLS certificates for `.ts.net` addresses. Only devices on your Tailnet (or friends using Tailscale Node Sharing) can access the cinema.
+
+---
+
+## Subtitles & Timing Offset
+
+Movie Night includes a dedicated subtitle extraction, conversion, and caching engine:
+- **SRT to WebVTT:** automatically converts SubRip `.srt` tracks into valid WebVTT on the fly via `/api/subtitles?url=<url>`.
+- **Timing Offset Adjustment:** if a subtitle track is slightly ahead or behind the audio in VR, append `&offset=1.5` (or negative, e.g. `&offset=-0.5`). Timestamps are shifted and clamped at `00:00:00.000` so subtitles never display negative timing.
+- **In-Memory TTL Cache:** parsed subtitles are cached in memory so when 8 viewers in a room load the same movie, upstream subtitle servers are not repeatedly hit.
+
+---
+
+## Watch Progress Sync & Server-Side Scrobbling
+
+- **Server-Side Scrobbling:** Trakt and Simkl scrobbling is delegated to your upstream media server (e.g. Jellyfin Trakt plugin, Stremio account sync). The VR client reports accurate playback sessions directly to the active media server, preventing duplicate scrobbles or token desync.
+- **Backend Session Reporting:** Continuously updates playback progress ticks to Jellyfin (`/Sessions/Playing/*`), MediaStorm, or Silo (`/api/progress`) so your *Continue Watching* row remains up to date across all devices.
+- **Local Fallback:** Last known resume positions are automatically saved to Quest local storage (`PlayerPrefs`) for serverless Solo playback.
+
+---
+
+## Webhooks & Room Notifications
+
+Get notified in Discord, Slack, or smart home automations when a movie night starts:
+- **Discord:** sends rich embeds displaying the movie title, active viewer count (`3/8`), room code, and one-click join link.
+- **Slack:** sends formatted mrkdwn blocks.
+- **Apprise / Generic:** dispatches clean JSON notifications.
+- **Triggers:** fires on `room_created`, `participant_joined`, `playback` start, and `playback_stop`.
+
+Configure your webhook in `.env`:
+```env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+# or SLACK_WEBHOOK_URL / APPRISE_URL / NOTIFICATION_WEBHOOK_URL
+```
+
+---
+
+## System & Diagnostics CLI
+
+To verify your GPU hardware acceleration, media providers, Cloudflare tunnel status, and webhooks in a single command, run:
+
+```sh
+npm run diagnose
+```
+
+Output:
+```
+╔═══════════════════════════════════════════════════════════╗
+║       Movie Night VR • System & Provider Diagnostics      ║
+╚═══════════════════════════════════════════════════════════╝
+
+[1/4] Hardware Transcoding & Smart Remux:
+  ✔ GPU Acceleration Active: NVENC (h264_nvenc)
+    Preset: max 1080p @ 60fps | Bitrate: 15M
+  ✔ Smart Remux Active: H.264 streams bypass transcoding (-c:v copy).
+
+[2/4] Network & Cloudflare Tunnel:
+  ✔ Named / Paid Cloudflare Zero Trust Tunnel: Token configured
+    Published Domain: https://cinema.mydomain.com
+
+[3/4] Media Backends & Providers:
+  ✔ Stremio Streaming Service: Online at http://stremio:11470 (HTTP 200)
+  ✔ Jellyfin / Remux: Online at http://192.168.1.50:8096 (HTTP 200)
+  ○ MediaStorm (Debrid/Usenet): Not configured
+  ○ Silo (Go Backend): Not configured
+
+[4/4] Webhooks & Room Notifications:
+  ✔ Discord Webhook: Configured
+
+Diagnostic scan complete.
+```
+
+---
+
+## Quick Start: Docker + Quest (Multiplayer)
+
+You need a computer with **Docker Engine or Docker Desktop and Docker Compose v2**, a Quest with developer mode enabled, and the Movie Night APK. Keep the computer running while you watch.
+
+### 1. Start the Server
+
+```sh
+# Copy environment configuration
+cp .env.example .env
+
+# Edit .env with any optional provider URLs or tunnel tokens
+nano .env
+
+# Run Docker pre-flight check
+npm run docker-smoke
+
+# Start Movie Night (with GPU passthrough if available)
+docker compose -f compose.yaml -f compose.gpu.yaml up -d --build
+```
+
+Wait for services to become healthy, then check status:
 
 ```sh
 curl http://127.0.0.1:3000/health
+npm run diagnose
 ```
 
-Expected response: `{"ok":true,"rooms":0}` before anyone creates a room. If startup fails, inspect `docker compose logs --tail=100 cinema`.
+### 2. Connect Your Headset
 
-### 2. Choose how the Quest connects
+1. Open **http://localhost:3000** in your web browser.
+2. If using the Cloudflare tunnel, copy the invitation link or scan the displayed **QR Code**.
+3. In your Quest headset, launch Movie Night and open **My room**.
+4. Enter the server WebSocket URL (or the tunnel URL; the app automatically converts `https://` to `wss://`).
+5. Click **Connect / create room**. Share the 6-character room code with your friends!
 
-**Internet / friends on other networks:** the included temporary tunnel starts automatically with Docker Compose. To inspect or restart it: No hosting account or router port forwarding is needed.
+---
 
-```sh
-docker compose up -d internet
-docker compose logs -f internet
-```
+## Complete Configuration Reference (`.env`)
 
 Open **http://localhost:3000** and click **Copy invite** (the address is also printed in the logs). Enter that exact address in the app's **My room → Invite friends / join a room → Server address** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
 
@@ -195,50 +405,77 @@ Configuration:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PORT` | `3000` | Listen port |
-| `CORE_BINARY` | `core/target/release/stremio-vr-core` | Stremio core bridge executable |
-| `HOST` | `0.0.0.0` | Listen address |
-| `TLS_CERT`, `TLS_KEY` | unset | PEM certificate/key paths for native HTTPS/WSS |
-| `BROWSER_SERVICE_URL` | unset outside Compose | Internal browser worker URL; Compose sets `http://browser:9000` |
-| `PUBLIC_ORIGIN` | server origin | Allowed browser Origin if a reverse proxy is used |
+| **Networking & Tunnels** | | |
+| `PORT` | `3000` | Host listen port for HTTP/WebSocket traffic |
+| `TUNNEL_TOKEN` | *unset* | Cloudflare Zero Trust / Argo tunnel token (uses TryCloudflare if unset) |
+| `TUNNEL_URL` | *unset* | Custom domain URL when using a named tunnel (e.g. `https://cinema.mydomain.com`) |
+| `TUNNEL_HOSTNAME` | *unset* | Optional alias for `TUNNEL_URL` |
+| `ALLOW_PRIVATE_NETWORKS` | `true` | Set `true` to allow streaming from private LAN IPs (192.168.x.x, 10.x.x.x) |
+| `MEDIA_ALLOWED_HOSTS` | `stremio:11470` | Comma-separated list of trusted upstream host:port authorities |
+| **Media Providers** | | |
+| `STREAMING_SERVICE_URL` | `http://stremio:11470` | Internal Stremio engine URL |
+| `JELLYFIN_URL` | *unset* | Jellyfin server URL (e.g. `http://192.168.1.50:8096`) |
+| `REMUX_URL` | *unset* | Standalone Remux (`lostb1t/remux`) server URL |
+| `MEDIASTORM_URL` | *unset* | MediaStorm Debrid/Usenet streaming server URL |
+| `MEDIASTORM_KEY` | *unset* | Optional MediaStorm API Key for backend health authentication |
+| `SILO_URL` | *unset* | Silo Go streaming backend URL |
+| `SILO_TOKEN` | *unset* | Optional Silo API / JWT Token for backend health authentication |
+| **Hardware Transcoding** | | |
+| `MEDIA_DISABLE_REMUX` | `false` | Set `true` to force transcoding even on compatible H.264 streams |
+| `MEDIA_MAX_HEIGHT` | `1080` | Maximum transcoded vertical resolution (e.g. `720`, `1080`) |
+| `MEDIA_MAX_FPS` | `60` | Maximum transcoded framerate |
+| `MEDIA_VIDEO_BITRATE` | `15M` | Video bitrate target for hardware transcoder |
+| `MEDIA_MAX_JOBS` | `4` | Maximum simultaneous room transcode jobs |
+| `MEDIA_MAX_BYTES` | `25769803776` | Maximum transcode cache size on disk (24 GiB default) |
+| `VAAPI_DEVICE` | `/dev/dri/renderD128` | Linux VAAPI DRM rendering device |
+| `FFMPEG_BINARY` | `ffmpeg` | Path to FFmpeg executable |
+| **Webhooks & Subtitles** | | |
+| `DISCORD_WEBHOOK_URL` | *unset* | Discord webhook URL for room and playback alerts |
+| `SLACK_WEBHOOK_URL` | *unset* | Slack webhook URL |
+| `APPRISE_URL` | *unset* | Apprise / Home Assistant notification webhook URL |
+| `NOTIFICATION_WEBHOOK_URL` | *unset* | Generic webhook notification URL |
+| `OPENSUBTITLES_API_KEY` | *unset* | Optional OpenSubtitles REST API key for subtitle search |
 
-Use a trusted TLS certificate and `wss://` for use outside a trusted development LAN. The server supports eight participants per room, 500 simultaneous rooms, 15-second reconnect grace, bounded messages, and message-rate limits. Rooms are in memory: restarting the server ends sessions. Room codes grant access; there are no accounts, persistent rooms, or moderation tools.
+---
 
 ## Build the Quest APK
 
-1. Install Unity **6000.0.66f2** with Android Build Support, Android SDK/NDK Tools, and OpenJDK. Activate Unity Personal in Unity Hub using your own account.
-2. Import the required Open Concept Home author download with `python3 scripts/import-private-home.py "Open Concept Home v1.2 - [2022.3.22f1] [COMPLETED].zip"` (see world import notes below), then open `unity/` and let packages import. Run `git lfs pull` if the included archive is still a small pointer file.
-3. Select **Movie Night → Configure Quest project**. Restart the editor if input handling requests it. The command generates the cinema scene and enables OpenXR, Meta Quest Support, and Oculus Touch controllers.
-4. In Android XR Plug-in Management, resolve any reported OpenXR project-validation errors.
-5. Select **Movie Night → Build Quest APK**. Output: `unity/Builds/movie-night.apk` (development build).
-6. Enable developer mode on the Quest, connect USB, approve USB debugging, then install:
+1. Install Unity **6000.0.66f2** with Android Build Support, Android SDK/NDK Tools, and OpenJDK.
+2. Import the required Open Concept Home author download:
+   ```sh
+   python3 scripts/import-private-home.py "Open Concept Home v1.2 - [2022.3.22f1] [COMPLETED].zip"
+   ```
+3. Open `unity/` in Unity Editor and select **Movie Night → Configure Quest project**.
+4. Select **Movie Night → Build Quest APK**. Output: `unity/Builds/movie-night.apk`.
+5. Connect your Quest via USB with developer mode enabled, and install:
+   ```sh
+   adb install -r unity/Builds/movie-night.apk
+   ```
 
-```sh
-adb install -r unity/Builds/movie-night.apk
-```
+---
 
-After initial configuration/import, the command-line build is:
+## Play Solo — No Server Setup
 
-```sh
-/path/to/Unity -batchmode -quit -projectPath "$PWD/unity" \
-  -buildTarget Android -executeMethod StremioVR.Editor.QuestBuild.Build \
-  -logFile "$PWD/unity/Builds/build.log"
-```
+Install the Quest APK and launch Movie Night. **Solo mode starts automatically**. You can walk, sit, adjust comfort settings, customize your avatar, use the mirror, browse websites, manage tabs with the menu button, and place screens or tabletop games.
 
-The build targets ARM64/IL2CPP and OpenGLES3. Cleartext networking is enabled for LAN development; use HTTPS media and WSS for internet sessions. Store signing and store submission are not configured.
+Direct HTTP(S) videos play on the headset without a room server. Discover, Stremio account/add-on import, and the web browser connect directly to their online services.
 
-## Use the app
+---
 
-### Controls and comfort
+## Controls and In-Game Navigation
 
 | Control | Action |
 | --- | --- |
 | Right-controller beam + trigger | Select menu controls or an empty chair |
 | Left-controller menu button | Hide/show and recenter the menu |
-| Left stick, menu hidden | Walk |
-| Right stick, menu hidden | Smooth turn |
-| Right stick over the menu/web screen | Scroll |
-| B while seated | Stand and return to the aisle |
+| Left stick (menu hidden) | Walk |
+| Right stick (menu hidden) | Smooth turn |
+| Right stick over menu/web | Scroll |
+| B button while seated | Stand and return to aisle |
+| Hold right grip + stick up/down | Scroll active web browser tab |
+| Both controller grips near piece | Pick up and move chess pieces physically |
+
+---
 
 Open **Settings / worlds** to adjust walk speed, smooth-turn speed, and pointer angle. To watch lying down, get comfortable, look where you want the screen to appear, and select **Calibrate reclined view**. Use the ±5° controls or Reset to refine it. Your calibration does not change other players' worlds.
 
@@ -309,65 +546,68 @@ Select **Toggle mic**, allow Android microphone permission, and speak. Select it
 
 ## Architecture
 
-- `unity/`: native Unity application, OpenXR tracking, world-space UI/keyboard, movement and smooth turning, seated/reclined comfort, video synchronization, avatars, voice, account/add-on client, and Android build configuration.
-- `browser/`: isolated Chromium worker, shared tab capture, public-site proxy, and encrypted browser profiles.
-- `server/`: room ownership, authoritative playback timeline, reconnects, avatar/pose propagation, WebRTC signaling, and bounded `/api/core` requests.
-- `core/`: Rust bridge using pinned official `stremio-core` for manifest validation and stream conversion.
-- `unity/Assets/Editor/R6Import.cs`: prepares six rigid avatar meshes from the custom FBX, preserving geometry and UVs. The APK build refreshes the generated prefab.
-- `src/network/sync.ts`: documented TypeScript wire contract; the original fake synchronous `joinRoom` implementation is removed.
-- `test/`: room logic and actual WebSocket integration tests.
-
-The add-on client fetches catalogs and streams over HTTP. The actual Rust `stremio-core` runs in the backend for manifest validation and stream routing, including torrents and proxy headers. It is not embedded in the APK; the streaming service is a separate process. Stremio device-link sign-in and automatic account add-on import are implemented; account watch history is imported read-only, with local recent playback and resume controls. The auth key stays on the headset in Android Keystore-encrypted app-private storage and is never sent to the room server. Voice uses native Android WebRTC with Opus and encrypted DTLS-SRTP media. WebSocket carries only room-scoped SDP/ICE signaling. Tap Mic once to grant permission and enable room voice; muting afterward retains receive audio. Two-headset voice acceptance remains pending.
-
-## References and credits
-
-- Creator: Jeremy Lakey.
-- Removed theater source (not bundled in current APKs): [Cinema Multiplex and Foyer](https://3dassets.dev/packs/cinema-multiplex-and-foyer), CC0; [source and conversion notes](assets/worlds/cinema/SOURCE.txt).
-- R6 geometry and face texture: custom `roblox-r6-rigged.zip`; its archive contains no author or license metadata. Keep source attribution/license information with this asset when available.
-- Menu layout inspired by the supplied `ingame menu example.webp`.
-- Chess pieces: [Chess Set by Jacob G](https://www.printables.com/model/32741-chess-set), **CC BY-ND 4.0**; [original files, attribution and conversion notes](assets/chess/README.md). These assets retain their own license, separate from AGPLv3.
-- Chess rules: [chess.js](https://github.com/jhlywa/chess.js), [BSD-2-Clause notice](docs/licenses/chess-js-BSD-2-Clause.txt).
-- Open Concept Home: [TwilightStudio / KittyFangs.exe](https://jinxxy.com/TwilightStudio/9cvqn), included in the supplied APK. The author states: “There is no copyright terms to this project anymore. So do whatever you want with it.” See [the recorded update](docs/licenses/home-author-update.md).
-- Stremio core license: [MIT notice](docs/licenses/stremio-core-MIT.txt).
-- [Stremio add-on protocol](https://stremio.github.io/stremio-addon-sdk/protocol.html).
-- [Stremio core stream routing source](https://stremio.github.io/stremio-core/src/stremio_core/types/resource/stream.rs.html).
-- [Meta's Unity/OpenXR setup](https://developers.meta.com/vr/documentation/unity/unity-xr-plugin/).
-- [Unity Hub command line](https://docs.unity.com/en-us/hub/use-hub-cli).
-
-AGPLv3 (`AGPL-3.0-only`) for original project code; see [LICENSE](LICENSE). Stremio, Unity, and Meta dependencies retain their own licenses. This is an independent project.
-
-## Repeatable USB device check
-
-With the room server running and a local H.264/AAC MP4 available:
-
-```sh
-node scripts/device-smoke.mjs /absolute/path/to/demo.mp4
-adb reverse tcp:3000 tcp:3000
-adb reverse tcp:3001 tcp:3001
-adb shell am start -n com.jeremylakey.stremiovr/com.unity3d.player.UnityPlayerActivity \
-  --es stremio.server ws://127.0.0.1:3000/ws \
-  --es stremio.room ROOM_CODE_FROM_FIXTURE \
-  --es stremio.addon http://127.0.0.1:3001/manifest.json \
-  --es stremio.page avatar
+```
+unity/
+├── Assets/
+│   ├── Scripts/
+│   │   ├── CinemaApp.cs         # In-world menu, VR interactions, UI state
+│   │   ├── CinemaPlayback.cs    # VideoPlayer sync, multi-provider Load() overload
+│   │   ├── CinemaSubtitles.cs   # In-VR screen subtitle overlay & WebVTT cue parser
+│   │   ├── MediaLibrary.cs      # Stremio addon client and stream resolver
+│   │   ├── RoomClient.cs        # WebSocket room client and state sync
+│   │   ├── WebCinema.cs         # Shared server browser WebRTC renderer
+│   │   ├── TabletopGames.cs     # Chess and Tic-tac-toe logic
+│   │   └── Providers/
+│   │       ├── IMediaProvider.cs       # Core provider interfaces and DTOs
+│   │       ├── MediaProviderRegistry.cs# Unified provider aggregator & active backend
+│   │       ├── JellyfinProvider.cs     # Jellyfin / Remux client & views
+│   │       ├── MediaStormProvider.cs   # MediaStorm debrid streaming client
+│   │       ├── SiloProvider.cs         # Silo Go backend client
+│   │       ├── StremioAddonProvider.cs # Universal Stremio addon manifest wrapper
+│   │       ├── NuvioMellonSync.cs      # Mellon/Nuvio addon importer
+│   │       └── WatchProgressSync.cs    # Multi-backend watch progress synchronizer
+server/
+├── index.js                     # HTTP/WebSocket gateway & notification dispatcher
+├── hwaccel.js                   # GPU encoder detection & Smart Remux pipeline
+├── media.js                     # HLS transcoder, SSRF guard, allowed hosts
+├── subtitles.js                 # SRT->VTT converter, offset shifting & TTL cache
+├── notifications.js             # Discord, Slack & Apprise payload formatters
+├── hosting.js                   # Dashboard UI, QR code generator & invite links
+├── tunnel.js                    # Cloudflare quick & named tunnel runner
+├── rooms.js                     # Room state, authority, 8-player cap, 15s grace
+└── browser.js                   # Chromium worker controller
 ```
 
-These launch extras are development-build only. The fixture accepts `play`, `pause`, `seek 10`, `avatar`, and `leave`. `leave` transfers hosting to the headset while keeping the media server available. In Discover, the **Device test** catalog exercises add-on → stream → Rust core → native playback. USB forwarding must be recreated after a device/ADB restart. Stop both servers with Ctrl-C when finished.
+---
 
-## Worldwide multiplayer
+## Testing & Quality Assurance
 
-See [internet hosting](docs/INTERNET-MULTIPLAYER.md) for the tested Docker server, a no-account temporary Cloudflare tunnel, and a Render deployment template. Every participant needs the same public WSS server and a media URL reachable from their network. The project does not yet have a permanent hosted server.
+Movie Night VR includes an extensive automated test suite covering unit tests, SSRF security fuzzing, concurrency stress tests, and a 50-cycle soak test:
 
-## Worlds and screen options
+```sh
+# Run syntax and static analysis checks
+npm run check
 
-Home restores the supplied baked lightmap, emissive materials, normal maps, and underwater sky, with the full-screen bloom pass disabled for stereo recovery. Textures are capped at 4K with ASTC compression on Quest. Eight segments on each of the four screen edges (32 samples) are sampled and smoothed on the GPU each frame, with soft spatial diffusion and sampling aligned to the displayed top/bottom edges, without CPU readback, and add per-pixel bounce to room surfaces. All Home emissive light materials follow the same smoothed colors while ambient lighting is active; their original colors return when it is inactive. Home starts with its main movie screen. The host can place up to six extra displays; all use the same texture and decoder. Every placed display contributes colored diffuse/specular light to nearby room surfaces according to its position, size, and rotation. Ambient light fades with distance on the actual environment; no floating glow frame is drawn. Use **World & comfort → Ambient strength** to cycle the intensity up to 200%. The reference appearance still requires final visual comparison on the headset; desktop showcase effects and Quest rendering are not assumed identical.
+# Run full automated test suite (85 tests)
+npm test
 
-Get the free Home package from [the author](https://jinxxy.com/TwilightStudio/9cvqn). Their current listing removes the old bundled restrictions; see [the recorded update](docs/licenses/home-author-update.md). `scripts/import-private-home.py` imports visual dependencies only, then the Unity build regenerates the Home prefab. Bakery/VRChat editor scripts are not required at runtime.
+# Run provider and system diagnostics
+npm run diagnose
 
-Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your selected full avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
+# Run standalone soak stress test
+node test/soak_stress.js
+```
 
-**My room → Open web browser** uses local Android WebView in Solo mode and server Chromium in a room. See [browser controls and streaming quality](#use-the-browser-on-the-cinema-screen) above.
+---
 
-The menu uses smooth panel fades, page transitions, hover/press animation, poster cards, and eased scrolling. **Watch history** switches between imported Stremio history and this headset's recent selections, with Continue Watching and resume. **Settings** exposes walk speed, smooth-turn speed, pointer angle, reclined view, and video lighting.
+## Credits & License
+
+- **Creator:** Jeremy Lakey
+- **Multi-Provider & GPU Architecture:** [oOflyeyesOo/Media-VR](https://github.com/oOflyeyesOo/Media-VR)
+- **Apartment Environment:** [TwilightStudio / KittyFangs.exe](https://jinxxy.com/TwilightStudio/9cvqn)
+- **Chess Set:** [Jacob G](https://www.printables.com/model/32741-chess-set) (CC BY-ND 4.0)
+- **Chess Logic:** [chess.js](https://github.com/jhlywa/chess.js) (BSD-2-Clause)
+- **License:** GNU Affero General Public License v3 (AGPL-3.0-only). See [LICENSE](LICENSE).
 
 Network deployments expose `/source` with the AGPL source URL. If you deploy a modified fork, set `SOURCE_URL` to its corresponding source, including your changes. Third-party dependencies/art retain their own notices.
 

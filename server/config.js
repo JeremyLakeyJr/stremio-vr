@@ -1,0 +1,99 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => typeof arg === 'string' && (arg.includes('test') || arg.endsWith('.js') && arg.includes('test')));
+const CONFIG_PATH = process.env.CONFIG_PATH || (isTest ? './test/data_config.json' : '/share/config.json');
+
+const defaultConfig = {
+  streamingServiceUrl: process.env.STREAMING_SERVICE_URL || 'http://media:11470',
+  mediaAllowedHosts: process.env.MEDIA_ALLOWED_HOSTS || 'media:11470,stremio:11470',
+  allowPrivateNetworks: process.env.ALLOW_PRIVATE_NETWORKS !== 'false',
+  stremioAuthKey: '',
+  stremioUser: '',
+  tunnelToken: process.env.TUNNEL_TOKEN || '',
+  tunnelUrl: process.env.TUNNEL_URL || '',
+  tailscaleUrl: process.env.TAILSCALE_URL || '',
+  jellyfinUrl: process.env.JELLYFIN_URL || '',
+  mediastormUrl: process.env.MEDIASTORM_URL || '',
+  mediastormKey: process.env.MEDIASTORM_KEY || '',
+  siloUrl: process.env.SILO_URL || '',
+  siloToken: process.env.SILO_TOKEN || '',
+  remuxUrl: process.env.REMUX_URL || '',
+  openSubtitlesApiKey: process.env.OPENSUBTITLES_API_KEY || '',
+  webhookUrl: process.env.DISCORD_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL || process.env.NOTIFICATION_WEBHOOK_URL || process.env.APPRISE_URL || '',
+  maxHeight: parseInt(process.env.MEDIA_MAX_HEIGHT || '1080', 10),
+  maxFps: parseInt(process.env.MEDIA_MAX_FPS || '60', 10),
+  hwAccelEnabled: process.env.MEDIA_DISABLE_REMUX !== 'true',
+  addons: [
+    'https://v3-cinemeta.strem.io/manifest.json'
+  ]
+};
+
+let currentConfig = { ...defaultConfig };
+let loaded = false;
+
+export async function loadConfig() {
+  if (loaded) return currentConfig;
+  try {
+    const raw = await readFile(CONFIG_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    currentConfig = { ...defaultConfig, ...parsed };
+  } catch {
+    currentConfig = { ...defaultConfig };
+  }
+  loaded = true;
+  return currentConfig;
+}
+
+export async function saveConfig(updates = {}) {
+  await loadConfig();
+  for (const [key, val] of Object.entries(updates)) {
+    // If incoming value is masked (e.g. from UI placeholder/masked response), keep the existing stored value
+    if (typeof val === 'string' && val.includes('••••')) {
+      continue;
+    }
+    currentConfig[key] = val;
+  }
+  try {
+    await mkdir(dirname(CONFIG_PATH), { recursive: true });
+    await writeFile(CONFIG_PATH, JSON.stringify(currentConfig, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[Config] Could not write config to', CONFIG_PATH, err.message);
+    const failure = new Error(`Could not persist configuration: ${err.message}`);
+    failure.code = 'CONFIG_WRITE_FAILED';
+    throw failure;
+  }
+  return currentConfig;
+}
+
+export function getConfig() {
+  return {
+    ...currentConfig,
+    mediastormUrl: process.env.MEDIASTORM_URL || currentConfig.mediastormUrl || '',
+    mediastormKey: process.env.MEDIASTORM_KEY || currentConfig.mediastormKey || '',
+    siloUrl: process.env.SILO_URL || currentConfig.siloUrl || '',
+    siloToken: process.env.SILO_TOKEN || currentConfig.siloToken || '',
+    jellyfinUrl: process.env.JELLYFIN_URL || currentConfig.jellyfinUrl || '',
+    remuxUrl: process.env.REMUX_URL || currentConfig.remuxUrl || '',
+    tunnelToken: process.env.TUNNEL_TOKEN || currentConfig.tunnelToken || '',
+    tunnelUrl: process.env.TUNNEL_URL || currentConfig.tunnelUrl || '',
+    tailscaleUrl: process.env.TAILSCALE_URL || currentConfig.tailscaleUrl || '',
+    webhookUrl: process.env.DISCORD_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL || process.env.NOTIFICATION_WEBHOOK_URL || process.env.APPRISE_URL || currentConfig.webhookUrl || ''
+  };
+}
+
+export function getPublicConfig() {
+  const cfg = { ...currentConfig };
+  if (cfg.stremioAuthKey) cfg.stremioAuthKey = maskToken(cfg.stremioAuthKey);
+  if (cfg.tunnelToken) cfg.tunnelToken = maskToken(cfg.tunnelToken);
+  if (cfg.mediastormKey) cfg.mediastormKey = maskToken(cfg.mediastormKey);
+  if (cfg.siloToken) cfg.siloToken = maskToken(cfg.siloToken);
+  if (cfg.openSubtitlesApiKey) cfg.openSubtitlesApiKey = maskToken(cfg.openSubtitlesApiKey);
+  if (cfg.webhookUrl) cfg.webhookUrl = maskToken(cfg.webhookUrl);
+  return cfg;
+}
+
+function maskToken(token) {
+  if (!token || token.length < 8) return '****';
+  return token.slice(0, 3) + '••••' + token.slice(-3);
+}

@@ -24,7 +24,25 @@ export class Rooms {
   constructor({ now = Date.now, grace = 15000, iceServers = [{ urls: "stun:stun.cloudflare.com:3478" }] } = {}) { this.rooms = new Map(); this.now = now; this.grace = grace; this.iceServers = iceServers; }
   send(ws, data) { if (ws?.readyState === 1) ws.send(JSON.stringify(data)); }
   snapshot(room) {
-    return { type: 'state', id: room.id, host: room.host, world: room.world, serverTime: this.now(), players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice, voiceReady: !!p.voiceReady })), browser: room.browser || {active:false}, mediaStatus: room.mediaStatus || '', playback: room.playback, layout: room.layout.snapshot(), games: room.games.snapshot() };
+    return {
+      type: 'state',
+      id: room.id,
+      host: room.host,
+      world: room.world,
+      serverTime: this.now(),
+      players: [...room.players.values()].map(p => ({ id: p.id, profile: p.profile, seat: p.seat, seatedSeat: p.seatedSeat ?? -1, pose: p.pose, connected: !!p.ws, voice: p.voice, voiceReady: !!p.voiceReady })),
+      browser: room.browser || { active: false },
+      stremio: room.stremioSession ? {
+        active: true,
+        user: room.stremioSession.user,
+        addonCount: room.stremioSession.addons?.length || 0,
+        ephemeral: Boolean(room.stremioSession.ephemeral)
+      } : null,
+      mediaStatus: room.mediaStatus || '',
+      playback: room.playback,
+      layout: room.layout.snapshot(),
+      games: room.games.snapshot()
+    };
   }
   broadcast(room, data, except) { for (const p of room.players.values()) if (p.id !== except) this.send(p.ws, data); }
   state(room) { this.broadcast(room, this.snapshot(room)); }
@@ -35,8 +53,14 @@ export class Rooms {
     const remove = () => {
       if (player.ws) return;
       room.players.delete(player.id); room.games.remove(player.id);
-      if (room.host === player.id) room.host = [...room.players.values()].find(p => p.ws)?.id || room.players.keys().next().value;
-      if (!room.players.size) this.rooms.delete(room.id); else this.state(room);
+      if (room.host === player.id) {
+        if (room.stremioSession?.ephemeral) room.stremioSession = null;
+        room.host = [...room.players.values()].find(p => p.ws)?.id || room.players.keys().next().value;
+      }
+      if (!room.players.size) {
+        room.stremioSession = null;
+        this.rooms.delete(room.id);
+      } else this.state(room);
     };
     if (immediate) remove(); else { player.timer = setTimeout(remove, this.grace); player.timer.unref?.(); this.state(room); }
     ws.roomId = null; ws.playerId = null;
@@ -52,7 +76,7 @@ export class Rooms {
       if (type === 'create') {
         if (this.rooms.size >= 500) throw new Error('Server is full');
         const id = randomBytes(6).toString('hex');
-        room = { id, layout: new RoomLayout(), games: new TableGames(), world: 'home', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 } };
+        room = { id, layout: new RoomLayout(), games: new TableGames(), world: 'home', players: new Map(), playback: { url: '', title: '', position: 0, paused: true, updatedAt: this.now(), revision: 0 }, stremioSession: null };
         this.rooms.set(id, room);
       } else { room = this.rooms.get(String(message.roomId)); if (!room) throw new Error('Room not found'); }
       let player = [...room.players.values()].find(p => p.token === message.token);
@@ -83,6 +107,12 @@ export class Rooms {
       room.layout.handle(message); this.state(room); return;
     }
     if (type === 'game') { room.games.handle(player.id,room.host,message); this.state(room); return; }
+    if (type === 'reaction') {
+      const emoji = String(message.emoji || '').slice(0, 16);
+      if (!emoji) throw new Error('Invalid emoji reaction');
+      this.broadcast(room, { type: 'reaction', playerId: player.id, emoji });
+      return;
+    }
     if (type === 'seat') {
       const index = message.seatIndex;
       if (!Number.isInteger(index) || index < -1 || index >= worlds[room.world].seats) throw new Error('Invalid seat');
@@ -112,6 +142,21 @@ export class Rooms {
       const data = message.data;
       if (!data || typeof data !== 'object' || !((['offer','answer'].includes(data.type) && typeof data.sdp === 'string' && data.sdp.length <= 14000) || (typeof data.candidate === 'string' && data.candidate.length <= 2048 && typeof data.sdpMid === 'string' && data.sdpMid.length <= 64 && Number.isInteger(data.sdpMLineIndex) && data.sdpMLineIndex >= 0 && data.sdpMLineIndex < 8))) throw new Error('Invalid voice signaling');
       this.send(target.ws, { type: 'signal', from: player.id, data: message.data }); return;
+    }
+    if (type === 'stremio:session') {
+      if (room.host !== player.id) throw new Error('Only the host controls Stremio session');
+      if (message.action === 'clear' || message.action === 'forget') {
+        room.stremioSession = null;
+      } else {
+        room.stremioSession = {
+          user: String(message.user || 'Stremio User').slice(0, 64),
+          addons: Array.isArray(message.addons) ? message.addons.map(String).slice(0, 100) : [],
+          ephemeral: message.ephemeral !== false,
+          authKey: typeof message.authKey === 'string' ? message.authKey.slice(0, 512) : ''
+        };
+      }
+      this.state(room);
+      return;
     }
     throw new Error('Unknown message type');
   }

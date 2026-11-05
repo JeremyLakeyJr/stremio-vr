@@ -1,0 +1,201 @@
+# Provider response contracts
+
+This document records the JSON shapes consumed by the Unity adapters. It is
+an implementation contract, not a claim that every deployment exposes these
+routes. Live service validation remains a release checklist item.
+
+All collection responses must be valid JSON. Missing, null, malformed, or
+non-success responses are treated as an empty result by the current adapters,
+except authentication, which returns `false`.
+
+Native provider and Mellon requests use bounded timeouts: 15 seconds for
+Jellyfin, MediaStorm, Silo, and Mellon, and 15 seconds for Stremio manifests
+and catalogs or 20 seconds for Stremio stream lookup. Timeout and transport
+failures follow the same empty-result or failed-auth behavior. The Quest UI
+provides retry, error, and cancellation actions for provider views;
+cancellation invalidates the in-flight result and prevents it from replacing
+the current page, while the underlying request completes under its timeout.
+
+## Shared output model
+
+Adapters map provider responses to:
+
+- `MediaCatalog`: `ProviderId`, `CatalogId`, `Name`, and `Type`
+  (`movie` or `series`).
+- `MediaItem`: `ProviderId`, `ItemId`, `Title`, `PosterUrl`, `Type`,
+  `RuntimeTicks`, and `ResumePositionTicks`.
+- `ResolvedStream`: `ProviderId`, `ItemId`, `Title`, `StreamUrl`,
+  `SourceCodec`, optional `AudioTrackIndex`, optional subtitle URL/tracks,
+  upstream headers, and `RequiresServerProxy`.
+
+## Stremio add-ons
+
+The configured URL must be an absolute HTTP(S) URL (the `stremio://` prefix is
+also accepted and converted to HTTPS) and is normalized to `/manifest.json`.
+Failed authentication clears any previously loaded manifest.
+
+### Manifest
+
+```json
+{
+  "name": "Addon name",
+  "catalogs": [
+    { "id": "catalog-id", "type": "movie", "name": "Movies" }
+  ]
+}
+```
+
+The adapter requests `/catalog/{type}/{id}.json`, or the
+`/skip={offset}.json` form for pagination. The response is:
+
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
+
+```json
+{
+  "metas": [
+    { "id": "tt123", "type": "movie", "name": "Title", "poster": "https://..." }
+  ]
+}
+```
+
+Streams are requested from `/stream/{movie|series}/{id}.json`:
+
+```json
+{
+  "streams": [
+    { "name": "1080p", "title": "Direct", "url": "https://..." }
+  ]
+}
+```
+
+Entries without a `url` are ignored. Standard add-ons do not provide continue
+watching data to this adapter.
+
+## Jellyfin and Remux-compatible servers
+
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
+
+Authentication is `POST /Users/AuthenticateByName` with:
+
+```json
+{ "Username": "user", "Pw": "password" }
+```
+
+The response must include `AccessToken` and `User.Id`. Catalogs are read from
+`GET /Users/{userId}/Views`:
+
+```json
+{ "Items": [{ "Id": "library", "Name": "Movies", "CollectionType": "movies" }] }
+```
+
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
+
+Items and resume items use an `Items` array with `Id`, `Name`, `Type`,
+`RunTimeTicks`, and optional `UserData.PlaybackPositionTicks`. Stream
+resolution uses `POST /Items/{itemId}/PlaybackInfo?UserId={userId}` and expects
+`MediaSources[]` with `Id`, `Name`, `Path`, `IsRemote`, and `MediaStreams[]`.
+Video and subtitle stream entries use `Type`, `Codec`, `Index`, `Language`,
+and optional `DisplayTitle`.
+
+## MediaStorm
+
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
+
+Requests use the `X-MediaStorm-Key` header. Authentication probes
+`GET /api/v1/health`, with `/api/v1/catalogs` as fallback.
+
+Catalogs:
+
+```json
+{ "Catalogs": [{ "Id": "movies", "Name": "Movies", "Type": "movie" }] }
+```
+
+Blank catalog IDs and negative pagination offsets are rejected without a
+request.
+
+Catalog, continue-watching, and search results use:
+
+```json
+{
+  "Items": [
+    {
+      "Id": "item-1",
+      "Title": "Title",
+      "PosterUrl": "https://...",
+      "Type": "movie",
+      "RuntimeTicks": 36000000000,
+      "ResumePositionTicks": 120000000
+    }
+  ]
+}
+```
+
+Streams use:
+
+```json
+{
+  "Streams": [
+    {
+      "Title": "Direct",
+      "Url": "https://...",
+      "Codec": "h264",
+      "Quality": "1080p",
+      "Debrid": "service",
+      "Size": "4 GB",
+      "SubtitleUrl": "https://...",
+      "AudioTrackIndex": 0
+    }
+  ]
+}
+```
+
+Progress is posted to `/api/v1/user/progress` with `ItemId`,
+`PositionTicks`, and `IsPaused`.
+
+## Silo
+
+The server URL must be an absolute HTTP(S) URL. Invalid authentication input
+clears the current session and returns `false` without making a request.
+
+Token-authenticated requests use the configured authorization token. Login
+uses `POST /api/auth/login` with `Username` and `Password`, returning:
+
+```json
+{ "Token": "token-value" }
+```
+
+Libraries use `{ "Libraries": [{ "Id": "library", "Name": "Movies", "Type": "movie" }] }`.
+Blank library IDs and negative pagination offsets are rejected without a
+request.
+Items use the same `Items` shape as MediaStorm. Streams use the same fields
+as MediaStorm except `Bitrate` replaces `Debrid` and `Size`.
+
+Silo progress is posted to `/api/progress` with `ItemId`, `PositionTicks`,
+and `IsPaused`. Continue watching is read from `/api/continue-watching`;
+search is read from `/api/search?query=...&limit=32`.
+
+## Mellon / Nuvio sync
+
+`GET /api/addons` must return:
+
+```json
+{ "addons": ["https://addon.example/manifest.json"] }
+```
+
+Only non-empty URLs ending in `manifest.json` are registered. Invalid entries
+are ignored and an unavailable endpoint produces an empty list. The server URL
+must be absolute HTTP(S), and a non-empty auth token is required; invalid
+inputs are logged and produce an empty list without sending a request.
+The Unity settings action validates both fields and shows a user-facing error
+when synchronization fails.
+
+## Contract test requirements
+
+Fixture tests should cover one valid response, an empty array, malformed JSON,
+HTTP authentication failure, HTTP 5xx, timeout/offline behavior, and fields
+missing from otherwise valid JSON. Live-provider credentials must never be
+committed to fixtures or CI.
