@@ -96,7 +96,7 @@ public sealed class CinemaApp : MonoBehaviour {
         localBody.AvatarHeightChanged += h => motion.SetAvatarHeight(h);
         ApplyBrowserRes((string)settings[SettingsKeys.BrowserRes] ?? "1080p");
         playback = gameObject.AddComponent<CinemaPlayback>(); playback.Initialize(room, world.Screen); playback.Status += ShowStatus;
-        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Playback=playback; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings[SettingsKeys.Ambient]??true; ambient.Strength=(float?)settings[SettingsKeys.AmbientStrength]??0.65f;
+        ambient=gameObject.AddComponent<VideoAmbient>(); ambient.World=world; ambient.Video=playback.Video; ambient.Screen=world.Screen.transform; ambient.Enabled=(bool?)settings[SettingsKeys.Ambient]??true; ambient.Strength=(float?)settings[SettingsKeys.AmbientStrength]??0.65f;
         world.Changed+=()=>{ playback.SetScreen(world.Screen); ambient.Screen=world.Screen.transform; motion.ResetWorld(); Recenter(); };
         int savedEnv = Mathf.Clamp((int?)settings[SettingsKeys.EnvMode] ?? 0, 0, 2);
         world.SetEnvironmentMode((WorldManager.EnvironmentMode)savedEnv);
@@ -168,8 +168,7 @@ public sealed class CinemaApp : MonoBehaviour {
         }
 #endif
     }
-    IEnumerator DevelopmentDesktopBrowser(string url){float deadline=Time.realtimeSinceStartup+30;while(!room.IsHost&&Time.realtimeSinceStartup<deadline)yield return null;if(room.IsHost){browser.Open(url);panelMotion.Show(false);}}
-    IEnumerator CheckPcVr(){yield return new WaitForSecondsRealtime(5);if(!UnityEngine.XR.XRSettings.isDeviceActive){Application.targetFrameRate=60;ShowStatus(Application.platform==RuntimePlatform.LinuxPlayer?"No VR headset detected. Start SteamVR, connect the headset, then restart Movie Night. Tab opens the desktop menu.":"No VR headset detected. Start your OpenXR runtime and connect the headset, then restart Movie Night. Tab opens the desktop menu.");}}
+
 #if UNITY_ANDROID && DEVELOPMENT_BUILD
     IEnumerator DevelopmentWebScreen() {
         float deadline=Time.realtimeSinceStartup+20; while(!room.IsHost && Time.realtimeSinceStartup<deadline) yield return null;
@@ -188,41 +187,43 @@ public sealed class CinemaApp : MonoBehaviour {
         var go = new GameObject("Cinema controls", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)); panel = go.transform;
         canvas = go.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace; canvas.worldCamera = cameraView;
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(1280, 1000); panel.localScale = Vector3.one * 0.0012f; panelMotion=go.AddComponent<PanelMotion>();
-        menuFeedback=new GameObject("Spatial menu feedback").AddComponent<MenuFeedback>(); menuFeedback.Sounds=(bool?)settings["menuSounds"]??true; menuFeedback.Haptics=(bool?)settings["menuHaptics"]??true; menuFeedback.ReducedMotion=(bool?)settings["menuReducedMotion"]??false;
         Recenter();
-        var background = go.AddComponent<Image>(); background.color = Color.clear;
-        Plate(panel,260,0,1020,1000,new Color(0.035f,0.042f,0.065f,0.98f));
-        var navObject=new GameObject("Angled navigation",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));navObject.transform.SetParent(panel,false);
-        var navRect=navObject.GetComponent<RectTransform>();Place(navRect,245,80,245,920);navRect.pivot=new Vector2(1,1);navRect.localRotation=Quaternion.Euler(0,-15,0);
-        navigationCanvas=navObject.GetComponent<Canvas>();navigationCanvas.renderMode=RenderMode.WorldSpace;navigationCanvas.worldCamera=cameraView;
-        Transform navigation=navObject.transform;
-        Plate(panel, 260, 0, 1020, 80, new Color(0.06f,0.05f,0.1f));
-        Plate(navigation, 0, 0, 245, 920, new Color(0.075f,0.065f,0.13f));
-        Label("Movie Night", navigation, 16, 18, 225, 44, 30);
+        var background = go.AddComponent<Image>(); background.color = new Color(0.047f, 0.043f, 0.067f, 0.98f);
+        Plate(panel, 0, 0, 1280, 80, new Color(0.06f,0.05f,0.1f));
+        Plate(panel, 0, 80, 245, 920, new Color(0.075f,0.065f,0.13f));
+        Label("Movie Night", panel, 25, 18, 235, 44, 26);
         pageTitle = Label("My room", panel, 280, 18, 750, 44, 30);
         Button("Hide", panel, 1150, 14, 105, () => panelMotion.Show(false));
         members = Label("Not connected", panel, 280, 95, 955, 65, 19);
         status = Label("Solo starts automatically. Connect a room only when you want company.", panel, 280, 825, 955, 65, 20);
         status.color = new Color(0.25f, 0.9f, 0.72f);
-        Label("EXPLORE", navigation, 16, 70, 220, 40, 24);
-        Button("My room", navigation, 12, 125, 221, Home);
-        Button("Discover", navigation, 12, 195, 221, Library);
-        Button("History", navigation, 12, 265, 221, HistoryPage);
-        Button("Servers & Stremio", navigation, 12, 335, 221, ServersHubPage);
-        Button("Avatar", navigation, 12, 405, 221, Customize);
-        Button("Comfort", navigation, 12, 475, 221, Comfort);
-        Button("Account", navigation, 12, 545, 221, AccountPage);
-        Button("Recenter", navigation, 12, 615, 221, Recenter);
-        Label("Trigger: select\nStick: scroll\nMenu: close", navigation, 16, 700, 215, 150, 26);
+        Label("BROWSE & WATCH", panel, 20, 105, 215, 40, 17);
+        Button("My room", panel, 15, 150, 215, Home);
+        Button("Discover", panel, 15, 210, 215, Library);
+        Button("Watch history", panel, 15, 270, 215, HistoryPage);
+        Button("Stremio account", panel, 15, 330, 215, AccountPage);
+        Button("Servers & streaming", panel, 15, 390, 215, ServersHubPage);
+        Button("Avatar", panel, 15, 450, 215, Customize);
+        Button("Settings / worlds", panel, 15, 510, 215, Comfort);
+
+        Button("Toggle mic", panel, 15, 575, 215, () => voice.Toggle());
+        Button("Toggle audio", panel, 15, 635, 215, () => voice.ToggleDeafen());
+        Button("Recenter", panel, 15, 695, 215, Recenter);
+        Label("Left stick: move / sprint\nRight stick: turn\nHold grip + stick: scroll", panel, 20, 765, 215, 95, 17);
         Plate(panel, 260, 910, 1000, 72, new Color(0.06f,0.05f,0.1f));
-        Button("Games", panel, 275, 920, 220, GamesPage); Button("Browser", panel, 510, 920, 220, BrowserControls); Button("Mic", panel, 745, 920, 220, () => voice.Toggle()); Button("Audio", panel, 980, 920, 260, () => voice.ToggleDeafen());
+        Button("My room", panel, 275, 920, 220, Home); Button("Discover", panel, 510, 920, 220, Library); Button("Games", panel, 745, 920, 220, GamesPage); Button("Mic", panel, 980, 920, 260, () => voice.Toggle());
         var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)); scrollGo.transform.SetParent(panel, false);
         Place(scrollGo.GetComponent<RectTransform>(), 280, 185, 950, 620); scrollGo.GetComponent<Image>().color = new Color(0, 0, 0, 0.05f); scrollGo.GetComponent<Mask>().showMaskGraphic = false;
         content = new GameObject("Content", typeof(RectTransform), typeof(PageFade)).GetComponent<RectTransform>(); content.SetParent(scrollGo.transform, false); Place(content, 0, 0, 930, 620);
         var scroll = scrollGo.GetComponent<ScrollRect>(); scroll.viewport = scrollGo.GetComponent<RectTransform>(); scroll.content = content; scroll.horizontal = false;
         pointer = new GameObject("Controller ray").AddComponent<LineRenderer>(); pointer.positionCount = 2; pointer.startWidth = 0.003f; pointer.endWidth = 0.001f; pointer.material = new Material(Shader.Find("Unlit/Color")); pointer.material.color = new Color(0.1f, 0.9f, 0.65f);
         var kb = go.AddComponent<VRKeyboard>(); kb.Initialize(panel, font);
+        menuFeedback = new GameObject("Spatial menu feedback").AddComponent<MenuFeedback>();
+        menuFeedback.Sounds = (bool?)settings["menuSounds"] ?? true;
+        menuFeedback.Haptics = (bool?)settings["menuHaptics"] ?? true;
+        menuFeedback.ReducedMotion = (bool?)settings["menuReducedMotion"] ?? false;
     }
+
     public void Recenter() { panel.position = head.position + head.forward * 1.8f; panel.rotation = Quaternion.LookRotation(head.forward, head.up); }
     void Clear() { VRKeyboard.Instance?.Hide(); scrollTarget=0; content.GetComponent<PageFade>().Begin(); actionWidth = 920; pageGeneration++; foreach (Transform child in content) { child.gameObject.SetActive(false); Destroy(child.gameObject); } row = 0; content.anchoredPosition = Vector2.zero; }
 
@@ -924,14 +925,14 @@ public sealed class CinemaApp : MonoBehaviour {
         foreach(var token in items) {
             var item=(JObject)token; string title=(string)item["name"]??"Untitled";
             if(title.IndexOf(query,StringComparison.OrdinalIgnoreCase)<0) continue;
-            float x=(count%4)*232, y=start+(count/4)*400;
-            var card=new GameObject("Title: "+title,typeof(RectTransform),typeof(Image),typeof(Button)); card.transform.SetParent(content,false); Place(card.GetComponent<RectTransform>(),x,y,216,380);
+            float x=(count%4)*232, y=start+(count/4)*370;
+            var card=new GameObject("Title: "+title,typeof(RectTransform),typeof(Image),typeof(Button)); card.transform.SetParent(content,false); Place(card.GetComponent<RectTransform>(),x,y,216,350);
             card.GetComponent<Button>().transition=Selectable.Transition.None; card.GetComponent<Image>().color=new Color(0.11f,0.09f,0.18f); card.AddComponent<UiMotion>().Card=true;
             var poster = new GameObject("Poster",typeof(RectTransform),typeof(RawImage),typeof(PosterImage)); poster.transform.SetParent(card.transform,false); Place(poster.GetComponent<RectTransform>(),6,6,204,288); poster.GetComponent<RawImage>().color=new Color(0.2f,0.17f,0.28f); poster.GetComponent<RawImage>().raycastTarget=false; poster.GetComponent<PosterImage>().Load((string)item["poster"]);
-            Label(title,card.transform,10,300,196,74,24); card.GetComponent<Button>().onClick.AddListener(()=>Details(addon,type,item));
+            Label(title,card.transform,10,300,196,44,18); card.GetComponent<Button>().onClick.AddListener(()=>Details(addon,type,item));
             if(++count>=60) break;
         }
-        row=start+Mathf.Ceil(count/4f)*400; Resize(); ShowStatus(count==0?"No matching titles":"Select a poster for details and sources.");
+        row=start+Mathf.Ceil(count/4f)*370; Resize(); ShowStatus(count==0?"No matching titles":"Select a poster for details and sources.");
     }
     void Details(JObject addon,string type,JObject item) {
         Clear(); pageTitle.text="Title details"; string title=(string)item["name"], id=(string)item["id"];
@@ -1033,8 +1034,8 @@ public sealed class CinemaApp : MonoBehaviour {
         if(count==0) Heading("No watched titles yet. Play a title to track history.");
     }
     void RecordHistory() {
-        if(watching==null || playback.SourceUrl!=watchingUrl || !playback.IsPlaying || Time.unscaledTime<nextHistory) return;
-        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
+        if(watching==null || playback.SourceUrl!=watchingUrl || !playback.Video.isPlaying || Time.unscaledTime<nextHistory) return;
+        nextHistory=Time.unscaledTime+15; var state=(JObject)watching["state"]!; state["lastWatched"]=DateTime.UtcNow; state["timeOffset"]=Math.Max(0,playback.Position*1000); if(playback.Duration>0) state["duration"]=playback.Duration*1000;
         var recent=settings[SettingsKeys.RecentHistory] as JArray??new JArray(); for(int i=recent.Count-1;i>=0;i--) if((string)recent[i]["_id"]==(string)watching["_id"]) recent.RemoveAt(i); recent.Insert(0,watching.DeepClone()); while(recent.Count>100) recent.RemoveAt(recent.Count-1); settings[SettingsKeys.RecentHistory]=recent; Save();
     }
     void ChangeWorld(string id) {
@@ -1051,6 +1052,9 @@ public sealed class CinemaApp : MonoBehaviour {
         SpeedControl("Walk speed",motion.MoveSpeed,0.5f,3,0.25f,value=>{motion.MoveSpeed=value;settings[SettingsKeys.MoveSpeed]=value;Save();},"m/s");
         SpeedControl("Smooth turn speed",motion.TurnSpeed,15,180,15,value=>{motion.TurnSpeed=value;settings[SettingsKeys.TurnSpeed]=value;Save();},"°/s");
         ActionButton("Turn style: " + (motion.SnapTurn ? "Snap Turn" : "Smooth Turn"), () => { motion.SnapTurn = !motion.SnapTurn; settings[SettingsKeys.SnapTurn] = motion.SnapTurn; Save(); Comfort(); });
+        ActionButton("Menu sounds: " + (menuFeedback.Sounds ? "On" : "Off"), () => { menuFeedback.Sounds = !menuFeedback.Sounds; settings["menuSounds"] = menuFeedback.Sounds; Save(); Comfort(); });
+        ActionButton("Menu haptics: " + (menuFeedback.Haptics ? "On" : "Off"), () => { menuFeedback.Haptics = !menuFeedback.Haptics; settings["menuHaptics"] = menuFeedback.Haptics; Save(); Comfort(); });
+        ActionButton("Reduced menu motion: " + (menuFeedback.ReducedMotion ? "On" : "Off"), () => { menuFeedback.ReducedMotion = !menuFeedback.ReducedMotion; settings["menuReducedMotion"] = menuFeedback.ReducedMotion; Save(); Comfort(); });
         if (motion.SnapTurn) {
             ActionButton("Snap turn angle: " + motion.SnapAngle + "°", () => {
                 motion.SnapAngle = motion.SnapAngle >= 90 ? 15 : motion.SnapAngle + 15;
@@ -1076,10 +1080,6 @@ public sealed class CinemaApp : MonoBehaviour {
 
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
-        Heading("Menu feedback");
-        ActionButton("Menu sounds: "+(menuFeedback.Sounds?"On":"Off"),()=>{menuFeedback.Sounds=!menuFeedback.Sounds;settings["menuSounds"]=menuFeedback.Sounds;Save();Comfort();});
-        ActionButton("Menu haptics: "+(menuFeedback.Haptics?"On":"Off"),()=>{menuFeedback.Haptics=!menuFeedback.Haptics;settings["menuHaptics"]=menuFeedback.Haptics;Save();Comfort();});
-        ActionButton("Reduced menu motion: "+(menuFeedback.ReducedMotion?"On":"Off"),()=>{menuFeedback.ReducedMotion=!menuFeedback.ReducedMotion;settings["menuReducedMotion"]=menuFeedback.ReducedMotion;Save();Comfort();});
         ActionButton("Mirror: "+(world.MirrorVisible?"On":"Off"),()=>{world.MirrorVisible=!world.MirrorVisible;Comfort();});
         if(Resources.Load<GameObject>("Worlds/Home")) ActionButton("Open Concept Home (host)",()=>ChangeWorld("home"));
         ActionButton("Ambient video lighting: "+(ambient.Enabled?"On":"Off"),()=>{ambient.Enabled=!ambient.Enabled;settings[SettingsKeys.Ambient]=ambient.Enabled;Save();Comfort();});
@@ -1156,40 +1156,18 @@ public sealed class CinemaApp : MonoBehaviour {
     void Choice(string key, string[] values) { ActionButton(key + ": " + profile[key] + "  →", () => { int index = Array.IndexOf(values, (string)profile[key]); profile[key] = values[(index + 1) % values.Length]; UpdateProfile(); Customize(); }); }
     void UpdateProfile() { localBody.Apply(profile); Save(); if (room.Connected && room.State != null) room.Send(new JObject { ["type"] = "profile", ["profile"] = profile }); }
     void SaveAddons() { var urls = new JArray(); foreach (var addon in library.Addons) urls.Add(MediaLibrary.ResourceUrl((string)addon["endpoint"], "manifest.json")); settings["addons"] = urls; Save(); }
-    void Save() { settings["profile"] = profile; try { File.WriteAllText(SettingsPath, settings.ToString()); } catch (Exception error) { ShowStatus("Could not save settings: " + error.Message); } }
-    void ShowStatus(string message) { if (status != null) status.text = message; if(menuFeedback && panelMotion.Visible && (message.IndexOf("failed",StringComparison.OrdinalIgnoreCase)>=0 || message.StartsWith("Could not") || message.StartsWith("Error")))menuFeedback.Play(panel.position,false,true); if (Debug.isDebugBuild) Debug.Log("[Cinema] " + message); }
-    private static readonly List<string> diagnosticLogs = new List<string>();
+    void Save() { try { File.WriteAllText(SettingsPath, settings.ToString()); } catch { } }
+        private static readonly List<string> diagnosticLogs = new List<string>();
 
     void HandleDiagnosticLog(string logString, string stackTrace, LogType type) {
         if (string.IsNullOrEmpty(logString)) return;
-        string sanitized = System.Text.RegularExpressions.Regex.Replace(logString, @"(?i)(api[_-]?key|token|password|auth|secret)=([^&s]+)", "$1=***");
+        string sanitized = System.Text.RegularExpressions.Regex.Replace(logString, @"(?i)(api[_-]?key|token|password|auth|secret)=([^&\s]+)", "$1=***");
         sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"(?i)bearer\s+[A-Za-z0-9_\-\.]+", "Bearer ***");
         string entry = $"[{DateTime.UtcNow:HH:mm:ss}] [{type}] {sanitized}";
         lock (diagnosticLogs) {
             if (diagnosticLogs.Count >= 30) diagnosticLogs.RemoveAt(0);
             diagnosticLogs.Add(entry);
         }
-    }
-
-    void Heading(string text) { float height = Mathf.Max(56, (text.Length / 58 + text.Split('\n').Length) * 34); Label(text, content, 0, row, 920, height, 28); row += height + 14; Resize(); }
-    void ActionButton(string text, Action click) { row += Button(text, content, 0, row, actionWidth, click, true) + 14; Resize(); }
-
-    InputField Field(string placeholder, string current, Action<string> changed) {
-        var go = new GameObject("Field", typeof(RectTransform), typeof(Image), typeof(InputField)); go.transform.SetParent(content, false); Place(go.GetComponent<RectTransform>(), 0, row, 850, 52);
-        MenuSurface.Style(go.GetComponent<Image>()); go.GetComponent<Image>().color = new Color(0.1f, 0.08f, 0.16f);
-        var text = new GameObject("Text", typeof(RectTransform), typeof(Text)); text.transform.SetParent(go.transform, false); Place(text.GetComponent<RectTransform>(), 12, 0, 826, 52);
-        var label = text.GetComponent<Text>(); label.font = font; label.fontSize = 22; label.color = Color.white; label.alignment = TextAnchor.MiddleLeft;
-        var placeholderGo = new GameObject("Placeholder", typeof(RectTransform), typeof(Text)); placeholderGo.transform.SetParent(go.transform, false); Place(placeholderGo.GetComponent<RectTransform>(), 12, 0, 826, 52);
-        var ph = placeholderGo.GetComponent<Text>(); ph.font = font; ph.fontSize = 22; ph.color = new Color(0.5f, 0.45f, 0.65f); ph.text = placeholder; ph.alignment = TextAnchor.MiddleLeft;
-        var field = go.GetComponent<InputField>(); field.textComponent = label; field.placeholder = ph; field.text = current ?? ""; field.characterLimit = 4096;
-        go.AddComponent<UiMotion>();
-        field.onEndEdit.AddListener(result => changed?.Invoke(result));
-        Button("⌨️", content, 860, row, 60, () => {
-            if (VRKeyboard.Instance != null) VRKeyboard.Instance.Attach(field);
-            else StartCoroutine(Edit(field));
-        });
-        row += 65; Resize(); return field;
-    }
     }
 
     void DiagnosticsPage() {
@@ -1269,14 +1247,15 @@ public sealed class CinemaApp : MonoBehaviour {
     void Resize() { content.sizeDelta = new Vector2(930, Mathf.Max(690, row)); }
     Text Label(string text, Transform parent, float x, float y, float width, float height, int size) {
         var go = new GameObject("Text", typeof(RectTransform), typeof(Text)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height);
-        var label = go.GetComponent<Text>(); label.font = font; label.fontSize = Mathf.Max(26,size); label.text = text; label.color = new Color(.91f,.94f,1); label.supportRichText = false; label.raycastTarget = false; label.alignment = TextAnchor.MiddleLeft; return label;
+        var label = go.GetComponent<Text>(); label.font = font; label.fontSize = size; label.text = text; label.color = Color.white; label.supportRichText = false; label.raycastTarget = false; label.alignment = TextAnchor.MiddleLeft; return label;
     }
-    float Button(string text, Transform parent, float x, float y, float width, Action click,bool fit=false) {
-        var go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, 64);
-        MenuSurface.Style(go.GetComponent<Image>());go.GetComponent<Image>().color = new Color(0.13f,0.105f,0.21f); go.GetComponent<Button>().transition=Selectable.Transition.None; go.GetComponent<Button>().onClick.AddListener(() => click()); go.AddComponent<UiMotion>(); var caption=Label(text, go.transform, 12, 2, width - 24, 60, 28); float height=fit?Mathf.Max(64,caption.preferredHeight+12):64;go.GetComponent<RectTransform>().sizeDelta=new Vector2(width,height);caption.rectTransform.sizeDelta=new Vector2(width-24,height-4);return height;
+    void Button(string text, Transform parent, float x, float y, float width, Action click) {
+        var go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, 52);
+        go.GetComponent<Image>().color = new Color(0.13f,0.105f,0.21f); go.GetComponent<Button>().transition=Selectable.Transition.None; go.GetComponent<Button>().onClick.AddListener(() => click()); go.AddComponent<UiMotion>(); Label(text, go.transform, 12, 3, width - 24, 46, 20);
     }
     static void Plate(Transform parent, float x, float y, float width, float height, Color color) {
-        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height); MenuSurface.Style(go.GetComponent<Image>()); go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
+        var go = new GameObject("Panel", typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false); Place(go.GetComponent<RectTransform>(), x, y, width, height);
+        go.GetComponent<Image>().color = color; go.GetComponent<Image>().raycastTarget = false;
     }
     static void Place(RectTransform rect, float x, float y, float w, float h) { rect.anchorMin = rect.anchorMax = new Vector2(0, 1); rect.pivot = new Vector2(0, 1); rect.anchoredPosition = new Vector2(x, -y); rect.sizeDelta = new Vector2(w, h); }
 
@@ -1360,20 +1339,14 @@ public sealed class CinemaApp : MonoBehaviour {
         }
         leftController.TryGetFeatureValue(CommonUsages.gripButton,out bool leftGrip);controller.TryGetFeatureValue(CommonUsages.gripButton,out bool rightGrip);
         if(games.Grip(left,right,leftGrip,rightGrip,!panelMotion.Visible)){pointer.enabled=false;controller.TryGetFeatureValue(CommonUsages.triggerButton,out triggerWasDown);return;}
-        var data = new PointerEventData(EventSystem.current);
-        GameObject target=null; float nearest=float.MaxValue;Vector3 point=ray.GetPoint(3);
-        if(panelMotion.Visible)foreach(var surface in new[]{canvas,navigationCanvas}) {
-            if(surface==navigationCanvas && editing)continue;
-            bool intersects=SpatialMenuGeometry.Intersect(surface.transform,ray,out float distance);
-            if(XRSettings.isDeviceActive&&!intersects)continue;
-            data.position=XRSettings.isDeviceActive?(Vector2)cameraView.WorldToScreenPoint(ray.GetPoint(distance)):(Vector2)Input.mousePosition;
-            hits.Clear();surface.GetComponent<GraphicRaycaster>().Raycast(data,hits);
-            if(hits.Count==0)continue;
-            float depth=XRSettings.isDeviceActive?distance:hits[0].distance;
-            if(depth<nearest){nearest=depth;target=hits[0].gameObject;point=XRSettings.isDeviceActive?ray.GetPoint(distance):hits[0].worldPosition;}
-        }
-        data.position=XRSettings.isDeviceActive?(Vector2)cameraView.WorldToScreenPoint(point):(Vector2)Input.mousePosition;
-        pointer.SetPosition(0,origin);pointer.SetPosition(1,point);
+        var plane = new Plane(panel.forward, panel.position);
+        float distance=0; bool intersects = panelMotion.Visible && plane.Raycast(ray, out distance) && distance < 10;
+        var point = intersects ? ray.GetPoint(distance) : ray.GetPoint(3);
+        pointer.SetPosition(0, origin); pointer.SetPosition(1, point);
+        var data = new PointerEventData(EventSystem.current) { position = cameraView.WorldToScreenPoint(point) };
+        if (!XRSettings.isDeviceActive) data.position = Input.mousePosition;
+        hits.Clear(); if (panelMotion.Visible && (intersects || !XRSettings.isDeviceActive)) canvas.GetComponent<GraphicRaycaster>().Raycast(data, hits);
+        var target = hits.Count > 0 ? hits[0].gameObject : null;
         controller.TryGetFeatureValue(CommonUsages.triggerButton,out bool webTrigger); controller.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 webStick);
         controller.TryGetFeatureValue(CommonUsages.gripButton,out bool webScrollGrip);
         bool webHit=browser.Point(ray,target==null && (webTrigger||Input.GetMouseButton(0)),target==null&&webScrollGrip?webStick.y:0,out var webPoint);
@@ -1405,32 +1378,326 @@ public sealed class CinemaApp : MonoBehaviour {
         triggerWasDown = trigger;
     }
 
-    bool editing;
-    IEnumerator Edit(InputField field) {
-        if (editing) yield break;
-        editing = true; navigationCanvas.gameObject.SetActive(false);
-        var keyboard = new GameObject("Keyboard", typeof(RectTransform), typeof(Image)); keyboard.transform.SetParent(panel, false);
-        Place(keyboard.GetComponent<RectTransform>(), 0, 0, 1280, 1000); keyboard.GetComponent<Image>().color = new Color(0.04f, 0.05f, 0.09f);
-        string original = field.text; bool upper = false;
-        var preview = Label(field.text, keyboard.transform, 25, 25, 950, 120, 23);
-        string keys = "1234567890-_=qwertyuiop[]asdfghjkl;:'zxcvbnm,./?@!#$%&*()+";
-        for (int i = 0; i < keys.Length; i++) {
-            char key = keys[i]; int index = i;
-            Button(key.ToString(), keyboard.transform, 25 + index % 12 * 79, 180 + index / 12 * 70, 73, () => {
-                if (field != null && field.text.Length < 4096) { field.text += upper ? char.ToUpperInvariant(key) : key; preview.text = field.text; }
+    void LayoutPage() {
+        Clear(); pageTitle.text = "Arrange room"; Heading(room.IsSolo?"Solo apartment layout — saved on this headset":"Room layout — host arranges for all connected players");
+        if (!room.IsHost) { ActionButton("Only the host can arrange the cinema", Home); return; }
+        layoutPageRevision = (int?)room.State?["layout"]?["revision"] ?? 0;
+        ActionButton("Reset room to default layout", () => { room.Send(new JObject { ["type"] = "layout", ["action"] = "reset", ["revision"] = layoutPageRevision }); LayoutPage(); });
+        var screens = new List<JObject>(); var tables = new List<JObject>();
+        foreach (var item in room.State?["layout"]?["items"] as JArray ?? new JArray()) { if ((string)item["kind"] == "screen") screens.Add((JObject)item); else tables.Add((JObject)item); }
+        Heading("Screens (up to 4)");
+        if (screens.Count < 4) ActionButton("Place another screen", () => { placement.Begin("screen"); panelMotion.Show(false); });
+        foreach (var screen in screens) { string id = (string)screen["id"]; ActionButton("Move screen " + id, () => { placement.Begin("screen", id); panelMotion.Show(false); }); ActionButton("Adjust screen " + id, () => MonitorPage(id)); ActionButton("Remove screen " + id, () => { placement.Remove(id); LayoutPage(); }); }
+        Heading("Game tables (up to 3)");
+        if (tables.Count < 3) { ActionButton("Place chess table", () => { placement.Begin("chess"); panelMotion.Show(false); }); ActionButton("Place tic-tac-toe table", () => { placement.Begin("tictactoe"); panelMotion.Show(false); }); }
+        foreach (var table in tables) { string id = (string)table["id"]; ActionButton("Move " + (string)table["kind"] + " table " + id, () => { placement.Begin((string)table["kind"], id); panelMotion.Show(false); }); ActionButton("Remove table " + id, () => { placement.Remove(id); LayoutPage(); }); }
+        ActionButton("Back to my room", Home);
+    }
+
+    void MonitorPage(string id) {
+        Clear(); pageTitle.text = "Adjust monitor";
+        float width = 2.1f, curve = 0;
+        foreach (var item in room.State?["layout"]?["items"] as JArray ?? new JArray()) if ((string)item["id"] == id) { width = (float?)item["width"] ?? 2.1f; curve = (float?)item["curve"] ?? 0; }
+        Heading("Size and curve for " + id);
+        SpeedControl("Width", width, 1.2f, 4.5f, 0.2f, value => placement.Configure(id, value, curve), "m", () => MonitorPage(id));
+        SpeedControl("Curve", curve, 0, 90, 10, value => placement.Configure(id, width, value), "°", () => MonitorPage(id));
+        ActionButton("Back to layout", LayoutPage);
+    }
+
+    void AccountPage() {
+        Clear(); pageTitle.text = "Stremio account"; Heading("Pair your Stremio or Nuvio account");
+        if (account.SignedIn) {
+            Heading("Signed in as " + (account.DisplayName ?? "account"));
+            ActionButton("Sync account add-ons", account.SyncAddons);
+            ActionButton("Sign out", account.SignOut);
+        } else if (!string.IsNullOrEmpty(account.LinkCode)) {
+            Heading("Sign-in code: " + account.LinkCode);
+            Heading("Open this link on your phone, PC, or headset browser:");
+            Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+            ActionButton("Open sign-in link in Quest browser", account.OpenLink);
+            ActionButton("Cancel sign-in", account.CancelLink);
+            Heading("Waiting for approval (refreshes automatically)…");
+        } else {
+            ActionButton("Pair with device code (recommended)", account.BeginLink);
+            Heading("Or sign in directly with credentials");
+            string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+            var emailInput = Field("Account Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+            var passInput = PasswordField("Account Password", "", null);
+            ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
+        }
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Passthrough)", CinemaControlsPage);
+        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+        ActionButton("Back to media library", Library);
+    }
+
+    void ImportAccountAddons(JArray addons) {
+        var endpoints = new JArray();
+        foreach (var addon in addons) {
+            if (addon is JObject obj && obj["transportUrl"] != null) {
+                string url = (string)obj["transportUrl"]; endpoints.Add(url);
+                library.Install(url, () => { SaveAddons(); if (pageTitle != null && pageTitle.text == "Discover") Library(); });
+            }
+        }
+        settings["accountAddons"] = endpoints;
+        settings["accountCache"] = addons.DeepClone();
+        Save();
+    }
+
+    void ApplyBrowserRes(string res) {
+        settings[SettingsKeys.BrowserRes] = res; Save();
+        if (browser == null) return;
+        if (res == "4k") browser.SetResolution(3840, 2160);
+        else if (res == "1440p") browser.SetResolution(2560, 1440);
+        else if (res == "720p") browser.SetResolution(1280, 720);
+        else browser.SetResolution(1920, 1080);
+    }
+
+    void ServersHubPage() {
+        Clear(); pageTitle.text = "Servers & Streaming";
+        Heading("Media Servers, Debrid & Streaming Services");
+
+        var reg = GetComponent<MediaProviderRegistry>();
+        bool sConn = account.SignedIn;
+        bool jConn = reg?.Jellyfin != null && reg.Jellyfin.IsAuthenticated;
+        bool msConn = reg?.MediaStorm != null && reg.MediaStorm.IsAuthenticated;
+        bool siloConn = reg?.Silo != null && reg.Silo.IsAuthenticated;
+
+        // Top Navigation Bar with active tab indicators
+        Plate(content, 0, row, actionWidth, 56, new Color(0.08f, 0.09f, 0.15f));
+        Button((serverHubTab == 0 ? "● " : "") + "🚀 Launch", content, 5, row + 4, 145, () => { serverHubTab = 0; settings[SettingsKeys.LastServerTab] = 0; Save(); ServersHubPage(); });
+        Button((sConn ? "● " : "○ ") + "🌌 Nuvio", content, 155, row + 4, 145, () => { serverHubTab = 1; settings[SettingsKeys.LastServerTab] = 1; Save(); ServersHubPage(); });
+        Button((sConn ? "● " : "○ ") + "🎬 Stremio", content, 305, row + 4, 145, () => { serverHubTab = 2; settings[SettingsKeys.LastServerTab] = 2; Save(); ServersHubPage(); });
+        Button((jConn ? "● " : "○ ") + "🍿 Jellyfin", content, 455, row + 4, 145, () => { serverHubTab = 3; settings[SettingsKeys.LastServerTab] = 3; Save(); ServersHubPage(); });
+        Button(((msConn || siloConn) ? "● " : "○ ") + "⚡ Debrid/Silo", content, 605, row + 4, 150, () => { serverHubTab = 4; settings[SettingsKeys.LastServerTab] = 4; Save(); ServersHubPage(); });
+        Button((serverHubTab == 5 ? "● " : "") + "🖥 4K/Display", content, 760, row + 4, 150, () => { serverHubTab = 5; settings[SettingsKeys.LastServerTab] = 5; Save(); ServersHubPage(); });
+        row += 66;
+
+        if (serverHubTab == 0) {
+            Heading("🚀 One-Click Web Streamers");
+            Plate(content, 0, row, actionWidth, 126, new Color(0.12f, 0.15f, 0.22f));
+            Button("🌌 Nuvio Web", content, 10, row + 8, 290, () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+            Button("🎬 Stremio Web", content, 315, row + 8, 290, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+            Button("🍿 Jellyfin Web", content, 620, row + 8, 290, () => {
+                string j = (string)settings[SettingsKeys.JellyfinUrl];
+                if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
+                else { ShowStatus("Configure your Jellyfin URL in the Jellyfin tab first"); serverHubTab = 3; ServersHubPage(); }
+            });
+            Button("📺 YouTube", content, 10, row + 66, 290, () => { browser.Open("https://www.youtube.com/"); panelMotion.Show(false); });
+            Button("🅿️ Plex Web", content, 315, row + 66, 290, () => { browser.Open("https://app.plex.tv/desktop"); panelMotion.Show(false); });
+            Button("🎮 Twitch", content, 620, row + 66, 290, () => { browser.Open("https://www.twitch.tv/"); panelMotion.Show(false); });
+            row += 136;
+
+            Heading("Active Server Status");
+            string sStatus = account.SignedIn ? "🟢 Stremio: Signed in (" + (account.DisplayName ?? "Account") + ")" : "⚪ Stremio: Not paired";
+            string nStatus = !string.IsNullOrEmpty((string)settings[SettingsKeys.MellonUrl]) ? "🟢 Nuvio Sync: " + (string)settings[SettingsKeys.MellonUrl] : "⚪ Nuvio: Standby";
+            string jStatus = jConn ? "🟢 Jellyfin: Connected" : "⚪ Jellyfin: Disconnected";
+            string msStatus = msConn ? "🟢 MediaStorm: Active" : "⚪ MediaStorm: Standby";
+            string siloStatus = siloConn ? "🟢 Silo: Active" : "⚪ Silo: Standby";
+            string curRes = ((string)settings[SettingsKeys.BrowserRes] ?? "1080p").ToUpperInvariant();
+
+            Label(sStatus + "\n" + nStatus + "\n" + jStatus + "\n" + msStatus + "\n" + siloStatus + "\n🖥 Display Quality: " + curRes, content, 0, row, actionWidth, 145, 19);
+            row += 155;
+
+            ActionButton("🎬 Manage Stremio Pairing & Sync", () => { serverHubTab = 2; ServersHubPage(); });
+            ActionButton("🌌 Configure Nuvio Addon Sync", () => { serverHubTab = 1; ServersHubPage(); });
+            ActionButton("🍿 Configure Jellyfin Media Server", () => { serverHubTab = 3; ServersHubPage(); });
+            ActionButton("🖥 Change Web Screen Resolution (1080p / 4K / 720p)", () => { serverHubTab = 5; ServersHubPage(); });
+        }
+        else if (serverHubTab == 1) {
+            Heading("🌌 Nuvio Streaming & Account Sync");
+            Label("Nuvio is an open-source Stremio fork sharing the same account, addon, and streaming ecosystem.", content, 0, row, actionWidth, 35, 18); row += 40;
+            ActionButton("🌌 Open Nuvio Web Player (nuvio.app)", () => { browser.Open("https://nuvio.app/"); panelMotion.Show(false); });
+
+            Heading("Nuvio / Stremio Account Connection");
+            if (account.SignedIn) {
+                Heading("🟢 Connected Account: " + (account.DisplayName ?? "Nuvio User"));
+                ActionButton("⚡ Sync Account Add-ons & Catalogs", account.SyncAddons);
+                ActionButton("Sign out", account.SignOut);
+            } else if (!string.IsNullOrEmpty(account.LinkCode)) {
+                Heading("Sign-in code: " + account.LinkCode);
+                Heading("Open this link on your phone, PC, or headset browser:");
+                Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+                ActionButton("Open sign-in in Quest browser", account.OpenLink);
+                ActionButton("Cancel sign-in", account.CancelLink);
+                Heading("Waiting for approval (will refresh automatically)…");
+            } else {
+                ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
+                Heading("— Or Sign In Directly with Credentials —");
+                string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+                var emailInput = Field("Account Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+                var passInput = PasswordField("Account Password", "", null);
+                ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
+            }
+
+            Heading("Self-Hosted Nuvio / Mellon Profile Sync (Optional)");
+            string mUrl = (string)settings[SettingsKeys.MellonUrl] ?? "http://192.168.1.166:8085";
+            string mToken = (string)settings[SettingsKeys.MellonToken] ?? "";
+            var mUrlInput = Field("Mellon / Nuvio Sync URL", mUrl, v => { settings[SettingsKeys.MellonUrl] = v; Save(); });
+            var mTokenInput = PasswordField("Mellon Auth Token", mToken, v => { settings[SettingsKeys.MellonToken] = v; Save(); });
+            ActionButton("Sync Self-Hosted Mellon Addons", async () => {
+                if (reg == null) { ShowStatus("Provider registry is unavailable."); return; }
+                if (string.IsNullOrWhiteSpace(mUrlInput.text) || string.IsNullOrWhiteSpace(mTokenInput.text))
+                {
+                    ShowStatus("Enter a Mellon / Nuvio URL and auth token first.");
+                    return;
+                }
+
+                ShowStatus("Syncing Mellon profile addons...");
+                try
+                {
+                    int count = await reg.SyncMellonAddonsAsync(mUrlInput.text, mTokenInput.text);
+                    ShowStatus("Synced " + count + " addon(s) from Mellon into VR library!");
+                    ServersHubPage();
+                }
+                catch (Exception error)
+                {
+                    Debug.LogWarning("[CinemaApp] Mellon addon sync failed: " + error.Message);
+                    ShowStatus("Mellon sync failed. Check the URL, token, and server.");
+                }
             });
         }
-        Button("Shift", keyboard.transform, 25, 600, 220, () => { upper = !upper; preview.text = (upper ? "SHIFT ON: " : "") + field.text; });
-        Button("Space", keyboard.transform, 260, 600, 220, () => { field.text += " "; preview.text = field.text; });
-        Button("Backspace", keyboard.transform, 495, 600, 220, () => { if (field.text.Length > 0) field.text = field.text.Substring(0, field.text.Length - 1); preview.text = field.text; });
-        Button("Clear", keyboard.transform, 730, 600, 220, () => { field.text = ""; preview.text = ""; });
-        Button("Done", keyboard.transform, 25, 700, 450, () => { field.onEndEdit.Invoke(field.text); editing = false; navigationCanvas.gameObject.SetActive(true); Destroy(keyboard); });
-        Button("Cancel", keyboard.transform, 500, 700, 450, () => { field.text = original; editing = false; navigationCanvas.gameObject.SetActive(true); Destroy(keyboard); });
-        yield return null;
+        else if (serverHubTab == 2) {
+            Heading("🎬 Stremio Account Pairing");
+            if (account.SignedIn) {
+                Heading("🟢 Signed in: " + (account.DisplayName ?? "Stremio Account"));
+                ActionButton("⚡ Sync Stremio Account Add-ons", account.SyncAddons);
+                ActionButton("Sign out from Stremio", account.SignOut);
+            } else if (!string.IsNullOrEmpty(account.LinkCode)) {
+                Heading("Sign-in code: " + account.LinkCode);
+                Heading("Open this link on your phone, PC, or Quest browser:");
+                Label(account.LinkUrl, content, 0, row, 920, 50, 22); row += 58;
+                ActionButton("Open sign-in in Quest browser", account.OpenLink);
+                ActionButton("Cancel sign-in", account.CancelLink);
+                Heading("Waiting for Stremio approval (will refresh automatically)…");
+            } else {
+                ActionButton("⚡ Pair with Device Link Code", account.BeginLink);
+                Heading("— Or Sign In Directly with Credentials —");
+                string accEmail = (string)settings[SettingsKeys.AccountEmail] ?? "";
+                var emailInput = Field("Stremio Email", accEmail, v => { settings[SettingsKeys.AccountEmail] = v; Save(); });
+                var passInput = PasswordField("Stremio Password", "", null);
+                ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
+            }
+            ActionButton("🎬 Open Stremio Web Player (web.stremio.com)", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+            ActionButton("Manage Catalogs & Addon Manifests", AddonsPage);
+        }
+        else if (serverHubTab == 3) {
+            Heading("🍿 Jellyfin / Remux Media Server");
+            string statusText = jConn ? "🟢 Connected to Jellyfin" : "⚪ Disconnected";
+            Heading(statusText);
+            string jUrl = (string)settings[SettingsKeys.JellyfinUrl] ?? "";
+            string jUser = (string)settings[SettingsKeys.JellyfinUser] ?? "";
+            string jPass = (string)settings[SettingsKeys.JellyfinPass] ?? "";
+            var jUrlInput = Field("Jellyfin URL (e.g. http://192.168.1.100:8096)", jUrl, v => { settings[SettingsKeys.JellyfinUrl] = v; Save(); });
+            var jUserInput = Field("Jellyfin Username", jUser, v => { settings[SettingsKeys.JellyfinUser] = v; Save(); });
+            var jPassInput = PasswordField("Jellyfin Password", jPass, v => { settings[SettingsKeys.JellyfinPass] = v; Save(); });
+            ActionButton("Connect & Authenticate Jellyfin", async () => {
+                if (reg?.Jellyfin != null && !string.IsNullOrEmpty(jUrlInput.text)) {
+                    ShowStatus("Connecting to Jellyfin...");
+                    bool ok = await reg.Jellyfin.AuthenticateAsync(jUrlInput.text, jUserInput.text, jPassInput.text);
+                    ShowStatus(ok ? "Jellyfin connected successfully!" : "Jellyfin authentication failed.");
+                    ServersHubPage();
+                }
+            });
+            if (jConn) {
+                ActionButton("Disconnect Jellyfin", () => {
+                    reg.Jellyfin.RestoreSession("", "", "");
+                    settings[SettingsKeys.JellyfinToken] = "";
+                    settings[SettingsKeys.JellyfinUserId] = "";
+                    Save();
+                    ShowStatus("Disconnected from Jellyfin.");
+                    ServersHubPage();
+                });
+            }
+            ActionButton("🍿 Open Jellyfin Web Player", () => {
+                string j = (string)settings[SettingsKeys.JellyfinUrl];
+                if (!string.IsNullOrEmpty(j)) { browser.Open(j); panelMotion.Show(false); }
+                else { ShowStatus("Enter your Jellyfin URL above first"); }
+            });
 
+            Heading("lostb1t / Standalone Remux Server");
+            Label("Remux aggregates Stremio, WebDAV, and Debrid streams into a fast direct-play HTTP / HLS server.", content, 0, row, actionWidth, 35, 18); row += 40;
+            string rUrl = (string)settings[SettingsKeys.RemuxUrl] ?? "";
+            var rUrlInput = Field("Remux Server URL (e.g. http://192.168.1.166:3000)", rUrl, v => { settings[SettingsKeys.RemuxUrl] = v; Save(); });
+            ActionButton("Test / Open Remux Web UI", () => {
+                string r = rUrlInput.text?.Trim();
+                if (!string.IsNullOrEmpty(r)) {
+                    browser.Open(r);
+                    panelMotion.Show(false);
+                } else {
+                    ShowStatus("Enter Remux Server URL first");
+                }
+            });
+        }
+        else if (serverHubTab == 4) {
+            Heading("⚡ MediaStorm Debrid / Usenet Streamer");
+            string msStatus = msConn ? "🟢 Connected" : "⚪ Standby";
+            Heading("Status: " + msStatus);
+            string msUrl = (string)settings[SettingsKeys.MediaStormUrl] ?? "";
+            string msKey = (string)settings[SettingsKeys.MediaStormKey] ?? "";
+            var msUrlInput = Field("MediaStorm URL (e.g. http://192.168.1.166:7777)", msUrl, v => { settings[SettingsKeys.MediaStormUrl] = v; Save(); });
+            var msKeyInput = PasswordField("MediaStorm API Key", msKey, v => { settings[SettingsKeys.MediaStormKey] = v; Save(); });
+            ActionButton("Connect MediaStorm", async () => {
+                if (reg?.MediaStorm != null && !string.IsNullOrEmpty(msUrlInput.text)) {
+                    ShowStatus("Connecting to MediaStorm...");
+                    bool ok = await reg.MediaStorm.AuthenticateAsync(msUrlInput.text, msKeyInput.text);
+                    ShowStatus(ok ? "MediaStorm connected successfully!" : "MediaStorm connection failed.");
+                    ServersHubPage();
+                }
+            });
+            if (msConn) {
+                ActionButton("Disconnect MediaStorm", () => {
+                    reg.MediaStorm.RestoreSession("", "");
+                    settings[SettingsKeys.MediaStormKey] = "";
+                    Save();
+                    ShowStatus("Disconnected from MediaStorm.");
+                    ServersHubPage();
+                });
+            }
 
-    void LayoutPage() {
+            Heading("🚀 Silo High-Performance Backend");
+            string siloStatus = siloConn ? "🟢 Connected" : "⚪ Standby";
+            Heading("Status: " + siloStatus);
+            string sUrl = (string)settings[SettingsKeys.SiloUrl] ?? "";
+            string sUser = (string)settings[SettingsKeys.SiloUser] ?? "";
+            string sPass = (string)settings[SettingsKeys.SiloPass] ?? "";
+            var sUrlInput = Field("Silo Server URL", sUrl, v => { settings[SettingsKeys.SiloUrl] = v; Save(); });
+            var sUserInput = Field("Silo Username / Token", sUser, v => { settings[SettingsKeys.SiloUser] = v; Save(); });
+            var sPassInput = PasswordField("Silo Password", sPass, v => { settings[SettingsKeys.SiloPass] = v; Save(); });
+            ActionButton("Connect Silo", async () => {
+                if (reg?.Silo != null && !string.IsNullOrEmpty(sUrlInput.text)) {
+                    ShowStatus("Connecting to Silo...");
+                    bool ok = await reg.Silo.AuthenticateAsync(sUrlInput.text, sUserInput.text, sPassInput.text);
+                    ShowStatus(ok ? "Silo connected successfully!" : "Silo connection failed.");
+                    ServersHubPage();
+                }
+            });
+            if (siloConn) {
+                ActionButton("Disconnect Silo", () => {
+                    reg.Silo.RestoreSession("", "");
+                    settings[SettingsKeys.SiloToken] = "";
+                    Save();
+                    ShowStatus("Disconnected from Silo.");
+                    ServersHubPage();
+                });
+            }
+        }
+        else if (serverHubTab == 5) {
+            Heading("🖥 Virtual Web Screen Resolution & 4K Options");
+            Label("Native movie streams (ExoPlayer/Hardware Decoder) play at up to 4K 60FPS automatically.\nSelect your preferred resolution for the interactive web desktop:", content, 0, row, actionWidth, 48, 18); row += 55;
+            string cur = (string)settings[SettingsKeys.BrowserRes] ?? "1080p";
 
+            ActionButton((cur == "1080p" ? "● " : "○ ") + "1080p Full HD (1920×1080) — Balanced & Crisp [Recommended]", () => { ApplyBrowserRes("1080p"); ServersHubPage(); });
+            ActionButton((cur == "4k" ? "● " : "○ ") + "4K Ultra HD (3840×2160) — Maximum Desktop Sharpness", () => { ApplyBrowserRes("4k"); ServersHubPage(); });
+            ActionButton((cur == "1440p" ? "● " : "○ ") + "1440p Quad HD (2560×1440) — High Density", () => { ApplyBrowserRes("1440p"); ServersHubPage(); });
+            ActionButton((cur == "720p" ? "● " : "○ ") + "720p Standard HD (1280×720) — Battery Saver", () => { ApplyBrowserRes("720p"); ServersHubPage(); });
+
+            Heading("Active Resolution: " + browser.WebWidth + "×" + browser.WebHeight);
+        }
+
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Passthrough)", CinemaControlsPage);
+        ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
+        ActionButton("Back to media library", Library);
+        Resize();
     }
 }
 }

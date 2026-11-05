@@ -145,7 +145,19 @@ public sealed class WebCinema : MonoBehaviour {
   if(pressed){Local("release",(int)(lastPoint.x*WebWidth),(int)((1-lastPoint.y)*WebHeight));pressed=false;}
   return false;
  }
- public void Open(string url){Toggle();if(!Active)return;if(remoteMode){Command("navigate",new JObject{["url"]=url});return;}Local("load",url);}
+ public void Open(string url){if(!Room.IsSolo&&!Active){Command("open",new JObject{["profileKey"]=ProfileKey(),["url"]=url});return;}if(!Active)Toggle();if(Active)Navigate(url);}
+ public void Text(string value){if(remoteMode)Command("text",new JObject{["value"]=value});else if(Active&&Room.IsHost)Local("text",value);}
+ public JArray Tabs {get{try{return remoteMode?remoteTabs:Active?(desktop?desktop.Tabs:JArray.Parse(web.Call<string>("tabs"))):new JArray();}catch{return new JArray();}}}
+ public void Navigate(string url){if(remoteMode)Command("navigate",new JObject{["url"]=url});else if(Active&&Room.IsHost)Local("navigate",url);}
+ public void NewTab(string url){if(remoteMode)Command("open-tab",new JObject{["url"]=url});else if(Active&&Room.IsHost)Local("newTab",url);}
+ public void SelectTab(int index){if(remoteMode){if(index>=0&&index<remoteTabs.Count)Command("select-tab",new JObject{["id"]=remoteTabs[index]["id"]});}else if(Active&&Room.IsHost)Local("selectTab",index);}
+ public void CloseTab(int index){if(remoteMode){if(index>=0&&index<remoteTabs.Count)Command("close-tab",new JObject{["id"]=remoteTabs[index]["id"]});}else if(Active&&Room.IsHost)Local("closeTab",index);}
+ public void Forward(){if(remoteMode)Command("forward");else if(Active&&Room.IsHost)Local("forward");}
+ public void Back(){if(remoteMode)Command("back");else if(Active&&Room.IsHost)Local("back");}
+ public void Reload(){if(remoteMode)Command("reload");else if(Active&&Room.IsHost)Local("reload");}
+ public void ForgetSession(){if(remoteMode)Command("forget");else if(Active&&Room.IsHost)Local("forgetSession");}
+ public void Share(){if(remoteMode)Status?.Invoke("Everyone in the room already sees and hears this browser.");else if(Active&&Room.IsHost)Local("shareVideo");}
+ public void BrowserStatus(string value) { Status?.Invoke(value); }
  public void Close(){if(remoteMode&&Room.Connected)Command("close");Release();}
  void Release(){if(Active&&Playback!=null){Playback.Suspended=false;Playback.Video.renderMode=VideoRenderMode.MaterialOverride;}Active=false;remoteMode=false;watching=false;consecutiveSlowFrames=0;DestroyFrames();if(desktop){desktop.ClearFrame();Local("close");}if(web!=null){web.Call("close");web=null;}if(rtc!=null){rtc.Call("close");rtc=null;}if(texture!=null){Destroy(texture);texture=null;}pixels=null;}
  void BrowserVideo(string json){

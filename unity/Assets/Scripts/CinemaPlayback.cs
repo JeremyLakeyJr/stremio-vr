@@ -250,6 +250,7 @@ public sealed class CinemaPlayback : MonoBehaviour {
 
     public void Toggle() { if (playback != null) Control(!(bool)playback["paused"], Position); }
     public void Seek(double delta) { if (playback != null) Control((bool)playback["paused"], Math.Max(0, Position + delta), true); }
+    public void SendPlayback(bool paused, double position, bool seek=false) => Control(paused, position, seek);
     void Control(bool paused, double position, bool seek=false) {
         if (!Room.IsHost) { Status?.Invoke("Only the host controls playback"); return; }
         Room.Send(new JObject { ["type"] = "playback", ["paused"] = paused, ["position"] = position, ["seek"] = seek });
