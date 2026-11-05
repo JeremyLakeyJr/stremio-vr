@@ -14,10 +14,18 @@ public sealed class WebCinema : MonoBehaviour {
  public int WebHeight { get; private set; } = 1080;
  byte[] pixels; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame; int consecutiveSlowFrames;
  AndroidJavaObject rtc; Texture2D yPlane,uPlane,vPlane; RenderTexture videoTexture; Material converter; JArray remoteTabs=new JArray(); string ice="[]"; bool remoteMode,watching; float nextPointer,nextScroll,lastVolume=-1;
- public void Initialize(){Room.Message+=OnMessage;}
+ DesktopBridge desktop;
+ public void Initialize(){Room.Message+=OnMessage;
+#if (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+  desktop=DesktopBridge.Get();desktop.Message+=DesktopMessage;
+#endif
+ }
+ void DesktopMessage(JObject data){switch((string)data["kind"]){case "receiver-ready":if(watching)Room.Send(new JObject{["type"]="browser-watch"});break;case "browser-signal":ServerBrowserSignal(data["data"].ToString());break;case "browser-video":BrowserVideo((string)data["value"]);break;case "status":Status?.Invoke((string)data["message"]);break;}}
+ void Local(string method,params object[] args){if(desktop)desktop.Browser(method,args);else web?.Call(method,args);}
  public void SetVolume(float val) {
    if (Playback != null) Playback.SetVolume(val);
    lastVolume = Mathf.Clamp01(val);
+   if (desktop) { if (remoteMode) desktop.Rtc("receiver-volume", new JObject{["value"]=lastVolume}); return; }
    if (remoteMode && rtc != null) rtc.Call("volume", lastVolume);
    else if (web != null) web.Call("volume", lastVolume);
  }
@@ -29,6 +37,7 @@ public sealed class WebCinema : MonoBehaviour {
   if(Active) { Close(); Toggle(); }
  }
  string ProfileKey(){
+  if(desktop)return desktop.BrowserProfileKey(new Uri(Room.ApiEndpoint).GetLeftPart(UriPartial.Authority));
   using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer"))using(var activity=player.GetStatic<AndroidJavaObject>("currentActivity"))using(var secure=new AndroidJavaClass("com.stremiovr.SecureSession")){
    string secret=secure.CallStatic<string>("loadNamed",activity,"browser-profile-master");if(string.IsNullOrEmpty(secret)){var bytes=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(bytes);secret=Convert.ToBase64String(bytes);secure.CallStatic("saveNamed",activity,"browser-profile-master",secret);}
    using(var hmac=new HMACSHA256(Convert.FromBase64String(secret)))return BitConverter.ToString(hmac.ComputeHash(Encoding.UTF8.GetBytes(new Uri(Room.ApiEndpoint).GetLeftPart(UriPartial.Authority)))).Replace("-","").ToLowerInvariant();
@@ -39,10 +48,11 @@ public sealed class WebCinema : MonoBehaviour {
   string type=(string)message["type"];if(type=="joined")ice=(message["iceServers"]??new JArray()).ToString();
   if(type=="left"||type=="disconnected"){Release();remoteTabs=new JArray();return;}
   if(type=="browser-tabs"){remoteTabs=(JArray)message["tabs"];return;}
-  if(type=="browser-signal"&&rtc!=null&&message["data"]!=null)rtc.Call("signal",message["data"].ToString());
+  if(type=="browser-signal"&&message["data"]!=null){if(desktop&&watching)desktop.Rtc("receiver-signal",new JObject{["data"]=message["data"]});else rtc?.Call("signal",message["data"].ToString());}
   if(type=="state"&&!Room.IsSolo){bool enabled=(bool?)message["browser"]?["ready"]==true;if(enabled&&!watching)StartReceiver();else if(!enabled&&remoteMode)Release();}
  }
  void StartReceiver(){
+  if(desktop){Release();desktop.ClearFrame();remoteMode=true;watching=true;Active=true;Playback.Suspended=true;Playback.Video.Pause();desktop.Rtc("receiver-start",new JObject{["ice"]=JArray.Parse(ice)});Attach();return;}
 #if UNITY_ANDROID && !UNITY_EDITOR
   try{Release();using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer"))using(var activity=player.GetStatic<AndroidJavaObject>("currentActivity"))rtc=new AndroidJavaObject("com.stremiovr.RtcBrowser",activity,gameObject.name,ice);
    remoteMode=true;watching=true;Active=true;Playback.Suspended=true;Playback.Video.Pause();converter=new Material(Shader.Find("MovieNight/BrowserYuv"));Room.Send(new JObject{["type"]="browser-watch"});
@@ -63,6 +73,7 @@ public sealed class WebCinema : MonoBehaviour {
   if(Active) { Close(); return; }
   if(!Room.IsSolo){if(!Room.IsHost){Status?.Invoke("The host opens the shared browser.");return;}try{Command("open",new JObject{["profileKey"]=ProfileKey()});Status?.Invoke("Starting the shared server browser…");}catch(Exception e){Status?.Invoke(e.Message);}return;}
   if(!Room.IsHost) { Status?.Invoke("Create a room first. Only its host can operate the web screen."); return; }
+  if(desktop){desktop.ClearFrame();Active=true;Playback.Suspended=true;Playback.Video.Pause();Local("open");Attach();return;}
 #if UNITY_ANDROID && !UNITY_EDITOR
   try {
    if(pixels==null || pixels.Length!=WebWidth*WebHeight*4) pixels=new byte[WebWidth*WebHeight*4];
@@ -75,11 +86,18 @@ public sealed class WebCinema : MonoBehaviour {
 #endif
  }
  void Attach() {
-  screen=World.Screen; screen.sharedMaterial.mainTexture=remoteMode?(Texture)videoTexture:texture; screen.sharedMaterial.mainTextureScale=remoteMode?Vector2.one:new Vector2(1,-1); screen.sharedMaterial.mainTextureOffset=remoteMode?Vector2.zero:new Vector2(0,1);
+  screen=World.Screen;
+  if(desktop){screen.sharedMaterial.mainTexture=desktop.Frame?(Texture)desktop.Frame:Texture2D.blackTexture;screen.sharedMaterial.mainTextureScale=new Vector2(1,-1);screen.sharedMaterial.mainTextureOffset=new Vector2(0,1);Ambient.Source=desktop.Frame;return;}
+  screen.sharedMaterial.mainTexture=remoteMode?(Texture)videoTexture:texture; screen.sharedMaterial.mainTextureScale=remoteMode?Vector2.one:new Vector2(1,-1); screen.sharedMaterial.mainTextureOffset=remoteMode?Vector2.zero:new Vector2(0,1);
   screen.transform.localScale=new Vector3(World.Data.ScreenSize.x,World.Data.ScreenSize.y,1); Ambient.Source=remoteMode?(Texture)videoTexture:texture;
  }
  void Update() {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
+  if(desktop){
+    if(screen.sharedMaterial.mainTexture!=desktop.Frame&&desktop.Frame)Attach();
+    if(remoteMode&&Math.Abs(lastVolume-Playback.Volume)>0.01f){lastVolume=Playback.Volume;desktop.Rtc("receiver-volume",new JObject{["value"]=lastVolume});}
+    return;
+  }
   if(Playback != null && Math.Abs(lastVolume - Playback.Volume) > 0.01f) {
     lastVolume = Playback.Volume;
     if(remoteMode && rtc != null) rtc.Call("volume", lastVolume);
@@ -108,48 +126,32 @@ public sealed class WebCinema : MonoBehaviour {
  }
  public bool Point(Ray ray,bool held,float scroll,out Vector3 point) {
   point=Vector3.zero; if(!Active||!screen||!Room.IsHost)return false;
-  bool hit=false;float nearest=15;Vector3 local=Vector3.one;
-  foreach(var display in World.Screens) {
-   var surface=display.GetComponent<MonitorSurface>();if(!surface||!surface.Point(ray,out float d,out var uv)||d>=nearest)continue;
-   nearest=d;local=new Vector3(uv.x-.5f,uv.y-.5f,0);hit=true;
+  if(new Plane(-screen.transform.forward,screen.transform.position).Raycast(ray,out var hit)&&hit>0&&hit<4) {
+   point=ray.GetPoint(hit); Vector3 local=screen.transform.InverseTransformPoint(point);
+   Vector2 uv=new Vector2(local.x+0.5f,local.y+0.5f);
+   if(uv.x>=0&&uv.x<=1&&uv.y>=0&&uv.y<=1) {
+    if(remoteMode){
+     if(Time.unscaledTime>=nextPointer){nextPointer=Time.unscaledTime+0.033f;Command("pointer",new JObject{["x"]=uv.x,["y"]=1-uv.y,["pressed"]=held});}
+     if(Math.Abs(scroll)>0.01f&&Time.unscaledTime>=nextScroll){nextScroll=Time.unscaledTime+0.05f;Command("scroll",new JObject{["delta"]=-Math.Sign(scroll)*120});}
+     return true;
+    }
+    if(Math.Abs(scroll)>0.01f) Local("scroll",0,(int)(-Math.Sign(scroll)*120));
+    if(held&&!pressed) { Local("click",(int)(uv.x*WebWidth),(int)((1-uv.y)*WebHeight)); lastPoint=uv; pressed=true; return true; }
+    if(held&&pressed&&Vector2.Distance(lastPoint,uv)>0.005f) { Local("move",(int)(uv.x*WebWidth),(int)((1-uv.y)*WebHeight)); lastPoint=uv; return true; }
+    if(!held&&pressed) { Local("release",(int)(uv.x*WebWidth),(int)((1-uv.y)*WebHeight)); pressed=false; return true; }
+    return true;
+   }
   }
-  if(hit) { point=ray.GetPoint(nearest); lastPoint=new Vector2(local.x+0.5f,0.5f-local.y); if(held||pressed) Pointer(held?(pressed?2:0):1); if(Mathf.Abs(scroll)>0.01f) Scroll(-scroll*90); }
-  else if(pressed) Pointer(3);
-  pressed=held&&hit; return hit;
+  if(pressed){Local("release",(int)(lastPoint.x*WebWidth),(int)((1-lastPoint.y)*WebHeight));pressed=false;}
+  return false;
  }
- void Pointer(int phase){if(remoteMode){if(phase==2&&Time.unscaledTime<nextPointer)return;nextPointer=Time.unscaledTime+1f/30;Command("pointer",new JObject{["x"]=lastPoint.x,["y"]=lastPoint.y,["phase"]=phase});}else web?.Call("pointer",lastPoint.x,lastPoint.y,phase);}
- void Scroll(float value){if(Time.unscaledTime<nextScroll)return;nextScroll=Time.unscaledTime+.1f;if(remoteMode)Command("scroll",new JObject{["amount"]=value});else web?.Call("scroll",value);}
- public void Open(string url){if(!Room.IsSolo&&!Active){Command("open",new JObject{["profileKey"]=ProfileKey(),["url"]=url});return;}if(!Active)Toggle();if(Active)Navigate(url);}
- public void Text(string value){if(remoteMode)Command("text",new JObject{["value"]=value});else if(Active&&Room.IsHost)web?.Call("text",value);}
- public JArray Tabs {get{try{return remoteMode?remoteTabs:Active?JArray.Parse(web.Call<string>("tabs")):new JArray();}catch{return new JArray();}}}
- public void Navigate(string url){if(remoteMode)Command("navigate",new JObject{["url"]=url});else if(Active&&Room.IsHost)web?.Call("navigate",url);}
- public void NewTab(string url){if(remoteMode)Command("open-tab",new JObject{["url"]=url});else if(Active&&Room.IsHost)web?.Call("newTab",url);}
- public void SelectTab(int index){if(remoteMode){if(index>=0&&index<remoteTabs.Count)Command("select-tab",new JObject{["id"]=remoteTabs[index]["id"]});}else if(Active&&Room.IsHost)web?.Call("selectTab",index);}
- public void CloseTab(int index){if(remoteMode){if(index>=0&&index<remoteTabs.Count)Command("close-tab",new JObject{["id"]=remoteTabs[index]["id"]});}else if(Active&&Room.IsHost)web?.Call("closeTab",index);}
- public void Forward(){if(remoteMode)Command("forward");else if(Active&&Room.IsHost)web?.Call("forward");}
- public void Back(){if(remoteMode)Command("back");else if(Active&&Room.IsHost)web?.Call("back");}
- public void Reload(){if(remoteMode)Command("reload");else if(Active&&Room.IsHost)web?.Call("reload");}
- public void ForgetSession(){if(remoteMode)Command("forget");else if(Active&&Room.IsHost)web?.Call("forgetSession");}
- public void Share(){if(remoteMode)Status?.Invoke("Everyone in the room already sees and hears this browser.");else if(Active&&Room.IsHost)web?.Call("shareVideo");}
- public void BrowserStatus(string value) { Status?.Invoke(value); }
- public void BrowserVideo(string value) {
-  if(!Active||!Room.IsHost)return;
-  try {
-   string decoded=JsonConvert.DeserializeObject<string>(value); if(string.IsNullOrEmpty(decoded))throw new Exception("Start a video in the browser first.");
-   var data=JObject.Parse(decoded); string url=MediaLibrary.Http((string)data["url"]);
-   Room.Send(new JObject { ["type"]="playback",["url"]=url,["title"]=(string)data["title"],["position"]=(double?)data["position"]??0,["paused"]=(bool?)data["paused"]??false }); Close(); Status?.Invoke(Room.IsSolo?"Playing locally on the native screen.":"Shared with room. Native synchronized playback resumed.");
-  } catch { Status?.Invoke("This browser video cannot be shared directly. Choose an HTTP source in Discover; blob/DRM browser playback cannot be handed to the room."); }
+ public void Open(string url){Toggle();if(!Active)return;if(remoteMode){Command("navigate",new JObject{["url"]=url});return;}Local("load",url);}
+ public void Close(){if(remoteMode&&Room.Connected)Command("close");Release();}
+ void Release(){if(Active&&Playback!=null){Playback.Suspended=false;Playback.Video.renderMode=VideoRenderMode.MaterialOverride;}Active=false;remoteMode=false;watching=false;consecutiveSlowFrames=0;DestroyFrames();if(desktop){desktop.ClearFrame();Local("close");}if(web!=null){web.Call("close");web=null;}if(rtc!=null){rtc.Call("close");rtc=null;}if(texture!=null){Destroy(texture);texture=null;}pixels=null;}
+ void BrowserVideo(string json){
+  try{if(string.IsNullOrEmpty(json)||"null"==json)return;var item=JObject.Parse(json);string url=(string)item["url"],title=(string)item["title"]??"Web video";double pos=(double?)item["position"]??0;bool paused=(bool?)item["paused"]??false;if(string.IsNullOrEmpty(url)||!url.StartsWith("http"))return;Close();Playback.Load(url,title);Playback.SendPlayback(paused,pos,true);Status?.Invoke("Playing video from browser: "+title);}catch(Exception e){Debug.Log("[WebCinema] Browser video extraction failed: "+e.Message);}
  }
- public void Close(){if(remoteMode&&Room.IsHost)Command("close");Release();}
- void Release() {
-  if(watching&&Room?.Connected==true&&!Room.IsSolo)Room.Send(new JObject{["type"]="browser-unwatch"});watching=false;remoteMode=false;lastVolume=-1;
-  if(rtc!=null){rtc.Call("close");rtc.Dispose();rtc=null;}DestroyFrames();if(converter)Destroy(converter);converter=null;
-  Active=false; pressed=false; if(web!=null){web.Call("close");web.Dispose();web=null;}
-  if(screen) {screen.sharedMaterial.mainTextureScale=Vector2.one;screen.sharedMaterial.mainTextureOffset=Vector2.zero;screen.sharedMaterial.mainTexture=Texture2D.blackTexture;}
-  if(Ambient)Ambient.Source=null; if(Playback){Playback.Suspended=false;Playback.Video.renderMode=VideoRenderMode.APIOnly;if(World && World.Screen)Playback.SetScreen(World.Screen);}
-  if(texture)Destroy(texture); texture=null;
- }
- void OnApplicationPause(bool paused) { if(paused && Active)Release();else if(!paused&&!Room.IsSolo&&Room.State!=null)OnMessage(Room.State); }
- void OnDestroy() { if(Room)Room.Message-=OnMessage;Release(); }
+ public void ShareVideo(){if(remoteMode){Command("video");return;}Local("shareVideo");}
+ void OnDestroy(){Release();if(Room!=null)Room.Message-=OnMessage;}
 }
 }

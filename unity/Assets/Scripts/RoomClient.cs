@@ -19,7 +19,8 @@ public sealed class RoomClient : MonoBehaviour {
         get { if(IsSolo||string.IsNullOrEmpty(endpoint))return null;var uri = new Uri(endpoint); return new UriBuilder(uri) { Scheme = uri.Scheme == "wss" ? "https" : "http", Port = uri.Port, Path = "/api/core", Query = "", Fragment = "" }.Uri.AbsoluteUri; }
     }
     public bool IsSolo { get; private set; }
-    AndroidJavaObject soloEngine;
+    AndroidJavaObject soloEngine; DesktopBridge desktop;
+    void DesktopMessage(JObject data){if((string)data["kind"]=="solo")SoloMessage(data["value"].ToString());else if((string)data["kind"]=="status")Status?.Invoke((string)data["message"]);}
     string SoloPath => Path.Combine(Application.persistentDataPath,"solo.json");
     public bool Connected => IsSolo ? State!=null : socket?.State == WebSocketState.Open;
     public void StartSolo(JObject profile){
@@ -30,6 +31,9 @@ public sealed class RoomClient : MonoBehaviour {
           soloEngine=new AndroidJavaObject("com.stremiovr.SoloEngine",activity,gameObject.name,new JObject{["generation"]=generation,["profile"]=profile,["saved"]=saved}.ToString());
           Status?.Invoke("Opening solo mode…");
         }catch(Exception error){SoloFailure(error.Message);}
+#elif (UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX) && !UNITY_EDITOR
+        if(!desktop){desktop=DesktopBridge.Get();desktop.Message+=DesktopMessage;}
+        desktop.Send(new JObject{["op"]="solo-start",["initial"]=new JObject{["generation"]=generation,["profile"]=profile,["saved"]=saved}});
 #else
         SoloFailure("Solo mode runs in the Quest APK. Offline rules can be tested with npm test.");
 #endif
@@ -114,7 +118,7 @@ public sealed class RoomClient : MonoBehaviour {
     }
     public async void Send(JObject data) {
         if ((string)data["type"] == "profile") localProfile = (JObject)data["profile"].DeepClone();
-        if(IsSolo){string type=(string)data["type"];if(type=="pose"||type=="ping"||type=="voice"||type=="signal")return;soloEngine?.Call("send",data.ToString(Newtonsoft.Json.Formatting.None));return;}
+        if(IsSolo){string type=(string)data["type"];if(type=="pose"||type=="ping"||type=="voice"||type=="signal")return;if(desktop)desktop.Send(new JObject{["op"]="solo-send",["data"]=data});else soloEngine?.Call("send",data.ToString(Newtonsoft.Json.Formatting.None));return;}
         var current = socket; var cancel = lifetime?.Token ?? CancellationToken.None;
         if (current?.State != WebSocketState.Open) return;
         if (Interlocked.Increment(ref pendingSends) > 32) {
@@ -138,7 +142,7 @@ public sealed class RoomClient : MonoBehaviour {
         finally { var profile=localProfile??new JObject{["name"]="Player"};StartSolo(profile); }
     }
     public void Disconnect() {
-        ++generation;IsSolo=false;if(soloEngine!=null){soloEngine.Call("close");soloEngine.Dispose();soloEngine=null;} lifetime?.Cancel(); socket?.Abort(); socket = null; lifetime?.Dispose(); lifetime = null;
+        ++generation;if(IsSolo&&desktop)desktop.Send(new JObject{["op"]="solo-close"});IsSolo=false;if(soloEngine!=null){soloEngine.Call("close");soloEngine.Dispose();soloEngine=null;} lifetime?.Cancel(); socket?.Abort(); socket = null; lifetime?.Dispose(); lifetime = null;
         State = null; RoomId = null; PlayerId = null; token = null;
         Message?.Invoke(new JObject { ["type"] = "disconnected" });
     }
@@ -147,6 +151,6 @@ public sealed class RoomClient : MonoBehaviour {
         if (!IsSolo && Connected && Time.unscaledTime > nextPing) { nextPing = Time.unscaledTime + 5; Send(new JObject { ["type"] = "ping", ["sentAt"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }); }
     }
     void OnApplicationPause(bool paused) { backgrounded = paused; }
-    void OnDestroy() { Disconnect(); }
+    void OnDestroy() { Disconnect();if(desktop)desktop.Message-=DesktopMessage; }
 }
 }

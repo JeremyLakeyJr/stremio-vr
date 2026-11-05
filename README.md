@@ -2,7 +2,7 @@
 
 **Your own VR apartment. A movie. Your friends.**
 
-Hang out in Open Concept Home on Meta Quest, stream your favorite movies and shows across multiple media providers (Stremio, Jellyfin, MediaStorm, Silo, Nuvio/Mellon), and enjoy synchronized playback together in 1080p / 4K. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
+Hang out in Open Concept Home on Meta Quest or PC VR (Windows/Linux preview), stream your favorite movies and shows across multiple media providers (Stremio, Jellyfin, MediaStorm, Silo, Nuvio/Mellon), and enjoy synchronized playback together in 1080p / 4K. Pull up a sofa seat, customize your character, or make space for a game of chess or tic-tac-toe.
 
 ![Open Concept Home lounge in Movie Night](docs/screenshots/apartment-lounge.png)
 
@@ -22,7 +22,7 @@ Hang out in Open Concept Home on Meta Quest, stream your favorite movies and sho
 - **Get comfortable:** sit down, adjust movement speed, or calibrate the view while reclining.
 - **Talk and play:** WebRTC voice with echo cancellation, customizable R6 avatars, and shared tabletop games.
 
-[Download the Quest alpha](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Provider contracts](docs/PROVIDER_CONTRACTS.md)
+[Download Movie Night VR](https://github.com/oOflyeyesOo/Media-VR/releases) · [What still needs testing](docs/ACCEPTANCE.md) · [Roadmap](docs/ROADMAP.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Provider contracts](docs/PROVIDER_CONTRACTS.md)
 
 **Playing alone?** Install the Quest app and open it: **Solo mode starts automatically**, with no Docker, room code, or room server. Your apartment layout, boards, and continue watching queue save on the headset.
 
@@ -39,6 +39,7 @@ Checked items are implemented; separate acceptance tasks below remain open.
 - [x] Play chess/tic-tac-toe against local computer opponents or practice both sides.
 - [x] Fix Alpha 2's stereo startup bug — stereorecovery verified.
 - [x] Include Open Concept Home, high-resolution textures, sofas, and ambient video lighting.
+- [x] Windows OpenXR and Linux SteamVR PC builds, with bundled browser, offline Solo rules and WebRTC voice.
 - [x] Browse 4,274 Open Source Avatars with saved selection, creator credits, VRM loading and peer/mirror support.
 - [x] Customize R6 avatars; show hand nubs in first person and full characters to peers.
 - [x] Restore the mirror with render-target state preservation and an On/Off setting.
@@ -317,6 +318,91 @@ npm run diagnose
 
 ## Complete Configuration Reference (`.env`)
 
+Open **http://localhost:3000** and click **Copy invite** (the address is also printed in the logs). Enter that exact address in the app's **My room → Invite friends / join a room → Server address** field; the app converts it to WSS automatically. Everyone uses the same address. Press Ctrl-C to stop following logs; the containers continue running.
+
+This address is temporary and can change when the tunnel restarts. Keep all containers and the computer running. The tunnel exposes the room server, not your project files. For permanent hosting, see [internet multiplayer](docs/INTERNET-MULTIPLAYER.md).
+
+**USB / one connected Quest:** keep the default local Docker setup and forward its port with Android platform tools:
+
+```sh
+adb devices
+adb reverse tcp:3000 tcp:3000
+```
+
+Accept USB debugging on the headset. Enter `ws://127.0.0.1:3000/ws` in **My room → Invite friends / join a room**. Repeat `adb reverse` after an ADB/device restart. The room server port now carries both room messages and transcoded video; the server needs access to the source.
+
+**Same Wi-Fi / LAN without a tunnel:** the supplied Compose file binds port 3000 to the computer's loopback address, so other devices cannot reach it directly. Change its `ports` entry in `compose.yaml` from `"127.0.0.1:3000:3000"` to `"3000:3000"`, then run:
+
+```sh
+docker compose up -d cinema
+```
+
+Allow incoming TCP port 3000 through your computer's firewall on the private network. Enter `ws://YOUR_COMPUTER_LAN_IP:3000/ws` on each headset. Use the computer's actual LAN address, such as `192.168.1.50`, and ensure the network does not isolate devices. Restore the loopback binding when you no longer need LAN access. For friends outside your network, use the HTTPS tunnel above.
+
+### 3. Install and open Movie Night
+
+Download an APK from [GitHub Releases](https://github.com/JeremyLakeyJr/stremio-vr/releases). APK binaries are release assets rather than Git-tracked files. Alternatively, follow [Build the Quest APK](#build-the-quest-apk) below. The build output is `unity/Builds/movie-night.apk`.
+
+With Android platform tools installed and USB debugging accepted:
+
+```sh
+adb devices
+adb install -r unity/Builds/movie-night.apk
+```
+
+Open **Movie Night** from the Quest's **Unknown Sources** app list. `-r` updates an existing installation while retaining app data. If `adb devices` shows `offline` or `unauthorized`, wake the headset, reconnect USB, and accept the debugging prompt before installing.
+
+### 4. Create a room and invite friends
+
+1. Open **My room → Invite friends / join a room**, enter the server address chosen above, and leave **Room code** empty.
+2. Select **Connect / create room**. The room code appears at the top of the menu; you are its host.
+3. Friends enter the same server address and your room code, then select **Connect / create room**.
+4. The host chooses media and controls playback/world changes. A one-person room works for solo viewing.
+
+Rooms support up to eight participants. Restarting the server removes existing rooms; create a new one afterward.
+
+### Manage Docker
+
+Run these commands from the repository directory:
+
+| Task | Command |
+| --- | --- |
+| Check service health | `docker compose --profile internet ps` |
+| Read server logs | `docker compose logs -f cinema` |
+| Find the current public address | `docker compose logs --tail=100 internet` |
+| Stop and remove the services | `docker compose --profile internet down` |
+| Update the source | `git pull --ff-only` |
+| Rebuild/restart after updating | `docker compose --profile internet up -d --build` |
+
+For USB/LAN-only use, rebuild with `docker compose up -d --build cinema` instead. Rebuilding the server does not update the headset APK. If you edited `compose.yaml` for LAN access, preserve that local change when pulling updates.
+
+### Common connection/playback problems
+
+| Symptom | What to check |
+| --- | --- |
+| Computer health check fails | Docker is running, `cinema` is healthy, and port 3000 is not already occupied. Read the server logs. |
+| Health works on the computer, Quest cannot connect | The default binding is computer-only. Use the tunnel, USB forwarding, or the LAN binding instructions above. |
+| Public address stopped working | Check the latest tunnel logs; share its new address with everyone. |
+| Room not found | Check the server address and code. A server restart discards rooms. |
+| Catalogs load but video does not | Cinemeta supplies metadata, not video sources. Choose a playable source and check codec/streaming-service compatibility. |
+| Host can play but friends cannot | Update both the server and APK. Every headset must reach the room server, including its `/media/` routes; the server must reach the source. Check CPU load, upload bandwidth, and `mediaStatus` in the app. |
+
+## Run the room server without Docker
+
+Requires Node.js 22 or later and Rust/Cargo. The first core build fetches the pinned Stremio dependency.
+
+```sh
+npm ci
+npm run build:core
+npm run test:core
+npm test
+npm start
+```
+
+The server listens on port 3000. Health check: `GET /health`. Connect the headset to `ws://YOUR_COMPUTER_LAN_IP:3000/ws`; `localhost` on a headset refers to the headset itself.
+
+Configuration:
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | **Networking & Tunnels** | | |
@@ -400,7 +486,7 @@ Open Concept Home is the only world; the theater has been removed. Select a sofa
 1. Open **Stremio account** and start sign-in. Approve the displayed device-link code on your phone/computer or in the Quest browser, then return to Movie Night.
 2. Your account add-ons import automatically. Use the account's sync control to refresh them or **Sign out** to remove the native session.
 3. Open **Discover**, select a catalog/poster, and choose a playable source. For a series, choose an episode first. The host selects what the room watches.
-4. Open **My room** for play/pause and ±10-second seek controls. You can also paste an HTTP(S) video URL into **Direct video URL** and select **Load video (host)**.
+4. Open **My room → Playback controls** for play/pause and ±10-second seek controls. You can also paste an HTTP(S) video URL into **Direct video URL** and select **Load video**.
 5. Open **Watch history** for imported Stremio history or **This headset** recent selections. Use **Continue Watching** and select an entry to find a source and resume. Account history is read-only; local progress is not written back to Stremio.
 
 To install an add-on manually, use **Discover → Manage add-ons / Stremio account**, enter its manifest URL, and select **Install add-on**. Cinemeta provides metadata/catalogs, not playable sources.
@@ -427,7 +513,7 @@ Rebuild both app and server for this protocol change. For Node development, inst
 
 ### Use the browser on the cinema screen
 
-1. In Solo mode, or as the room host, select **My room → Web browser / native player**.
+1. In Solo mode, or as the room host, select **My room → Open web browser**.
 2. Point at the screen and pull the trigger. Walking and smooth turning work while browsing. **Hold right grip and move the right stick up/down** to scroll the page. The beam disappears when it has no interactive target.
 3. Press the **left controller menu button** to manage up to six tabs, enter an address, go back/forward, reload, or type into the selected web input.
 4. In a room, everyone automatically sees and hears the active server tab on all placed screens. Only the host controls it. Closing the browser returns to native playback.
@@ -450,14 +536,13 @@ Two physical tables are placed near the spawn point. Select **Games** in the bot
 
 ### Movie audio and protected sources
 
-**My room → Movie audio / track** shows the selected track, reported language/channel count, volume, and a Next audio track control. Audio goes directly to Android, with an explicitly enabled track and playback held at normal speed. Track selection is local to your headset. If the source still has no sound, try another track or an AAC source; the current player does not add missing AC-3/DTS decoders or automatically transcode audio.
+**My room → Playback controls → Movie audio / track** shows the selected track, reported language/channel count, volume, and a Next audio track control. Audio goes directly to Android, with an explicitly enabled track and playback held at normal speed. Track selection is local to your headset. If the source still has no sound, try another track or an AAC source; the current player does not add missing AC-3/DTS decoders or automatically transcode audio.
 
 Stremio add-ons can return direct streams, torrents, or external provider pages; Stremio is not itself a universal DRM license provider. Compatible Stremio streams already use room synchronization. **Protected DRM playback is not supported by this Unity texture player.** It requires a provider-authorized player, license acquisition for each viewer, and a protected output surface; the screen-mirroring/readback WebView cannot provide that path. No DRM keys, account sessions, or decrypted protected video are shared with peers.
 
 ### Talk with friends
 
 Select **Toggle mic**, allow Android microphone permission, and speak. Select it again to mute. **Toggle audio** mutes incoming room voice. WebRTC supplies echo/noise processing; headphones can still improve clarity. Microphone capture is opt-in.
->>>>>>> upstream/master
 
 ## Architecture
 
@@ -509,26 +594,21 @@ npm test
 # Run provider and system diagnostics
 npm run diagnose
 
-<<<<<<< HEAD
 # Run standalone soak stress test
 node test/soak_stress.js
 ```
-=======
-Your own view shows small hand nubs, with the R6 arms, chest, and legs hidden from your camera. Other players still see your selected full avatar. The room mirror is restored. Toggle it under Settings; it preserves render state after each eye reflection.
->>>>>>> upstream/master
 
 ---
 
 ## Credits & License
 
-<<<<<<< HEAD
 - **Creator:** Jeremy Lakey
 - **Multi-Provider & GPU Architecture:** [oOflyeyesOo/Media-VR](https://github.com/oOflyeyesOo/Media-VR)
 - **Apartment Environment:** [TwilightStudio / KittyFangs.exe](https://jinxxy.com/TwilightStudio/9cvqn)
 - **Chess Set:** [Jacob G](https://www.printables.com/model/32741-chess-set) (CC BY-ND 4.0)
 - **Chess Logic:** [chess.js](https://github.com/jhlywa/chess.js) (BSD-2-Clause)
-- **License:** GNU Affero General Public License v3 (`AGPL-3.0-only`). See [LICENSE](LICENSE).
-=======
+- **License:** GNU Affero General Public License v3 (AGPL-3.0-only). See [LICENSE](LICENSE).
+
 Network deployments expose `/source` with the AGPL source URL. If you deploy a modified fork, set `SOURCE_URL` to its corresponding source, including your changes. Third-party dependencies/art retain their own notices.
 
 ### Alpha 2 stereo recovery
@@ -588,3 +668,49 @@ Creator, collection license and source appear in each avatar's details. **Avatar
 Rebuild the Docker room server with `docker compose up -d --build` when updating to this version: older servers discard the new avatar selection field. Solo needs no server. Only catalog IDs cross the room protocol; peers cannot provide arbitrary download URLs.
 
 Maintainers: refresh the pinned catalog using `node scripts/import-avatar-registry.mjs /path/to/open-source-avatars`, review license changes, and ship the generated headset/server catalogs together. UniVRM 0.131.4 is pinned in Unity's package manifest and loads VRM 1.0 plus migrated VRM 0.x models. Spring-bone physics and facial animation are currently disabled to keep tracked posing predictable on Quest.
+
+
+### PC VR — Windows and Linux (Alpha preview)
+
+PC VR players can join the same rooms as Quest players. Download the appropriate archive from [Releases](https://github.com/JeremyLakeyJr/stremio-vr/releases). Extract the **entire** archive: the `DesktopRuntime` and game data folders must stay beside the game executable. Node.js, Unity, and Docker are not needed to play Solo.
+
+**Windows:** start SteamVR or the Meta Quest Link desktop app and connect your headset. Set the runtime you use as the active OpenXR runtime in its settings. Launch `MovieNight.exe`. Quest Link/Air Link and SteamVR-compatible controllers use the Windows OpenXR build with Direct3D 11.
+
+**Linux:** start SteamVR, connect a supported headset, and launch `Launch-Movie-Night.sh` (or `./MovieNight.x86_64`). The Linux build uses Valve's OpenVR provider with Vulkan; Unity's OpenXR provider does not support Linux. Quest headsets need a Linux-compatible PC streaming solution such as [ALVR](https://github.com/alvr-org/ALVR). Follow [ALVR's Linux setup/troubleshooting](https://github.com/alvr-org/ALVR/wiki/Linux-Troubleshooting) for the SteamVR driver and headset audio devices. The desktop browser uses X11/XWayland; the system needs a working Vulkan driver and Chromium's normal Linux runtime dependencies and user-namespace sandbox support. No sandbox-disabling launch flag is shipped.
+
+Use the left stick/trackpad to walk, the right one to turn, trigger to select, and grips to pick up chess pieces. The left controller's **A/X primary face button** also toggles the menu on PC, because some system/menu buttons are reserved by the VR runtime. Keyboard **Tab** provides another menu toggle. Comfort settings, reclined viewing, screen placement/curvature, the mirror, and the avatar library remain available. Select your headset's speakers and microphone as the operating system's audio devices.
+
+Solo launches automatically. The bundled desktop runtime supplies the browser, offline tabletop rules, video decoding and WebRTC; it starts and closes with the app. In multiplayer, browsers still run on the room server and stream to everyone. Existing Alpha 8 room servers and Quest clients remain protocol-compatible; no new room-server deployment is required for PC support.
+
+Browser frames target 1920×1080 at up to 60 fps, with bounded frame buffering; actual frame rate depends on the GPU, decoder and source. If your Linux browser GPU driver fails, try `MOVIE_NIGHT_BROWSER_SOFTWARE=1 ./Launch-Movie-Night.sh` as a slower software-rendering fallback. DRM services that require a bundled commercial CDM are not supported by this desktop runtime.
+
+Stremio credentials and the server-browser profile key use the operating system's encrypted storage through Electron. On Linux, unlock your GNOME Keyring/KWallet-compatible secret store. When secure storage is unavailable, sign-in remains in memory and local browser cookies use a temporary session instead of writing them with a plaintext fallback. Logs are under the application's persistent-data folder (`desktop-runtime.log` and Unity's `Player.log`).
+
+Validation covers the native player builds, offline rules, 1080p browser frames/color, pointer input, tab management, real WebRTC video/audio, synthetic-microphone voice negotiation and MP4 decoding. Physical Windows/Linux headset display, controller mappings and sustained VR performance still require testing on those systems; these PC downloads are previews.
+
+#### Build the PC versions
+
+Install Unity 6000.0.66f2 with Linux and Windows **Mono** build support. Prepare the Home assets as described above, then:
+
+```bash
+npm ci --prefix desktop
+node desktop/node_modules/electron/install.js
+Unity -batchmode -nographics -quit -projectPath unity -buildTarget StandaloneWindows64 -executeMethod StremioVR.Editor.PcBuild.Windows
+Unity -batchmode -nographics -quit -projectPath unity -buildTarget StandaloneLinux64 -executeMethod StremioVR.Editor.PcBuild.Linux
+node scripts/package-desktop-runtime.cjs win32 unity/Builds/Windows/DesktopRuntime
+node scripts/package-desktop-runtime.cjs linux unity/Builds/Linux/DesktopRuntime
+```
+
+The Unity menu also offers **Movie Night → Build Windows PC VR / Build Linux PC VR**. Each build selects its own XR loader. Run `node scripts/check-desktop-runtime.mjs` for the desktop integration test (requires FFmpeg and a graphical desktop). It uses synthetic audio, not your microphone. Set `MOVIE_NIGHT_TEST_SOFTWARE=0` to test the default GPU configuration; the test defaults to software rendering for reproducibility. The runtime's authenticated IPC socket binds only to loopback and does not create a multiplayer room server.
+
+### Comfortable spatial menus
+
+![Spatial menu layout](docs/screenshots/spatial-menu.png)
+
+*Rendered from the runtime menu layout. The redesigned menus have been accepted on Quest.*
+
+Open the menu with the left controller menu button (PC also supports A/X or keyboard Tab). It appears 1.6 metres ahead and stays in place until you reopen it or choose **Recenter**. The angled navigation wing and main panel use world-space UI, including when viewing while reclined.
+
+Point with the controller and press trigger to select; use the right stick to scroll. Hovering highlights and gently lifts controls; selection gives a quiet spatial click and a short controller pulse. **Comfort → Menu feedback** lets you disable sounds/haptics or enable reduced menu motion. No gaze dwell selection is used.
+
+**My room** provides quick access to browsing, Discover, playback, room arrangement and inviting friends. Playback and server connection settings have separate pages.

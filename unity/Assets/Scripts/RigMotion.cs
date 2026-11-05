@@ -103,7 +103,7 @@ public sealed class RigMotion : MonoBehaviour {
  public void AdjustView(float degrees) { var pivot=Head.position; Tracking.localRotation=Quaternion.Euler(degrees,0,0)*Tracking.localRotation; Tracking.position+=pivot-Head.position; }
  public void ResetView() { var pivot=Head.position; Tracking.localRotation=Quaternion.identity; Tracking.position+=pivot-Head.position; Status?.Invoke("View angle reset"); }
  void Update() {
-  var left=InputDevices.GetDeviceAtXRNode(XRNode.LeftHand); var right=InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+  var left=VrInput.DeviceAt(XRNode.LeftHand); var right=VrInput.DeviceAt(XRNode.RightHand);
   right.TryGetFeatureValue(CommonUsages.secondaryButton,out bool stand); if(stand && !standDown) Stand(); standDown=stand;
   
   // Smooth thumbstick input with quadratic curve & deadzone

@@ -22,6 +22,7 @@
     "com.unity.modules.unitywebrequesttexture": "1.0.0",
     "com.unity.modules.vectorgraphics": "1.0.0",
     "com.unity.modules.video": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
+    "com.unity.modules.xr": "1.0.0",
+    "com.valvesoftware.unity.openvr": "https://github.com/ValveSoftware/unity-xr-plugin.git?path=/com.valve.openvr#a30a0100daacef8c3f0290ce5b179c8a1148abb0"
   }
 }

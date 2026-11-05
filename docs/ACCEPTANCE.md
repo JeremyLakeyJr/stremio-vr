@@ -182,3 +182,28 @@ Integrated the ToxSam registry at revision `0f9a1b2fd99894736563d55b2c9dc9125700
 40 Unity EditMode tests passed, including a real CC0 Devil avatar from Polygonal Mind/100Avatars R1, migration from VRM 0.x, export/reimport through the VRM 1.0 loader, malformed/external-resource rejection, and existing rendering/interaction regressions. 58 server tests passed, including profile synchronization, unknown ID rejection and parity between the server/headset catalogs. The real-model fixture lives in ignored `unity/Builds/avatar-fixture.vrm`; download it from the pinned catalog to repeat that integration test. No claim that all 4,274 individual models have been tested.
 
 Alpha 8 (0.1.7, Android code 8) built and installed on Quest. The user confirmed that preview, selection, both-eye appearance, mirror and tracked head/arms work. Recent Unity/Android logs showed no matching runtime errors. The Docker image built successfully and loaded all 4,274 catalog IDs. Multi-headset performance across the full avatar catalog remains unmeasured.
+
+
+## Alpha 9: Windows and Linux PC VR preview
+
+Windows x64 builds with OpenXR/Direct3D 11; Linux x86_64 builds with Valve OpenVR/Vulkan. Both include the pinned Electron runtime for Solo rules, browser tabs, native media decoding, room-browser WebRTC and voice. Credentials use OS encrypted storage, with an in-memory fallback when secure storage is unavailable. Desktop controller input includes a Linux OpenVR button adapter and a primary-face-button menu fallback.
+
+Both native builds and the Android regression build succeeded. 40 Unity EditMode tests and 60 Node/server/Solo tests passed; JavaScript syntax and bundled Solo parity checks passed. The desktop integration test passed Solo placement, 1920×1080 BGRA frame delivery, pointer input, tabs, real WebRTC video/audio, MP4 decoding and synthetic microphone voice negotiation. The packaged Linux player started Solo and displayed a 1920×1080 browser frame. This machine has no configured SteamVR runtime; the app reported that condition and continued to its desktop view.
+
+Physical Windows/Linux headset rendering, controller mappings, audio routing and sustained VR performance remain unverified. Windows execution has not been tested on this Linux build machine. These downloads are PC previews; the previously accepted Quest Alpha 8 remains available.
+
+
+## Spatial menu redesign
+
+Menus remain world anchored and now open at 1.6 m with a 15° angled navigation wing, matte rounded surfaces, 26–30-unit text and larger controls. At the default scale/distance, 26-unit text subtends approximately 1.1° in height. Long action labels expand their controls. The room page is split into focused playback and multiplayer pages. Hover/select feedback combines color, a small depth lift, spatial audio and controller haptics, with persisted sound/haptic/reduced-motion settings. The existing controller ray handles each canvas plane separately; this project does not use XR Interaction Toolkit.
+
+43 Unity EditMode tests passed with graphics enabled, including angled/off-axis controller-ray intersection and out-of-range rejection. The actual runtime Home layout was rendered and inspected for spacing and clipping. Final in-headset readability, sounds and haptic strength require user acceptance; no new headset acceptance is claimed.
+
+Quest, Windows and Linux builds succeeded. The connected Quest still has Alpha 8 (0.1.7/code 8). Android rejected the update with INSTALL_FAILED_UPDATE_INCOMPATIBLE because its installed signing certificate differs from the local debug key. No uninstall or data clearing was performed. The new APK and the archived Alpha 8 APK both match the current local debug key; installing over this headset needs its original signing key or an explicitly approved reinstall.
+
+
+## Alpha 10: spatial menus on all platforms
+
+After user authorization, the old Quest installation was removed and the menu build installed and launched successfully. The user confirmed “looks good.” This supersedes the installation blocker and pending Quest menu acceptance above. Windows/Linux physical headset acceptance remains pending. Release version: 0.1.9, Android version code 10.
+
+All three platforms were rebuilt successfully for Alpha 10. The 60 server/Solo tests, JavaScript syntax checks and bundled Solo parity check passed again. The 43 Unity tests from the menu redesign remain passing; only release metadata changed since that run.

@@ -6,7 +6,8 @@
     "Unity.Postprocessing.Runtime",
     "VRM10",
     "UniGLTF",
-    "UniGLTF.Utils"
+    "UniGLTF.Utils",
+    "Unity.XR.OpenVR"
   ],
   "autoReferenced": true,
   "allowUnsafeCode": true
