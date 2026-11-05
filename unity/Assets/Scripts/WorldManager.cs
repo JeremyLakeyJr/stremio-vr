@@ -45,6 +45,8 @@ public sealed class WorldManager : MonoBehaviour {
    var box=target.AddComponent<BoxCollider>(); box.isTrigger=true; box.size=new Vector3(0.65f,0.65f,0.65f); target.AddComponent<SeatTarget>().Index=i;
   }
   glowMaterial=new Material(Shader.Find("StremioVR/ScreenGlow"));AddGlow(Screen);
+  var ground = new GameObject("SolidGroundPlane"); ground.transform.SetParent(container.transform,false);
+  var groundBox = ground.AddComponent<BoxCollider>(); groundBox.size = new Vector3(100f, 0.4f, 100f); groundBox.center = new Vector3(0, -0.2f, 0);
   var mirrorObject=GameObject.CreatePrimitive(PrimitiveType.Quad); mirrorObject.name="Room mirror"; mirrorObject.transform.SetParent(container.transform,false); mirrorObject.transform.position=Data.Spawn+new Vector3(-1.4f,1.5f,-1.5f); mirrorObject.transform.rotation=Quaternion.Euler(0,180,0); mirrorObject.transform.localScale=new Vector3(1.5f,2.2f,1); mirror=mirrorObject.AddComponent<RoomMirror>();
   ApplyShaderProperties();
   SetEnvironmentMode(CurrentEnvMode);

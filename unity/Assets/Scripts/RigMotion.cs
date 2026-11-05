@@ -16,6 +16,7 @@ public sealed class RigMotion : MonoBehaviour {
  public bool SprintEnabled = true;
  public bool TeleportMode = false;
  Vector3 teleportTarget; bool teleportAiming;
+ LineRenderer teleportLine; GameObject teleportMarker;
  public float SprintMultiplier = 1.75f;
  public bool Seated => seatedSeat>=0;
  public float ViewPitch => Mathf.DeltaAngle(0,Tracking.localEulerAngles.x);
@@ -26,6 +27,24 @@ public sealed class RigMotion : MonoBehaviour {
  public void Initialize() {
   Rig.gameObject.layer=8; controller=Rig.gameObject.AddComponent<CharacterController>(); controller.radius=0.2f; controller.height=1.65f; controller.center=Vector3.up*0.825f; controller.stepOffset=0.35f; controller.slopeLimit=55;
   Rig.position=World.Data.Spawn; Room.Message+=Message;
+  var lineObj = new GameObject("TeleportArc", typeof(LineRenderer));
+  lineObj.transform.SetParent(Rig, false);
+  teleportLine = lineObj.GetComponent<LineRenderer>();
+  teleportLine.useWorldSpace = true;
+  teleportLine.startWidth = 0.02f;
+  teleportLine.endWidth = 0.05f;
+  teleportLine.positionCount = 20;
+  var unlitShader = Shader.Find("Unlit/Color") ?? Shader.Find("Sprites/Default");
+  teleportLine.material = new Material(unlitShader) { color = new Color(0.2f, 0.75f, 1f, 0.85f) };
+  teleportLine.enabled = false;
+
+  teleportMarker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+  teleportMarker.name = "TeleportMarker";
+  teleportMarker.transform.SetParent(Rig, false);
+  Destroy(teleportMarker.GetComponent<Collider>());
+  teleportMarker.transform.localScale = new Vector3(0.5f, 0.01f, 0.5f);
+  teleportMarker.GetComponent<Renderer>().material = new Material(unlitShader) { color = new Color(0.2f, 0.85f, 1f, 0.6f) };
+  teleportMarker.SetActive(false);
  }
  public void SetAvatarHeight(float eyeHeight) {
   if (eyeHeight > 0.3f && eyeHeight < 4.0f) {
@@ -133,15 +152,64 @@ public sealed class RigMotion : MonoBehaviour {
   controller.center = new Vector3(localHead.x, height * 0.5f, localHead.z);
   
   if (TeleportMode) {
-   if (stick.y > 0.5f) {
+   if (stick.y > 0.35f) {
     teleportAiming = true;
-    teleportTarget = Rig.position + forward * (stick.y * 3f);
-    if (Physics.Raycast(teleportTarget + Vector3.up * 2f, Vector3.down, out var hit, 5f)) {
-     teleportTarget = hit.point;
+    Vector3 startPos = LeftHand != null ? LeftHand.position : Head.position + Vector3.down * 0.2f;
+    Vector3 aimDir = (HandOriented && LeftHand != null) ? LeftHand.forward : (Head.forward + Vector3.down * 0.35f).normalized;
+    Vector3 velocity = (aimDir + Vector3.up * 0.2f).normalized * (stick.y * 8f);
+    Vector3 current = startPos;
+    Vector3 last = current;
+    bool hitGround = false;
+    Vector3 groundPoint = current;
+    Vector3 groundNormal = Vector3.up;
+
+    if (teleportLine != null) {
+     teleportLine.enabled = true;
+     teleportLine.positionCount = 20;
+    }
+
+    for (int p = 0; p < 20; p++) {
+     if (teleportLine != null) teleportLine.SetPosition(p, current);
+     if (!hitGround && p > 0) {
+      if (Physics.Raycast(last, (current - last).normalized, out var hit, Vector3.Distance(last, current), ~((1 << 8) | (1 << 9) | (1 << 2)))) {
+       hitGround = true;
+       groundPoint = hit.point;
+       groundNormal = hit.normal;
+       if (teleportLine != null) {
+        for (int r = p; r < 20; r++) teleportLine.SetPosition(r, groundPoint);
+       }
+       break;
+      }
+     }
+     last = current;
+     current += velocity * 0.05f;
+     velocity += Vector3.down * (9.81f * 0.05f);
+    }
+
+    if (!hitGround) {
+     if (Physics.Raycast(current, Vector3.down, out var downHit, 10f, ~((1 << 8) | (1 << 9) | (1 << 2)))) {
+      hitGround = true;
+      groundPoint = downHit.point;
+      groundNormal = downHit.normal;
+     } else {
+      groundPoint = new Vector3(current.x, 0, current.z);
+     }
+    }
+
+    teleportTarget = groundPoint;
+    if (teleportMarker != null) {
+     teleportMarker.SetActive(true);
+     teleportMarker.transform.position = groundPoint + Vector3.up * 0.02f;
+     teleportMarker.transform.up = groundNormal;
     }
    } else if (teleportAiming && stick.magnitude < 0.2f) {
     teleportAiming = false;
+    if (teleportLine != null) teleportLine.enabled = false;
+    if (teleportMarker != null) teleportMarker.SetActive(false);
     Teleport(teleportTarget, false);
+   } else if (!teleportAiming) {
+    if (teleportLine != null && teleportLine.enabled) teleportLine.enabled = false;
+    if (teleportMarker != null && teleportMarker.activeSelf) teleportMarker.SetActive(false);
    }
   } else {
    verticalVelocity = controller.isGrounded ? -2.5f : Mathf.Max(-10f, verticalVelocity - 9.81f * Time.deltaTime);
@@ -149,6 +217,6 @@ public sealed class RigMotion : MonoBehaviour {
   }
   if(Head.position.y < -3) Teleport(World.Data.Spawn, false);
  }
- void OnDestroy() { if(Room!=null) Room.Message-=Message; }
+ void OnDestroy() { if(teleportLine) Destroy(teleportLine.gameObject); if(teleportMarker) Destroy(teleportMarker); if(Room!=null) Room.Message-=Message; }
 }
 }

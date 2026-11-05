@@ -250,7 +250,7 @@ public sealed class CinemaApp : MonoBehaviour {
         ActionButton("Web screen controls",BrowserControls);
         streamInput = Field("Direct video URL", "", null);
         ActionButton("Load video", () => playback.Load(streamInput.text.Trim(), "Direct stream"));
-        ActionButton("👓 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
+        ActionButton("👓 Cinema Controls (3D SBS / Void / Passthrough)", CinemaControlsPage);
         ActionButton("Audio & subtitles",AudioSettings);
         ActionButton("Play / pause", () => playback.Toggle());
         ActionButton("Seek −10 seconds", () => playback.Seek(-10)); ActionButton("Seek +10 seconds", () => playback.Seek(10));
@@ -381,16 +381,13 @@ public sealed class CinemaApp : MonoBehaviour {
         });
         row += 62;
 
-        // Bed Mode & Curvature
-        Heading("Viewing Position & Curvature (Fluid / DeoVR)");
-        ActionButton("Bed Mode (Ceiling Projection): " + (world.BedMode ? "Active (Ceiling)" : "Standard (Wall)"), () => {
-            world.SetBedMode(!world.BedMode);
-            settings[SettingsKeys.BedMode] = world.BedMode; Save(); CinemaControlsPage();
-        });
-        SpeedControl("Screen Curvature", world.CustomCurvature, 0f, 90f, 15f, val => {
+        // Screen Curvature & Monitor Placement
+        Heading("Screen Curvature & Custom Monitors");
+        SpeedControl("IMAX Screen Curvature", world.CustomCurvature, 0f, 90f, 15f, val => {
             world.SetCurvature(val);
             settings[SettingsKeys.ScreenCurvature] = val; Save();
         }, "°", CinemaControlsPage);
+        ActionButton("Arrange & place custom monitors", LayoutPage);
 
         // Picture Tuning
         Heading("Picture Tuning (DeoVR Calibration)");
@@ -424,6 +421,19 @@ public sealed class CinemaApp : MonoBehaviour {
 
     void AudioSettings() {
         Clear(); pageTitle.text = "Audio & subtitles";
+        Heading("Master Volume & Audio Output");
+        SpeedControl("Master volume", playback.Volume, 0f, 1f, 0.1f, val => {
+            playback.SetVolume(val);
+            if (browser != null && browser.Active) browser.SetVolume(val);
+        }, "%", AudioSettings);
+        if (browser != null && browser.Active) {
+            ActionButton(playback.Volume <= 0.001f ? "Unmute web audio" : "Mute web audio", () => {
+                float next = playback.Volume <= 0.001f ? 1.0f : 0f;
+                playback.SetVolume(next);
+                browser.SetVolume(next);
+                AudioSettings();
+            });
+        }
         Heading("Audio tracks");
         ActionButton(playback.AudioInfo, () => { playback.NextAudioTrack(); AudioSettings(); });
         ActionButton("Cycle server-transcoded audio track", () => {
@@ -481,6 +491,17 @@ public sealed class CinemaApp : MonoBehaviour {
         Heading(room.IsSolo?"Your private browser — account session stays on this headset":"Shared server browser — everyone in the room sees and hears it");
         ActionButton(browser.Active?"Return to native player":"Open browser on the screen",()=>{browser.Toggle();BrowserControls();});
         ActionButton("Hide menu / interact with the screen",()=>panelMotion.Show(false));
+        Heading("Web Browser Sound & Volume");
+        SpeedControl("Web volume", playback.Volume, 0f, 1f, 0.1f, val => {
+            playback.SetVolume(val);
+            if (browser != null && browser.Active) browser.SetVolume(val);
+        }, "%", BrowserControls);
+        ActionButton(playback.Volume <= 0.001f ? "Unmute web audio" : "Mute web audio", () => {
+            float next = playback.Volume <= 0.001f ? 1.0f : 0f;
+            playback.SetVolume(next);
+            if (browser != null && browser.Active) browser.SetVolume(next);
+            BrowserControls();
+        });
         Heading("Quick Media Web Wrappers");
         Plate(content, 0, row, actionWidth, 126, new Color(0.12f, 0.15f, 0.22f));
         Button("🎬 Stremio Web", content, 10, row + 8, 290, () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
@@ -1038,7 +1059,7 @@ public sealed class CinemaApp : MonoBehaviour {
         });
 
         Heading("Cinema Display & Environments (Fluid / Bigscreen / DeoVR)");
-        ActionButton("👓 Open Cinema & 3D Controls (Void, Passthrough, 3D, Bed Mode)", CinemaControlsPage);
+        ActionButton("👓 Open Cinema & 3D Controls (Void, Passthrough, 3D, Curvature)", CinemaControlsPage);
 
         Heading("Open Concept Home");
         ActionButton("Arrange room",LayoutPage);
@@ -1384,7 +1405,7 @@ public sealed class CinemaApp : MonoBehaviour {
             var passInput = PasswordField("Account Password", "", null);
             ActionButton("Sign In with Email & Password", () => account.LoginWithCredentials(emailInput.text, passInput.text));
         }
-        ActionButton("🎛 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Passthrough)", CinemaControlsPage);
         ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
     }
@@ -1653,7 +1674,7 @@ public sealed class CinemaApp : MonoBehaviour {
             Heading("Active Resolution: " + browser.WebWidth + "×" + browser.WebHeight);
         }
 
-        ActionButton("🎛 Cinema Controls (3D SBS / Void / Bed Mode)", CinemaControlsPage);
+        ActionButton("🎛 Cinema Controls (3D SBS / Void / Passthrough)", CinemaControlsPage);
         ActionButton("🎬 Open Stremio Web Player", () => { browser.Open("https://web.stremio.com/"); panelMotion.Show(false); });
         ActionButton("Back to media library", Library);
         Resize();

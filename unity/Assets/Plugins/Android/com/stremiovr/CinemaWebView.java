@@ -147,6 +147,13 @@ public final class CinemaWebView {
     public void text(String value) { activity.runOnUiThread(()-> { if(web==null||closed)return; String quoted=JSONObject.quote(value); web.evaluateJavascript("(()=>{const e=document.activeElement;if(!e||!['INPUT','TEXTAREA'].includes(e.tagName))return;const p=e.tagName==='INPUT'?HTMLInputElement.prototype:HTMLTextAreaElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,"+quoted+");e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()",null); }); }
     public void back() { activity.runOnUiThread(()->{if(web!=null&&!closed&&web.canGoBack())web.goBack();}); }
     public void reload() { activity.runOnUiThread(()->{if(web!=null&&!closed)web.reload();}); }
+    public void volume(float val) {
+        activity.runOnUiThread(() -> {
+            if (web == null || closed) return;
+            float clamped = Math.max(0f, Math.min(1f, val));
+            web.evaluateJavascript("(()=>{ try{ document.querySelectorAll('video,audio').forEach(v=>{ v.volume=" + clamped + "; v.muted=" + (clamped <= 0.001f ? "true" : "false") + "; }); }catch(e){} })()", null);
+        });
+    }
     public void shareVideo() { activity.runOnUiThread(()-> { if(web==null||closed)return; web.evaluateJavascript("(()=>{const v=document.querySelector('video');return v?JSON.stringify({url:v.currentSrc,title:document.title,position:v.currentTime,paused:v.paused}):null})()",value->UnityPlayer.UnitySendMessage(receiver,"BrowserVideo",value)); }); }
     public void close() { closed=true; activity.runOnUiThread(()->{sessionHandler.removeCallbacks(rememberLoop);remember(this::release);sessionHandler.postDelayed(this::release,1000);}); }
     private void release() { for(WebView tab:tabs){tab.stopLoading();tab.destroy();}tabs.clear();web=null; if(presentation!=null){presentation.dismiss();presentation=null;} if(display!=null){display.release();display=null;} if(reader!=null){reader.close();reader=null;} if(capture!=null){capture.quitSafely();capture=null;} frame=null; }

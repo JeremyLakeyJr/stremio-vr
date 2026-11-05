@@ -15,6 +15,12 @@ public sealed class WebCinema : MonoBehaviour {
  byte[] pixels; Texture2D texture; AndroidJavaObject web; Renderer screen; float nextFrame; Vector2 lastPoint; bool pressed, receivedFrame; int consecutiveSlowFrames;
  AndroidJavaObject rtc; Texture2D yPlane,uPlane,vPlane; RenderTexture videoTexture; Material converter; JArray remoteTabs=new JArray(); string ice="[]"; bool remoteMode,watching; float nextPointer,nextScroll,lastVolume=-1;
  public void Initialize(){Room.Message+=OnMessage;}
+ public void SetVolume(float val) {
+   if (Playback != null) Playback.SetVolume(val);
+   lastVolume = Mathf.Clamp01(val);
+   if (remoteMode && rtc != null) rtc.Call("volume", lastVolume);
+   else if (web != null) web.Call("volume", lastVolume);
+ }
  public void SetResolution(int width, int height) {
   if(width<640 || height<360) return;
   if(WebWidth==width && WebHeight==height && pixels!=null) return;
@@ -74,6 +80,11 @@ public sealed class WebCinema : MonoBehaviour {
  }
  void Update() {
   if(!Active) return; if(!remoteMode&&!Room.IsHost) { Release();return; } if(screen!=World.Screen) Attach();
+  if(Playback != null && Math.Abs(lastVolume - Playback.Volume) > 0.01f) {
+    lastVolume = Playback.Volume;
+    if(remoteMode && rtc != null) rtc.Call("volume", lastVolume);
+    else if(web != null) web.Call("volume", lastVolume);
+  }
   if(remoteMode){try{ReceiveFrame();}catch(Exception e){Status?.Invoke("Browser frame failed: "+e.GetType().Name);Release();}return;}
   float targetFps = WebWidth >= 3840 ? 24f : 30f; if(Time.unscaledTime<nextFrame)return; nextFrame=Time.unscaledTime+1f/targetFps;
   try {
